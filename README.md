@@ -6,8 +6,8 @@
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
 [![Redis](https://img.shields.io/badge/Redis-6+-red.svg)](https://redis.io/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://www.docker.com/)
-[![Docker Build](https://github.com/leesonchen/claude-relay-service/actions/workflows/auto-release-pipeline.yml/badge.svg)](https://github.com/leesonchen/claude-relay-service/actions/workflows/auto-release-pipeline.yml)
-[![Docker Pulls](https://img.shields.io/docker/pulls/weishaw/claude-relay-service)](https://hub.docker.com/r/weishaw/claude-relay-service)
+[![Docker Build](https://github.com/leesonchen/crs/actions/workflows/auto-release-pipeline.yml/badge.svg)](https://github.com/leesonchen/crs/actions/workflows/auto-release-pipeline.yml)
+[![Docker Pulls](https://img.shields.io/docker/pulls/leesonchen/crs)](https://hub.docker.com/r/leesonchen/crs)
 
 **🔐 自行搭建Claude API中转服务，支持多账户管理**
 
@@ -154,7 +154,7 @@ crs uninstall # 卸载服务
 $ crs install
 
 # 会依次询问：
-安装目录 (默认: ~/claude-relay-service):
+安装目录 (默认: ~/crs):
 服务端口 (默认: 3000): 8080
 Redis 地址 (默认: localhost):
 Redis 端口 (默认: 6379):
@@ -211,8 +211,8 @@ sudo systemctl start redis
 
 ```bash
 # 下载项目
-git clone https://github.com/leesonchen//claude-relay-service.git
-cd claude-relay-service
+git clone https://github.com/leesonchen//crs.git
+cd crs
 
 # 安装依赖
 npm install
@@ -551,7 +551,7 @@ npm run service:stop
 
 ```bash
 # 1. 进入项目目录
-cd claude-relay-service
+cd crs
 
 # 2. 拉取最新代码
 git pull origin main

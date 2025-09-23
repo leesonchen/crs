@@ -145,8 +145,8 @@ sudo systemctl start redis
 
 ```bash
 # Download project
-git clone https://github.com/leesonchen/claude-relay-service.git
-cd claude-relay-service
+git clone https://github.com/leesonchen/crs.git
+cd crs
 
 # Install dependencies
 npm install
@@ -279,7 +279,7 @@ When a new version is released, follow these steps to upgrade the service:
 
 ```bash
 # 1. Navigate to project directory
-cd claude-relay-service
+cd crs
 
 # 2. Pull latest code
 git pull origin main

@@ -61,10 +61,10 @@
 
 ```bash
 # 拉取最新版本
-docker pull weishaw/claude-relay-service:latest
+docker pull leesonchen/crs:latest
 
 # 拉取特定版本
-docker pull weishaw/claude-relay-service:v1.0.0
+docker pull leesonchen/crs:v1.0.0
 
 # 运行容器
 docker run -d \
@@ -74,7 +74,7 @@ docker run -d \
   -v ./logs:/app/logs \
   -e ADMIN_USERNAME=my_admin \
   -e ADMIN_PASSWORD=my_password \
-  weishaw/claude-relay-service:latest
+  leesonchen/crs:latest
 ```
 
 ## 🔍 验证配置
