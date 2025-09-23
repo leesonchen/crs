@@ -30,6 +30,26 @@ const httpDebugLogger = winston.createLogger({
   ]
 })
 
+// Dedicated conversation logger for full input/output payloads
+const conversationLogger = winston.createLogger({
+  level: 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.printf(({ timestamp, level, message }) => {
+      return `[${timestamp}] ${level.toUpperCase()}: ${message}`
+    })
+  ),
+  transports: [
+    new DailyRotateFile({
+      filename: path.join(logsDir, 'http-conversation-%DATE%.log'),
+      datePattern: 'YYYY-MM-DD',
+      zippedArchive: true,
+      maxSize: config.logging?.maxSize || '10m',
+      maxFiles: config.logging?.maxFiles || 5
+    })
+  ]
+})
+
 function sanitizeHeaders(headers) {
   const redacted = {}
   const redactKeys = [
@@ -80,6 +100,22 @@ function debugInterceptor(req, res, next) {
     httpDebugLogger.info(
       `RequestBody(${requestId}):\n${stringifySafe(req.body)}`
     )
+    conversationLogger.info(
+      `===== BEGIN CONVERSATION ${requestId} =====\n` +
+        `REQUEST ${reqLine}\n` +
+        `Headers: ${JSON.stringify(reqHeaders, null, 2)}\n` +
+        `Body:\n${stringifySafe(req.body)}`
+    )
+  } else if (req.rawBody !== undefined) {
+    httpDebugLogger.info(
+      `RequestRawBody(${requestId}):\n${stringifySafe(req.rawBody)}`
+    )
+    conversationLogger.info(
+      `===== BEGIN CONVERSATION ${requestId} =====\n` +
+        `REQUEST ${reqLine}\n` +
+        `Headers: ${JSON.stringify(reqHeaders, null, 2)}\n` +
+        `Body(raw):\n${stringifySafe(req.rawBody)}`
+    )
   }
 
   // Intercept response to capture body/stream
@@ -116,6 +152,7 @@ function debugInterceptor(req, res, next) {
         // For SSE, log incrementally to avoid huge memory
         const out = Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk || '')
         httpDebugLogger.info(`SSE(${requestId}) << ${out}`)
+        conversationLogger.info(`SSE(${requestId}) << ${out}`)
       } else {
         recordChunk(chunk)
       }
@@ -145,6 +182,13 @@ function debugInterceptor(req, res, next) {
           `Body:\n${bodyText}`
       )
 
+      conversationLogger.info(
+        `RESPONSE(${requestId}) Status=${res.statusCode} Content-Type=${res.getHeader('Content-Type') || res.getHeader('content-type') || 'unknown'}\n` +
+          `Headers: ${JSON.stringify(resHeaders, null, 2)}\n` +
+          `Body:\n${bodyText}`
+      )
+
+      conversationLogger.info(`===== END CONVERSATION ${requestId} =====`)
       httpDebugLogger.info(`===== END REQUEST ${requestId} =====`)
     } catch (_) {}
     return originalEnd.call(this, chunk, encoding, cb)

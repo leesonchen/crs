@@ -144,7 +144,7 @@ class Application {
         try {
           const { debugInterceptor } = require('./middleware/debugInterceptor')
           this.app.use(debugInterceptor)
-          logger.info('🐛 HTTP调试拦截器已启用 - 日志输出到 logs/http-debug-*.log')
+          logger.info('🐛 HTTP调试拦截器已启用 - 请求/响应全文日志输出到 logs/http-debug-*.log；会话全文输出到 logs/http-conversation-*.log')
         } catch (error) {
           logger.warn('⚠️ 无法加载HTTP调试拦截器:', error.message)
         }
