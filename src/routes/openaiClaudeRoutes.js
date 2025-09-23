@@ -10,6 +10,7 @@ const path = require('path')
 const logger = require('../utils/logger')
 const { authenticateApiKey } = require('../middleware/auth')
 const claudeRelayService = require('../services/claudeRelayService')
+const claudeConsoleRelayService = require('../services/claudeConsoleRelayService')
 const openaiToClaude = require('../services/openaiToClaude')
 const apiKeyService = require('../services/apiKeyService')
 const unifiedClaudeScheduler = require('../services/unifiedClaudeScheduler')
@@ -211,7 +212,7 @@ async function handleChatCompletion(req, res, apiKeyData) {
       sessionHash,
       claudeRequest.model
     )
-    const { accountId } = accountSelection
+    const { accountId, accountType } = accountSelection
 
     // 获取该账号存储的 Claude Code headers
     const claudeCodeHeaders = await claudeCodeHeadersService.getAccountHeaders(accountId)
@@ -241,54 +242,100 @@ async function handleChatCompletion(req, res, apiKeyData) {
         }
       })
 
-      // 使用转换后的响应流 (使用 OAuth-only beta header，添加 Claude Code 必需的 headers)
-      await claudeRelayService.relayStreamRequestWithUsageCapture(
-        claudeRequest,
-        apiKeyData,
-        res,
-        claudeCodeHeaders,
-        (usage) => {
-          // 记录使用统计
-          if (usage && usage.input_tokens !== undefined && usage.output_tokens !== undefined) {
-            const model = usage.model || claudeRequest.model
-
-            // 使用新的 recordUsageWithDetails 方法来支持详细的缓存数据
-            apiKeyService
-              .recordUsageWithDetails(
-                apiKeyData.id,
-                usage, // 直接传递整个 usage 对象，包含可能的 cache_creation 详细数据
-                model,
-                accountId
-              )
-              .catch((error) => {
-                logger.error('❌ Failed to record usage:', error)
-              })
-          }
-        },
-        // 流转换器
-        (() => {
-          // 为每个请求创建独立的会话ID
-          const sessionId = `chatcmpl-${Math.random().toString(36).substring(2, 15)}${Math.random().toString(36).substring(2, 15)}`
-          return (chunk) => openaiToClaude.convertStreamChunk(chunk, req.body.model, sessionId)
-        })(),
-        {
-          betaHeader:
-            'oauth-2025-04-20,claude-code-20250219,interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14'
+      // 统一 usage 记录回调
+      const usageCallback = (usage) => {
+        if (usage && usage.input_tokens !== undefined && usage.output_tokens !== undefined) {
+          const model = usage.model || claudeRequest.model
+          apiKeyService
+            .recordUsageWithDetails(
+              apiKeyData.id,
+              usage, // 直接传递整个 usage 对象，包含可能的 cache_creation 详细数据
+              model,
+              accountId
+            )
+            .catch((error) => {
+              logger.error('❌ Failed to record usage:', error)
+            })
         }
-      )
+      }
+
+      // 流转换器（Claude→OpenAI）
+      const streamTransformer = (() => {
+        const sessionId = `chatcmpl-${Math.random().toString(36).substring(2, 15)}${Math.random().toString(36).substring(2, 15)}`
+        return (chunk) => openaiToClaude.convertStreamChunk(chunk, req.body.model, sessionId)
+      })()
+
+      // 按账号类型分发到对应Relay服务
+      if (accountType === 'claude-official') {
+        await claudeRelayService.relayStreamRequestWithUsageCapture(
+          claudeRequest,
+          apiKeyData,
+          res,
+          claudeCodeHeaders,
+          usageCallback,
+          streamTransformer,
+          {
+            betaHeader:
+              'oauth-2025-04-20,claude-code-20250219,interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14'
+          }
+        )
+      } else if (accountType === 'claude-console') {
+        await claudeConsoleRelayService.relayStreamRequestWithUsageCapture(
+          claudeRequest,
+          apiKeyData,
+          res,
+          claudeCodeHeaders,
+          usageCallback,
+          accountId,
+          streamTransformer,
+          {
+            betaHeader:
+              'oauth-2025-04-20,claude-code-20250219,interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14'
+          }
+        )
+      } else {
+        return res.status(501).json({
+          error: {
+            message: `Account type '${accountType}' is not supported by /openai/claude stream route`,
+            type: 'not_supported',
+            code: 'unsupported_account_type'
+          }
+        })
+      }
     } else {
       // 非流式请求
       logger.info(`📄 Processing OpenAI non-stream request for model: ${req.body.model}`)
 
       // 发送请求到 Claude (使用 OAuth-only beta header，添加 Claude Code 必需的 headers)
-      const claudeResponse = await claudeRelayService.relayRequest(
-        claudeRequest,
-        apiKeyData,
-        req,
-        res,
-        claudeCodeHeaders,
-        { betaHeader: 'oauth-2025-04-20' }
-      )
+      let claudeResponse
+      if (accountType === 'claude-official') {
+        claudeResponse = await claudeRelayService.relayRequest(
+          claudeRequest,
+          apiKeyData,
+          req,
+          res,
+          claudeCodeHeaders,
+          { betaHeader: 'oauth-2025-04-20' }
+        )
+      } else if (accountType === 'claude-console') {
+        claudeResponse = await claudeConsoleRelayService.relayRequest(
+          claudeRequest,
+          apiKeyData,
+          req,
+          res,
+          claudeCodeHeaders,
+          accountId,
+          { betaHeader: 'oauth-2025-04-20' }
+        )
+      } else {
+        return res.status(501).json({
+          error: {
+            message: `Account type '${accountType}' is not supported by /openai/claude route`,
+            type: 'not_supported',
+            code: 'unsupported_account_type'
+          }
+        })
+      }
 
       // 解析 Claude 响应
       let claudeData
