@@ -249,6 +249,17 @@ class Application {
       }
 
       // 🛣️ 路由
+      if (process.env.ENABLE_CLAUDE_OPENAI_BRIDGE === 'true') {
+        try {
+          const claudeOpenaiBridge = require('./routes/claudeOpenaiBridge')
+          // 需在 /claude 别名前注册，以免被更宽泛的路由拦截
+          this.app.use('/claude/openai', claudeOpenaiBridge)
+          logger.info('🔀 Claude→OpenAI bridge enabled at /claude/openai')
+        } catch (e) {
+          logger.warn('⚠️ Failed to enable Claude→OpenAI bridge:', e.message)
+        }
+      }
+
       this.app.use('/api', apiRoutes)
       this.app.use('/claude', apiRoutes) // /claude 路由别名，与 /api 功能相同
       this.app.use('/admin', adminRoutes)
@@ -262,16 +273,6 @@ class Application {
       this.app.use('/openai/gemini', openaiGeminiRoutes)
       this.app.use('/openai/claude', openaiClaudeRoutes)
       this.app.use('/openai', openaiRoutes)
-      // Claude Code → OpenAI-Responses bridge (feature guarded by env)
-      if (process.env.ENABLE_CLAUDE_OPENAI_BRIDGE === 'true') {
-        try {
-          const claudeOpenaiBridge = require('./routes/claudeOpenaiBridge')
-          this.app.use('/claude/openai', claudeOpenaiBridge)
-          logger.info('🔀 Claude→OpenAI bridge enabled at /claude/openai')
-        } catch (e) {
-          logger.warn('⚠️ Failed to enable Claude→OpenAI bridge:', e.message)
-        }
-      }
       this.app.use('/azure', azureOpenaiRoutes)
       this.app.use('/admin/webhook', webhookRoutes)
 

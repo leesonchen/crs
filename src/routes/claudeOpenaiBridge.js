@@ -21,6 +21,14 @@ router.post('/v1/messages', authenticateApiKey, async (req, res) => {
       return res.status(403).json({ error: { message: 'Permission denied', type: 'permission_denied' } })
     }
 
+    logger.info('🔁 Claude→OpenAI bridge request received', {
+      requestId: req.requestId,
+      stream: Boolean(req.body && req.body.stream),
+      claudeModel: req.body && req.body.model
+    })
+
+    res.setHeader('x-crs-bridge', 'claude-openai')
+
     // 将 Claude 请求转为 OpenAI-Responses 请求
     const toClaude = new OpenAIResponsesToClaudeConverter()
     const responsesRequest = toOpenAI.convertRequest(req.body)
