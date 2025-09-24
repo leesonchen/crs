@@ -30,7 +30,7 @@ const httpDebugLogger = winston.createLogger({
   ]
 })
 
-// Dedicated conversation logger for full input/output payloads
+// Dedicated conversation logger for conversation text content only
 const conversationLogger = winston.createLogger({
   level: 'info',
   format: winston.format.combine(
@@ -101,20 +101,16 @@ function debugInterceptor(req, res, next) {
       `RequestBody(${requestId}):\n${stringifySafe(req.body)}`
     )
     conversationLogger.info(
-      `===== BEGIN CONVERSATION ${requestId} =====\n` +
-        `REQUEST ${reqLine}\n` +
-        `Headers: ${JSON.stringify(reqHeaders, null, 2)}\n` +
-        `Body:\n${stringifySafe(req.body)}`
+      `===== CONVERSATION ${requestId} =====\n` +
+        `REQUEST(${requestId}):\n${stringifySafe(req.body)}`
     )
   } else if (req.rawBody !== undefined) {
     httpDebugLogger.info(
       `RequestRawBody(${requestId}):\n${stringifySafe(req.rawBody)}`
     )
     conversationLogger.info(
-      `===== BEGIN CONVERSATION ${requestId} =====\n` +
-        `REQUEST ${reqLine}\n` +
-        `Headers: ${JSON.stringify(reqHeaders, null, 2)}\n` +
-        `Body(raw):\n${stringifySafe(req.rawBody)}`
+      `===== CONVERSATION ${requestId} =====\n` +
+        `REQUEST(raw:${requestId}):\n${stringifySafe(req.rawBody)}`
     )
   }
 
@@ -183,9 +179,7 @@ function debugInterceptor(req, res, next) {
       )
 
       conversationLogger.info(
-        `RESPONSE(${requestId}) Status=${res.statusCode} Content-Type=${res.getHeader('Content-Type') || res.getHeader('content-type') || 'unknown'}\n` +
-          `Headers: ${JSON.stringify(resHeaders, null, 2)}\n` +
-          `Body:\n${bodyText}`
+        `RESPONSE(${requestId}):\n${bodyText}`
       )
 
       conversationLogger.info(`===== END CONVERSATION ${requestId} =====`)

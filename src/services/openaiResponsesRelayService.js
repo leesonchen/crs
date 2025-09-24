@@ -43,8 +43,9 @@ class OpenAIResponsesRelayService {
       req.once('close', handleClientDisconnect)
       res.once('close', handleClientDisconnect)
 
-      // 构建目标 URL
-      const targetUrl = `${fullAccount.baseApi}${req.path}`
+      // 构建目标 URL，允许通过头覆盖上游路径
+      const upstreamPath = req.headers['x-crs-upstream-path'] || req.path
+      const targetUrl = `${fullAccount.baseApi}${upstreamPath}`
       logger.info(`🎯 Forwarding to: ${targetUrl}`)
 
       // 构建请求头
@@ -181,7 +182,7 @@ class OpenAIResponsesRelayService {
         lastUsedAt: new Date().toISOString()
       })
 
-      // 处理流式响应
+      // 处理流式响应（支持转换器）
       if (req.body?.stream && response.data && typeof response.data.pipe === 'function') {
         return this._handleStreamResponse(
           response,
@@ -349,9 +350,15 @@ class OpenAIResponsesRelayService {
       try {
         const chunkStr = chunk.toString()
 
-        // 转发数据给客户端
+        // 转发数据（允许桥接路由注入转换器）
         if (!res.destroyed && !streamEnded) {
-          res.write(chunk)
+          const transform = req._bridgeStreamTransform
+          if (typeof transform === 'function') {
+            const converted = transform(chunkStr)
+            if (converted) res.write(converted)
+          } else {
+            res.write(chunk)
+          }
         }
 
         // 同时解析数据以捕获 usage 信息
@@ -379,6 +386,15 @@ class OpenAIResponsesRelayService {
       // 处理剩余的 buffer
       if (buffer.trim()) {
         parseSSEForUsage(buffer)
+      }
+
+      if (typeof req._bridgeStreamFinalize === 'function' && !res.destroyed) {
+        try {
+          const trailing = req._bridgeStreamFinalize()
+          if (trailing) res.write(trailing)
+        } catch (error) {
+          logger.error('Bridge stream finalizer error:', error)
+        }
       }
 
       // 记录使用统计
@@ -559,7 +575,12 @@ class OpenAIResponsesRelayService {
       }
     }
 
-    // 返回响应
+    // 返回响应（允许桥接路由转换为 Claude 格式）
+    const bridgeConvert = req._bridgeNonStreamConvert
+    if (typeof bridgeConvert === 'function') {
+      const converted = bridgeConvert(responseData)
+      return res.status(200).json(converted)
+    }
     res.status(response.status).json(responseData)
 
     logger.info('Normal response completed', {
