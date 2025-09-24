@@ -280,6 +280,9 @@ class OpenAIResponsesRelayService {
     res.setHeader('Cache-Control', 'no-cache')
     res.setHeader('Connection', 'keep-alive')
     res.setHeader('X-Accel-Buffering', 'no')
+    if (typeof res.flushHeaders === 'function') {
+      res.flushHeaders()
+    }
 
     let usageData = null
     let actualModel = null
@@ -355,9 +358,13 @@ class OpenAIResponsesRelayService {
           const transform = req._bridgeStreamTransform
           if (typeof transform === 'function') {
             const converted = transform(chunkStr)
-            if (converted) res.write(converted)
+            if (converted) {
+              res.write(converted)
+              if (typeof res.flush === 'function') res.flush()
+            }
           } else {
             res.write(chunk)
+            if (typeof res.flush === 'function') res.flush()
           }
         }
 
@@ -391,7 +398,10 @@ class OpenAIResponsesRelayService {
       if (typeof req._bridgeStreamFinalize === 'function' && !res.destroyed) {
         try {
           const trailing = req._bridgeStreamFinalize()
-          if (trailing) res.write(trailing)
+          if (trailing) {
+            res.write(trailing)
+            if (typeof res.flush === 'function') res.flush()
+          }
         } catch (error) {
           logger.error('Bridge stream finalizer error:', error)
         }

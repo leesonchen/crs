@@ -255,7 +255,8 @@ class OpenAIResponsesToClaudeConverter {
   }
 
   _sse(payload) {
-    return `data: ${JSON.stringify(payload)}\n\n`
+    const eventType = payload && payload.type ? payload.type : 'event'
+    return `event: ${eventType}\n` + `data: ${JSON.stringify(payload)}\n\n`
   }
 
   _generateId(prefix) {
@@ -273,4 +274,3 @@ class OpenAIResponsesToClaudeConverter {
 }
 
 module.exports = OpenAIResponsesToClaudeConverter
-
