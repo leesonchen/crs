@@ -104,6 +104,14 @@ class OpenAIResponsesToClaudeConverter {
     }
 
     switch (event.type) {
+      case 'response.output_item.added':
+        return this._handleOutputItemAdded(event)
+      case 'response.function_call_arguments.delta':
+        return this._handleFunctionCallArgumentsDelta(event)
+      case 'response.function_call_arguments.done':
+        return this._handleFunctionCallArgumentsDone(event)
+      case 'response.output_item.done':
+        return this._handleOutputItemDone(event)
       case 'response.started':
         return this._emitMessageStart()
       case 'response.output_text.delta':
@@ -149,6 +157,7 @@ class OpenAIResponsesToClaudeConverter {
 
     this.messageStarted = true
     this.messageId = this.messageId || this._generateId('msg')
+    this.toolBlock = null
     this.contentBlockId = this.contentBlockId || this._generateId('cb')
 
     return [
@@ -214,6 +223,16 @@ class OpenAIResponsesToClaudeConverter {
           index: 0
         })
       )
+    }
+
+    if (this.toolBlock) {
+      events.push(
+        this._sse({
+          type: 'content_block_stop',
+          index: this.toolBlock.index
+        })
+      )
+      this.toolBlock = null
     }
 
     const usage = this._extractUsage({ usage: responsePayload?.usage })
@@ -312,6 +331,79 @@ class OpenAIResponsesToClaudeConverter {
     this.contentBlockId = null
     this.debugEventCount = 0
     this.debugEmitCount = 0
+    this.toolBlock = null
+  }
+
+  _handleOutputItemAdded(event) {
+    const item = event.item
+    if (!item || typeof item !== 'object') return []
+    if (item.type !== 'function_call') return []
+
+    const blockId = item.id || this._generateId('tool')
+    this.toolBlock = {
+      id: blockId,
+      name: item.name || 'tool',
+      args: '',
+      index: 1
+    }
+
+    return [
+      this._sse({
+        type: 'content_block_start',
+        index: 1,
+        content_block: {
+          id: blockId,
+          type: 'tool_use',
+          name: this.toolBlock.name,
+          input: {}
+        }
+      })
+    ]
+  }
+
+  _handleFunctionCallArgumentsDelta(event) {
+    if (!this.toolBlock || event.item_id !== this.toolBlock.id) return []
+    const chunk = typeof event.delta === 'string' ? event.delta : ''
+    if (!chunk) return []
+    this.toolBlock.args += chunk
+    return [
+      this._sse({
+        type: 'content_block_delta',
+        index: this.toolBlock.index,
+        delta: {
+          type: 'input_json_delta',
+          partial_json: chunk
+        }
+      })
+    ]
+  }
+
+  _handleFunctionCallArgumentsDone(event) {
+    if (!this.toolBlock || event.item_id !== this.toolBlock.id) return []
+    if (typeof event.arguments !== 'string' || !event.arguments) return []
+    this.toolBlock.args = event.arguments
+    return [
+      this._sse({
+        type: 'content_block_delta',
+        index: this.toolBlock.index,
+        delta: {
+          type: 'input_json',
+          partial_json: event.arguments
+        }
+      })
+    ]
+  }
+
+  _handleOutputItemDone(event) {
+    if (!this.toolBlock || event.item?.id !== this.toolBlock.id) return []
+    const result = [
+      this._sse({
+        type: 'content_block_stop',
+        index: this.toolBlock.index
+      })
+    ]
+    this.toolBlock = null
+    return result
   }
 
   _logEmittedEvents(events) {

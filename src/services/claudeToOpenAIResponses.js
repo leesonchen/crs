@@ -21,13 +21,6 @@ class ClaudeToOpenAIResponsesConverter {
 
     const { model, messages, system, stream } = claudeRequest
 
-    // First phase: limitations for v1
-    if (claudeRequest.tools || claudeRequest.tool_choice) {
-      const err = new Error('Tools are not supported in /claude/openai (phase 1)')
-      err.status = 400
-      throw err
-    }
-
     // Multi-modal not supported in phase 1
     const hasNonText = Array.isArray(messages) && messages.some((m) => {
       if (Array.isArray(m.content)) return m.content.some((c) => c.type && c.type !== 'text')
@@ -42,37 +35,142 @@ class ClaudeToOpenAIResponsesConverter {
     const openaiModel = this.mapModel(model)
 
     // Compose OpenAI messages: merge system into first system message
-    const openaiMessages = []
+    const inputMessages = []
+
+    const pushText = (role, text) => {
+      if (!text) return
+      inputMessages.push({
+        role,
+        content: [
+          {
+            type: role === 'assistant' ? 'output_text' : 'input_text',
+            text
+          }
+        ]
+      })
+    }
+
+    const pushToolCall = (id, name, input) => {
+      if (!id || !name) return
+      let args = '{}'
+      try {
+        args = JSON.stringify(input ?? {})
+      } catch (error) {
+        logger.warn(`Failed to stringify tool input for ${name}: ${error.message}`)
+      }
+      inputMessages.push({
+        role: 'assistant',
+        content: [
+          {
+            type: 'tool_call',
+            id,
+            name,
+            arguments: args
+          }
+        ]
+      })
+    }
+
+    const pushToolResult = (toolUseId, contentBlocks = [], isError) => {
+      if (!toolUseId) return
+
+      const textParts = []
+      for (const block of contentBlocks) {
+        if (block && block.type === 'text') {
+          textParts.push(block.text || '')
+        }
+      }
+
+      const toolResult = {
+        type: 'tool_result',
+        tool_call_id: toolUseId,
+        output: textParts.join('')
+      }
+
+      if (typeof isError === 'boolean') {
+        toolResult.is_error = isError
+      }
+
+      inputMessages.push({
+        role: 'tool',
+        content: [toolResult]
+      })
+    }
+
     if (system) {
       if (typeof system === 'string') {
-        openaiMessages.push({ role: 'system', content: system })
-      } else if (Array.isArray(system) && system.length > 0) {
-        // Claude system could be array of text blocks
-        const first = system[0]
-        if (first && first.type === 'text' && first.text) {
-          openaiMessages.push({ role: 'system', content: first.text })
-        }
+        pushText('system', system)
+      } else if (Array.isArray(system)) {
+        const sysText = system
+          .filter((item) => item && item.type === 'text')
+          .map((item) => item.text || '')
+          .join('')
+        pushText('system', sysText)
       }
     }
 
     if (Array.isArray(messages)) {
-      for (const m of messages) {
-        const role = m.role === 'assistant' ? 'assistant' : 'user'
-        let contentText = ''
-        if (typeof m.content === 'string') contentText = m.content
-        else if (Array.isArray(m.content)) {
-          const texts = m.content.filter((c) => c.type === 'text').map((c) => c.text || '')
-          contentText = texts.join('')
+      for (const message of messages) {
+        const role = message.role === 'assistant' ? 'assistant' : 'user'
+
+        if (typeof message.content === 'string') {
+          pushText(role, message.content)
+          continue
         }
-        openaiMessages.push({ role, content: contentText })
+
+        if (!Array.isArray(message.content)) {
+          pushText(role, '')
+          continue
+        }
+
+        let buffer = ''
+        const flushBuffer = () => {
+          if (!buffer) return
+          pushText(role, buffer)
+          buffer = ''
+        }
+
+        for (const block of message.content) {
+          if (!block || typeof block !== 'object') continue
+
+          if (block.type === 'text') {
+            buffer += block.text || ''
+            continue
+          }
+
+          if (block.type === 'tool_use') {
+            flushBuffer()
+            pushToolCall(block.id, block.name, block.input)
+            continue
+          }
+
+          if (block.type === 'tool_result') {
+            flushBuffer()
+            pushToolResult(block.tool_use_id, block.content, block.is_error)
+            continue
+          }
+        }
+
+        flushBuffer()
       }
+    }
+
+    if (inputMessages.length === 0) {
+      throw new Error('Claude request does not contain any message content')
     }
 
     const responsesRequest = {
       model: openaiModel,
-      input: openaiMessages,
-      // The OpenAI Responses API treats streaming differently; we pass through
+      input: inputMessages,
       stream: !!stream
+    }
+
+    if (Array.isArray(claudeRequest.tools) && claudeRequest.tools.length > 0) {
+      responsesRequest.tools = claudeRequest.tools
+    }
+
+    if (claudeRequest.tool_choice) {
+      responsesRequest.tool_choice = claudeRequest.tool_choice
     }
 
     return responsesRequest
