@@ -214,17 +214,8 @@ class ClaudeToOpenAIResponsesConverter {
       logger.warn(`Failed to stringify tool input for ${block.name}: ${error.message}`)
     }
 
-    inputMessages.push({
-      role: 'assistant',
-      content: [
-        {
-          type: 'tool_call',
-          id: block.id,
-          name: block.name,
-          arguments: argumentsString
-        }
-      ]
-    })
+    const summary = `[tool_call name=${block.name} id=${block.id}] ${argumentsString}`
+    this._pushTextMessage('assistant', summary, inputMessages)
   }
 
   _pushToolResult(block, inputMessages) {
@@ -250,20 +241,14 @@ class ClaudeToOpenAIResponsesConverter {
       }
     }
 
-    const toolResult = {
-      type: 'tool_result',
-      tool_call_id: block.tool_use_id,
-      output: outputFragments.join('')
+    const payload = outputFragments.join('').trim()
+    if (!payload) {
+      return
     }
 
-    if (typeof block.is_error === 'boolean') {
-      toolResult.is_error = block.is_error
-    }
-
-    inputMessages.push({
-      role: 'tool',
-      content: [toolResult]
-    })
+    const prefix = block.is_error ? '[tool_error]' : '[tool_result]'
+    const summary = `${prefix} id=${block.tool_use_id} ${payload}`
+    this._pushTextMessage('user', summary, inputMessages)
   }
 
   _convertTools(tools) {
