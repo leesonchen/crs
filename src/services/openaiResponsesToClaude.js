@@ -1,3 +1,5 @@
+const logger = require('../utils/logger')
+
 class OpenAIResponsesToClaudeConverter {
   constructor() {
     this._resetStreamState()
@@ -24,7 +26,8 @@ class OpenAIResponsesToClaudeConverter {
 
   convertStreamChunk(rawChunk) {
     if (!rawChunk || typeof rawChunk !== 'string') return ''
-    this.streamBuffer += rawChunk
+    // OpenAI-Responses SSE 使用 CRLF，这里统一为 LF 方便解析
+    this.streamBuffer += rawChunk.replace(/\r\n/g, '\n')
     return this._drainBuffer(false)
   }
 
@@ -53,6 +56,8 @@ class OpenAIResponsesToClaudeConverter {
     if (force && !this.streamFinished && this.messageStarted) {
       output.push(...this._emitCompletion(null))
     }
+
+    this._logEmittedEvents(output)
 
     return output.join('')
   }
@@ -89,19 +94,54 @@ class OpenAIResponsesToClaudeConverter {
   _handleEvent(event) {
     if (!event || this.streamFinished) return []
 
+    if (this.debugEventCount < 5) {
+      logger.info('Claude bridge收到 OpenAI-Responses 事件', {
+        type: event.type,
+        hasResponse: Boolean(event.response),
+        keys: Object.keys(event || {})
+      })
+      this.debugEventCount += 1
+    }
+
     switch (event.type) {
       case 'response.started':
         return this._emitMessageStart()
       case 'response.output_text.delta':
         if (typeof event.delta !== 'string' || !event.delta) return []
         return this._emitTextDelta(event.delta)
+      case 'response.output_text.delta.appended':
+        if (typeof event.delta !== 'string' || !event.delta) return []
+        return this._emitTextDelta(event.delta)
       case 'response.completed':
         return this._emitCompletion(event.response)
       case 'response.error':
         return this._emitError(event.error || event)
+      case 'response.delta':
+        return this._handleResponseDelta(event)
       default:
         return []
     }
+  }
+
+  _handleResponseDelta(event) {
+    if (!event?.delta || this.streamFinished) return []
+
+    const fragments = []
+    if (typeof event.delta === 'string') {
+      fragments.push(event.delta)
+    } else if (Array.isArray(event.delta?.output_text)) {
+      for (const piece of event.delta.output_text) {
+        if (typeof piece === 'string') fragments.push(piece)
+      }
+    } else if (typeof event.delta?.output_text === 'string') {
+      fragments.push(event.delta.output_text)
+    }
+
+    if (fragments.length > 0) {
+      return this._emitTextDelta(fragments.join(''))
+    }
+
+    return []
   }
 
   _emitMessageStart() {
@@ -270,6 +310,29 @@ class OpenAIResponsesToClaudeConverter {
     this.streamFinished = false
     this.messageId = null
     this.contentBlockId = null
+    this.debugEventCount = 0
+    this.debugEmitCount = 0
+  }
+
+  _logEmittedEvents(events) {
+    if (!events || events.length === 0) return
+    if (this.debugEmitCount >= 5) return
+
+    const names = []
+    for (const evt of events) {
+      const match = evt.match(/event: ([^\n]+)/)
+      if (match && match[1]) {
+        names.push(match[1])
+      }
+    }
+
+    if (names.length > 0) {
+      logger.info('Claude bridge向客户端写出事件', {
+        events: names,
+        count: names.length
+      })
+      this.debugEmitCount += 1
+    }
   }
 }
 
