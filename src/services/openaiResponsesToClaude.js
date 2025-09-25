@@ -7,6 +7,7 @@ class OpenAIResponsesToClaudeConverter {
 
   convertNonStream(responseData) {
     const resp = responseData?.response || responseData || {}
+    this.finalResponse = resp
     const usage = this._extractUsage(responseData)
     const stopReason = this._mapStopReason(
       resp?.stop_reason || resp?.status || responseData?.stop_reason
@@ -299,6 +300,10 @@ class OpenAIResponsesToClaudeConverter {
 
     events.push(this._sse({ type: 'message_stop' }))
 
+    if (responsePayload) {
+      this.finalResponse = responsePayload
+    }
+
     this.streamFinished = true
 
     return events
@@ -584,6 +589,11 @@ class OpenAIResponsesToClaudeConverter {
     this.toolBlock = null
     this.debugEventCount = 0
     this.debugEmitCount = 0
+    this.finalResponse = null
+  }
+
+  getFinalResponse() {
+    return this.finalResponse
   }
 
   _logEmittedEvents(events) {

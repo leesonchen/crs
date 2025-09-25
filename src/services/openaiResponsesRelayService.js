@@ -196,7 +196,7 @@ class OpenAIResponsesRelayService {
       }
 
       // 处理非流式响应
-      return this._handleNormalResponse(response, res, account, apiKeyData, req.body?.model)
+      return this._handleNormalResponse(response, res, account, apiKeyData, req.body?.model, req)
     } catch (error) {
       // 清理 AbortController
       if (abortController && !abortController.signal.aborted) {
@@ -275,13 +275,20 @@ class OpenAIResponsesRelayService {
     handleClientDisconnect,
     req
   ) {
-    // 设置 SSE 响应头
-    res.setHeader('Content-Type', 'text/event-stream')
-    res.setHeader('Cache-Control', 'no-cache')
-    res.setHeader('Connection', 'keep-alive')
-    res.setHeader('X-Accel-Buffering', 'no')
-    if (typeof res.flushHeaders === 'function') {
-      res.flushHeaders()
+    const forceNonStream = Boolean(req._bridgeForceNonStream)
+
+    if (!forceNonStream) {
+      // SSE 响应头仅在原始请求就是流式时设置
+      res.setHeader('Content-Type', 'text/event-stream')
+      res.setHeader('Cache-Control', 'no-cache')
+      res.setHeader('Connection', 'keep-alive')
+      res.setHeader('X-Accel-Buffering', 'no')
+      if (typeof res.flushHeaders === 'function') {
+        res.flushHeaders()
+      }
+    } else {
+      // 非流式模式同样关闭缓存
+      res.setHeader('Cache-Control', 'no-cache')
     }
 
     let usageData = null
@@ -354,17 +361,27 @@ class OpenAIResponsesRelayService {
         const chunkStr = chunk.toString()
 
         // 转发数据（允许桥接路由注入转换器）
-        if (!res.destroyed && !streamEnded) {
+        if (!forceNonStream && !res.destroyed && !streamEnded) {
           const transform = req._bridgeStreamTransform
           if (typeof transform === 'function') {
             const converted = transform(chunkStr)
             if (converted) {
               res.write(converted)
-              if (typeof res.flush === 'function') res.flush()
+              if (typeof res.flush === 'function') {
+                res.flush()
+              }
             }
           } else {
             res.write(chunk)
-            if (typeof res.flush === 'function') res.flush()
+            if (typeof res.flush === 'function') {
+              res.flush()
+            }
+          }
+        } else if (forceNonStream) {
+          // 强制非流式时也要执行转换器，以便缓存最终响应
+          const transform = req._bridgeStreamTransform
+          if (typeof transform === 'function') {
+            transform(chunkStr)
           }
         }
 
@@ -395,12 +412,14 @@ class OpenAIResponsesRelayService {
         parseSSEForUsage(buffer)
       }
 
-      if (typeof req._bridgeStreamFinalize === 'function' && !res.destroyed) {
+      if (typeof req._bridgeStreamFinalize === 'function') {
         try {
           const trailing = req._bridgeStreamFinalize()
-          if (trailing) {
+          if (!forceNonStream && trailing && !res.destroyed) {
             res.write(trailing)
-            if (typeof res.flush === 'function') res.flush()
+            if (typeof res.flush === 'function') {
+              res.flush()
+            }
           }
         } catch (error) {
           logger.error('Bridge stream finalizer error:', error)
@@ -483,7 +502,29 @@ class OpenAIResponsesRelayService {
       req.removeListener('close', handleClientDisconnect)
       res.removeListener('close', handleClientDisconnect)
 
-      if (!res.destroyed) {
+      if (forceNonStream) {
+        try {
+          const convert = req._bridgeNonStreamConvert
+          if (typeof convert !== 'function') {
+            throw new Error('Missing bridge non-stream converter')
+          }
+
+          const convertedPayload = convert()
+          if (!res.headersSent) {
+            res.setHeader('Content-Type', 'application/json')
+          }
+          if (!res.destroyed) {
+            res.status(200).json(convertedPayload)
+          }
+        } catch (error) {
+          logger.error('Bridge non-stream conversion failed:', error)
+          if (!res.headersSent) {
+            res.status(500).json({ error: { message: 'Bridge conversion failed' } })
+          } else if (!res.destroyed) {
+            res.end()
+          }
+        }
+      } else if (!res.destroyed) {
         res.end()
       }
 
@@ -525,7 +566,7 @@ class OpenAIResponsesRelayService {
   }
 
   // 处理非流式响应
-  async _handleNormalResponse(response, res, account, apiKeyData, requestedModel) {
+  async _handleNormalResponse(response, res, account, apiKeyData, requestedModel, req) {
     const responseData = response.data
 
     // 提取 usage 数据和实际 model

@@ -4,6 +4,7 @@ class ClaudeToOpenAIResponsesConverter {
   constructor(options = {}) {
     this.modelMapping = options.modelMapping || {}
     this.defaultModel = options.defaultModel || 'gpt-5'
+    this._lastToolSummary = null
   }
 
   mapModel(claudeModel) {
@@ -60,9 +61,15 @@ class ClaudeToOpenAIResponsesConverter {
       stream: Boolean(stream)
     }
 
+    this._lastToolSummary = null
     const convertedTools = this._convertTools(claudeRequest.tools)
     if (convertedTools.length > 0) {
       responsesRequest.tools = convertedTools
+      if (this._lastToolSummary) {
+        logger.info('Claude→OpenAI bridge tools forwarded', this._lastToolSummary)
+      }
+    } else if (this._lastToolSummary && this._lastToolSummary.requestedCount > 0) {
+      logger.warn('Claude→OpenAI bridge dropped all tools', this._lastToolSummary)
     }
 
     const toolChoice = this._convertToolChoice(claudeRequest.tool_choice)
@@ -257,27 +264,78 @@ class ClaudeToOpenAIResponsesConverter {
       return []
     }
 
-    return tools
-      .map((tool) => {
-        if (!tool || typeof tool !== 'object' || !tool.name) {
-          return null
-        }
+    const summary = {
+      requestedCount: tools.length,
+      forwardedCount: 0,
+      forwardedNames: [],
+      skippedInvalid: 0,
+      forwardedWithoutSchema: []
+    }
 
-        const functionDef = {
-          name: tool.name,
-          description: tool.description || ''
-        }
+    const converted = []
 
-        if (tool.input_schema && typeof tool.input_schema === 'object') {
-          functionDef.parameters = tool.input_schema
-        }
+    tools.forEach((tool, index) => {
+      if (!tool || typeof tool !== 'object') {
+        summary.skippedInvalid += 1
+        return
+      }
 
-        return {
-          type: 'function',
-          function: functionDef
-        }
+      if (!tool.name) {
+        summary.skippedInvalid += 1
+        return
+      }
+
+      const schema = this._extractToolSchema(tool)
+      if (!schema) {
+        summary.forwardedWithoutSchema.push(tool.name)
+      }
+
+      const convertedTool = {
+        type: 'function',
+        name: tool.name,
+        description: tool.description || ''
+      }
+
+      if (schema) {
+        convertedTool.parameters = schema
+      }
+
+      if (typeof tool.strict === 'boolean') {
+        convertedTool.strict = tool.strict
+      }
+
+      if (tool.examples) {
+        convertedTool.examples = tool.examples
+      }
+
+      converted.push(convertedTool)
+
+      summary.forwardedCount += 1
+      summary.forwardedNames.push({
+        index,
+        name: tool.name,
+        schemaKeys: schema ? Object.keys(schema) : []
       })
-      .filter(Boolean)
+    })
+
+    this._lastToolSummary = summary
+    return converted
+  }
+
+  _extractToolSchema(tool) {
+    if (!tool || typeof tool !== 'object') {
+      return null
+    }
+
+    if (tool.input_schema && typeof tool.input_schema === 'object') {
+      return tool.input_schema
+    }
+
+    if (tool.parameters && typeof tool.parameters === 'object') {
+      return tool.parameters
+    }
+
+    return null
   }
 
   _convertToolChoice(choice) {
@@ -295,10 +353,8 @@ class ClaudeToOpenAIResponsesConverter {
       }
 
       return {
-        type: 'function',
-        function: {
-          name: choice
-        }
+        type: 'tool',
+        name: choice
       }
     }
 
@@ -307,12 +363,7 @@ class ClaudeToOpenAIResponsesConverter {
     }
 
     if (choice.type === 'tool' && choice.name) {
-      return {
-        type: 'function',
-        function: {
-          name: choice.name
-        }
-      }
+      return { type: 'tool', name: choice.name }
     }
 
     if (choice.type === 'auto') {
