@@ -89,12 +89,19 @@ class ClaudeToOpenAIResponsesConverter {
       return false
     }
 
+    const allowedTypes = new Set(['text', 'tool_use', 'tool_result'])
+
     return messages.some((message) => {
       if (!Array.isArray(message?.content)) {
         return false
       }
 
-      return message.content.some((block) => block && block.type && block.type !== 'text')
+      return message.content.some((block) => {
+        if (!block || !block.type) {
+          return false
+        }
+        return !allowedTypes.has(block.type)
+      })
     })
   }
 
