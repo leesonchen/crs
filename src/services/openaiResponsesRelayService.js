@@ -15,6 +15,7 @@ class OpenAIResponsesRelayService {
   // 处理请求转发
   async handleRequest(req, res, account, apiKeyData) {
     let abortController = null
+    let handleClientDisconnect = null
     // 获取会话哈希（如果有的话）
     const sessionId = req.headers['session_id'] || req.body?.session_id
     const sessionHash = sessionId
@@ -32,7 +33,8 @@ class OpenAIResponsesRelayService {
       abortController = new AbortController()
 
       // 设置客户端断开监听器
-      const handleClientDisconnect = () => {
+      // 若客户端中途断开（CLI 关闭、用户中止等），主动中断上游请求并记录
+      handleClientDisconnect = () => {
         logger.info('🔌 Client disconnected, aborting OpenAI-Responses request')
         if (abortController && !abortController.signal.aborted) {
           abortController.abort()
@@ -201,6 +203,29 @@ class OpenAIResponsesRelayService {
       // 清理 AbortController
       if (abortController && !abortController.signal.aborted) {
         abortController.abort()
+      }
+
+      if (handleClientDisconnect) {
+        req.removeListener('close', handleClientDisconnect)
+        res.removeListener('close', handleClientDisconnect)
+      }
+
+      // axios 在 abort() 后会抛出 CanceledError，这属于预期流程而非异常
+      const isClientCanceled =
+        error?.code === 'ERR_CANCELED' ||
+        error?.name === 'CanceledError' ||
+        error?.message === 'canceled'
+
+      if (isClientCanceled) {
+        logger.info('OpenAI-Responses relay canceled due to client disconnect', {
+          requestId: req.requestId
+        })
+
+        if (!res.headersSent && !res.writableEnded) {
+          // 499 用于标记客户端主动断开，方便上游或日志聚合识别
+          return res.status(499).json({ error: { message: 'Client disconnected' } })
+        }
+        return res.end()
       }
 
       // 安全地记录错误，避免循环引用
@@ -537,14 +562,32 @@ class OpenAIResponsesRelayService {
 
     response.data.on('error', (error) => {
       streamEnded = true
-      logger.error('Stream error:', error)
+      // 流式转发过程中同样区分正常断开与实际异常，避免噪声告警
+      const isClientCanceled =
+        error?.code === 'ERR_CANCELED' ||
+        error?.name === 'CanceledError' ||
+        error?.message === 'canceled'
+
+      if (isClientCanceled) {
+        logger.info('Stream canceled due to client disconnect', {
+          requestId: req.requestId
+        })
+      } else {
+        logger.error('Stream error:', error)
+      }
 
       // 清理监听器
-      req.removeListener('close', handleClientDisconnect)
-      res.removeListener('close', handleClientDisconnect)
+      if (handleClientDisconnect) {
+        req.removeListener('close', handleClientDisconnect)
+        res.removeListener('close', handleClientDisconnect)
+      }
 
       if (!res.headersSent) {
-        res.status(502).json({ error: { message: 'Upstream stream error' } })
+        if (isClientCanceled) {
+          res.status(499).json({ error: { message: 'Client disconnected' } })
+        } else {
+          res.status(502).json({ error: { message: 'Upstream stream error' } })
+        }
       } else if (!res.destroyed) {
         res.end()
       }

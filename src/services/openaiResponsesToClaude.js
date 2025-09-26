@@ -372,16 +372,7 @@ class OpenAIResponsesToClaudeConverter {
       chunkLength: chunk.length
     })
 
-    return [
-      this._sse({
-        type: 'content_block_delta',
-        index: this.toolBlock.index,
-        delta: {
-          type: 'input_json_delta',
-          partial_json: chunk
-        }
-      })
-    ]
+    return []
   }
 
   _handleFunctionCallArgumentsDone(event) {
@@ -393,11 +384,11 @@ class OpenAIResponsesToClaudeConverter {
       return []
     }
 
-    this.toolBlock.args = event.arguments
+    this.toolBlock.args = this._sanitizeToolArguments(event.arguments)
 
     logger.info('Claude bridge完成 tool arguments', {
       itemId: event.item_id,
-      argumentLength: event.arguments.length
+      argumentLength: this.toolBlock.args.length
     })
 
     return [
@@ -406,7 +397,7 @@ class OpenAIResponsesToClaudeConverter {
         index: this.toolBlock.index,
         delta: {
           type: 'input_json',
-          partial_json: event.arguments
+          partial_json: this.toolBlock.args
         }
       })
     ]
@@ -590,6 +581,32 @@ class OpenAIResponsesToClaudeConverter {
     this.debugEventCount = 0
     this.debugEmitCount = 0
     this.finalResponse = null
+  }
+
+  _sanitizeToolArguments(rawArguments) {
+    try {
+      const parsed = JSON.parse(rawArguments)
+
+      if (parsed && typeof parsed === 'object') {
+        if (Array.isArray(parsed.allowed_domains)) {
+          if (parsed.allowed_domains.length === 0) {
+            delete parsed.allowed_domains
+          }
+        }
+
+        if (Array.isArray(parsed.blocked_domains)) {
+          if (parsed.blocked_domains.length === 0 || parsed.allowed_domains) {
+            delete parsed.blocked_domains
+          }
+        }
+
+        return JSON.stringify(parsed)
+      }
+    } catch (error) {
+      logger.warn('Failed to sanitize tool arguments JSON', { message: error.message })
+    }
+
+    return rawArguments
   }
 
   getFinalResponse() {
