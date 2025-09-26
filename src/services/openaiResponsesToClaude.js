@@ -589,15 +589,34 @@ class OpenAIResponsesToClaudeConverter {
 
       if (parsed && typeof parsed === 'object') {
         if (Array.isArray(parsed.allowed_domains)) {
-          if (parsed.allowed_domains.length === 0) {
+          const filteredAllowed = parsed.allowed_domains.filter(
+            (item) => typeof item === 'string' && item.trim()
+          )
+          if (filteredAllowed.length > 0) {
+            parsed.allowed_domains = filteredAllowed
+          } else {
             delete parsed.allowed_domains
           }
+        } else if (parsed.allowed_domains !== null && parsed.allowed_domains !== undefined) {
+          delete parsed.allowed_domains
         }
 
         if (Array.isArray(parsed.blocked_domains)) {
-          if (parsed.blocked_domains.length === 0 || parsed.allowed_domains) {
+          const filteredBlocked = parsed.blocked_domains.filter(
+            (item) => typeof item === 'string' && item.trim()
+          )
+          if (filteredBlocked.length > 0) {
+            parsed.blocked_domains = filteredBlocked
+          } else {
             delete parsed.blocked_domains
           }
+        } else if (parsed.blocked_domains !== null && parsed.blocked_domains !== undefined) {
+          delete parsed.blocked_domains
+        }
+
+        if (parsed.allowed_domains && parsed.blocked_domains) {
+          // Claude CLI 不允许同时指定，优先保留 allow 列表
+          delete parsed.blocked_domains
         }
 
         return JSON.stringify(parsed)
