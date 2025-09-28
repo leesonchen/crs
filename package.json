@@ -27,7 +27,7 @@
     "monitor": "bash scripts/monitor-enhanced.sh",
     "status": "bash scripts/status-unified.sh",
     "status:detail": "bash scripts/status-unified.sh --detail",
-    "test": "jest",
+    "test": "node ./node_modules/jest/bin/jest.js --runInBand --passWithNoTests",
     "lint": "eslint src/**/*.js cli/**/*.js scripts/**/*.js --fix",
     "lint:check": "eslint src/**/*.js cli/**/*.js scripts/**/*.js",
     "format": "prettier --write \"src/**/*.js\" \"cli/**/*.js\" \"scripts/**/*.js\"",
