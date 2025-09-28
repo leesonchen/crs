@@ -1,5 +1,12 @@
 const logger = require('../../utils/logger')
 const { CLIENT_DEFINITIONS } = require('../clientDefinitions')
+const {
+  haikuSystemPrompt,
+  claudeOtherSystemPrompt1,
+  claudeOtherSystemPrompt2,
+  claudeOtherSystemPromptCompact
+} = require('../../utils/contents')
+const { simple: similaritySimple } = require('../../utils/text-similarity')
 
 /**
  * Claude Code CLI 验证器
@@ -36,33 +43,49 @@ class ClaudeCodeValidator {
 
   /**
    * 检查请求是否包含 Claude Code 系统提示词
-   * @param {Object} requestBody - 请求体
+   * @param {Object} body - 请求体
    * @returns {boolean} 是否包含 Claude Code 系统提示词
    */
-  static hasClaudeCodeSystemPrompt(requestBody) {
-    if (!requestBody || !requestBody.system) {
+  static hasClaudeCodeSystemPrompt(body) {
+    if (!body || typeof body !== 'object') {
       return false
     }
 
-    // 如果是字符串格式，一定不是真实的 Claude Code 请求
-    if (typeof requestBody.system === 'string') {
+    const model = typeof body.model === 'string' ? body.model : null
+    if (!model) {
       return false
     }
 
-    // 处理数组格式 - 检查第一个元素
-    if (Array.isArray(requestBody.system) && requestBody.system.length > 0) {
-      const firstItem = requestBody.system[0]
-      // 检查第一个元素是否包含 Claude Code 相关的提示词
-      if (firstItem && firstItem.type === 'text' && firstItem.text) {
-        // Claude Code 的两种典型提示词开头
-        return (
-          firstItem.text.startsWith("You are Claude Code, Anthropic's official CLI for Claude.") ||
-          firstItem.text.startsWith('Analyze if this message indicates a new conversation topic')
-        )
-      }
+    if (model.startsWith('claude-3-5-haiku')) {
+      return true
     }
 
-    return false
+    const systemEntries = Array.isArray(body.system) ? body.system : []
+    const system0Text =
+      systemEntries.length > 0 && typeof systemEntries[0]?.text === 'string'
+        ? systemEntries[0].text
+        : null
+    const system1Text =
+      systemEntries.length > 1 && typeof systemEntries[1]?.text === 'string'
+        ? systemEntries[1].text
+        : null
+
+    if (!system0Text || !system1Text) {
+      return false
+    }
+
+    const sys0 = similaritySimple(system0Text, claudeOtherSystemPrompt1, 0.9)
+    if (!sys0.passed) {
+      return false
+    }
+
+    const sys1 = similaritySimple(system1Text, claudeOtherSystemPrompt2, 0.5)
+    const sysCompact = similaritySimple(system1Text, claudeOtherSystemPromptCompact, 0.9)
+    if (!sys1.passed && !sysCompact.passed) {
+      return false
+    }
+
+    return true
   }
 
   /**
@@ -76,8 +99,10 @@ class ClaudeCodeValidator {
       const path = req.path || ''
 
       // 1. 先检查是否是 Claude Code 的 User-Agent
-      // 格式: claude-cli/1.0.86 (external, cli)
-      const claudeCodePattern = /^claude-cli\/[\d\.]+([-\w]*)?\s+\(external,\s*cli\)$/i
+      // 格式: claude-cli/1.0.86 (external, cli) sdk-cli sdk-py
+
+      const claudeCodePattern = /^claude-cli\/[\d.]+(?:[-\w]*)?\s+\(external,\s*(?:cli|sdk-[a-z]+)\)$/i
+
       if (!claudeCodePattern.test(userAgent)) {
         // 不是 Claude Code 的请求，此验证器不处理
         return false
