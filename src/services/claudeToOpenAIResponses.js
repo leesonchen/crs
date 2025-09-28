@@ -207,9 +207,11 @@ class ClaudeToOpenAIResponsesConverter {
       return
     }
 
+    const sanitizedInput = this._sanitizeToolInput(block.input)
+
     let argumentsString = '{}'
     try {
-      argumentsString = JSON.stringify(block.input ?? {})
+      argumentsString = JSON.stringify(sanitizedInput)
     } catch (error) {
       logger.warn(`Failed to stringify tool input for ${block.name}: ${error.message}`)
     }
@@ -367,6 +369,46 @@ class ClaudeToOpenAIResponsesConverter {
     }
 
     return null
+  }
+
+  _sanitizeToolInput(rawInput) {
+    if (!rawInput || typeof rawInput !== 'object') {
+      return {}
+    }
+
+    const inputCopy = { ...rawInput }
+
+    if (Array.isArray(inputCopy.allowed_domains)) {
+      const filtered = inputCopy.allowed_domains.filter(
+        (item) => typeof item === 'string' && item.trim()
+      )
+      if (filtered.length > 0) {
+        inputCopy.allowed_domains = filtered
+      } else {
+        delete inputCopy.allowed_domains
+      }
+    } else if (inputCopy.allowed_domains !== null && inputCopy.allowed_domains !== undefined) {
+      delete inputCopy.allowed_domains
+    }
+
+    if (Array.isArray(inputCopy.blocked_domains)) {
+      const filtered = inputCopy.blocked_domains.filter(
+        (item) => typeof item === 'string' && item.trim()
+      )
+      if (filtered.length > 0) {
+        inputCopy.blocked_domains = filtered
+      } else {
+        delete inputCopy.blocked_domains
+      }
+    } else if (inputCopy.blocked_domains !== null && inputCopy.blocked_domains !== undefined) {
+      delete inputCopy.blocked_domains
+    }
+
+    if (inputCopy.allowed_domains && inputCopy.blocked_domains) {
+      delete inputCopy.blocked_domains
+    }
+
+    return inputCopy
   }
 }
 
