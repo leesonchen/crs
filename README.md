@@ -449,6 +449,12 @@ export CRS_OAI_KEY="后台创建的API密钥"
 
 > ⚠️ 在通过 Nginx 反向代理 CRS 服务并使用 Codex CLI 时，需要在 http 块中添加 underscores_in_headers on;。因为 Nginx 默认会移除带下划线的请求头（如 session_id），一旦该头被丢弃，多账号环境下的粘性会话功能将失效。
 
+**Codex Playwright MCP（可选）：**
+
+- 想让 Codex CLI 具备浏览器自动化能力，可安装 Playwright MCP。
+- 详细步骤见 `docs/codex-cli-playwright-mcp.md`，包括依赖安装、`~/.codex/config.toml` 配置以及常见问题排查。
+- 配置完成后重新启动 Codex CLI，即可在 `:tools` 列表中看到 `playwright` 工具并直接调用。
+
 ### 5. 第三方工具API接入
 
 本服务支持多种API端点格式，方便接入不同的第三方工具（如Cherry Studio等）。

@@ -247,6 +247,12 @@ export ANTHROPIC_AUTH_TOKEN="API key created in the backend"
 claude
 ```
 
+**Codex Playwright MCP (optional):**
+
+- To enable browser automation inside Codex CLI, install the Playwright MCP tool.
+- Follow `docs/codex-cli-playwright-mcp.md` for dependency installation, `~/.codex/config.toml` configuration, and troubleshooting tips.
+- Restart Codex CLI after configuration and confirm the `playwright` tool appears in the `:tools` list.
+
 ---
 
 ## 🔧 Daily Maintenance
