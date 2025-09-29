@@ -26,6 +26,54 @@ const ProxyHelper = require('../utils/proxyHelper')
 
 const router = express.Router()
 
+
+function parseBooleanFlag(value, defaultValue = false) {
+  if (value === undefined || value === null) {
+    return defaultValue
+  }
+
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    if (['true', '1', 'yes', 'on'].includes(normalized)) {
+      return true
+    }
+    if (['false', '0', 'no', 'off'].includes(normalized)) {
+      return false
+    }
+  }
+
+  return Boolean(value)
+}
+
+function parseClaudeModelMappingPayload(input) {
+  if (input === undefined || input === null) {
+    return null
+  }
+
+  if (typeof input === 'string') {
+    const trimmed = input.trim()
+    if (!trimmed) {
+      return null
+    }
+
+    try {
+      const parsed = JSON.parse(trimmed)
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed
+      }
+      throw new Error('claudeModelMapping must be a JSON object')
+    } catch (error) {
+      throw new Error('claudeModelMapping must be valid JSON')
+    }
+  }
+
+  if (typeof input === 'object' && !Array.isArray(input)) {
+    return input
+  }
+
+  throw new Error('claudeModelMapping must be an object')
+}
+
 // 👥 用户管理
 
 // 获取所有用户列表（用于API Key分配）
@@ -6950,9 +6998,22 @@ router.post('/openai-accounts', authenticateAdmin, async (req, res) => {
       groupId,
       rateLimitDuration,
       priority,
+      allowClaudeBridge,
+      claudeModelMapping,
       needsImmediateRefresh, // 是否需要立即刷新
       requireRefreshSuccess // 是否必须刷新成功才能创建
     } = req.body
+
+    const normalizedAllowClaudeBridge = parseBooleanFlag(allowClaudeBridge, false)
+    let normalizedClaudeModelMapping
+    try {
+      normalizedClaudeModelMapping = parseClaudeModelMappingPayload(claudeModelMapping)
+    } catch (error) {
+      return res.status(400).json({
+        success: false,
+        message: error.message
+      })
+    }
 
     if (!name) {
       return res.status(400).json({
@@ -6973,7 +7034,9 @@ router.post('/openai-accounts', authenticateAdmin, async (req, res) => {
       accountInfo: accountInfo || {},
       proxy: proxy || null,
       isActive: true,
-      schedulable: true
+      schedulable: true,
+      allowClaudeBridge: normalizedAllowClaudeBridge,
+      claudeModelMapping: normalizedClaudeModelMapping
     }
 
     // 如果需要立即刷新且必须成功（OpenAI 手动模式）
@@ -7215,7 +7278,32 @@ router.put('/openai-accounts/:id', authenticateAdmin, async (req, res) => {
     }
 
     // 准备更新数据
+    let normalizedAllowClaudeBridge
+    if (updates.allowClaudeBridge !== undefined) {
+      normalizedAllowClaudeBridge = parseBooleanFlag(updates.allowClaudeBridge, false)
+    }
+
+    let normalizedClaudeModelMapping
+    if (updates.claudeModelMapping !== undefined) {
+      try {
+        normalizedClaudeModelMapping = parseClaudeModelMappingPayload(updates.claudeModelMapping)
+      } catch (error) {
+        return res.status(400).json({
+          success: false,
+          message: error.message
+        })
+      }
+    }
+
     const updateData = { ...updates }
+
+    if (updates.allowClaudeBridge !== undefined) {
+      updateData.allowClaudeBridge = normalizedAllowClaudeBridge
+    }
+
+    if (updates.claudeModelMapping !== undefined) {
+      updateData.claudeModelMapping = normalizedClaudeModelMapping
+    }
 
     // 处理敏感数据加密
     if (updates.openaiOauth) {

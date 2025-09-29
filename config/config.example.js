@@ -85,6 +85,23 @@ const config = {
     defaultTokenLimit: parseInt(process.env.DEFAULT_TOKEN_LIMIT) || 1000000
   },
 
+  // 🤝 Claude ↔ OpenAI 桥接默认配置
+  claudeBridgeDefaults: {
+    defaultModel: process.env.CLAUDE_BRIDGE_DEFAULT_MODEL || 'gpt-5',
+    modelMapping: (() => {
+      if (!process.env.CLAUDE_BRIDGE_MODEL_MAPPING_JSON) {
+        return {}
+      }
+      try {
+        const parsed = JSON.parse(process.env.CLAUDE_BRIDGE_MODEL_MAPPING_JSON)
+        return parsed && typeof parsed === 'object' ? parsed : {}
+      } catch (error) {
+        console.warn('Invalid CLAUDE_BRIDGE_MODEL_MAPPING_JSON, falling back to empty mapping:', error.message)
+        return {}
+      }
+    })()
+  },
+
   // 📝 日志配置
   logging: {
     level: process.env.LOG_LEVEL || 'info',

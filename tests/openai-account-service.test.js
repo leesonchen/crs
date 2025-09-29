@@ -73,7 +73,7 @@ jest.mock('../src/models/redis', () => {
 const redisMock = require('../src/models/redis')
 const openaiAccountService = require('../src/services/openaiAccountService')
 
-const baseAccountPayload = {
+const buildAccountPayload = (overrides = {}) => ({
   name: 'Test OpenAI',
   description: 'demo',
   accountType: 'shared',
@@ -89,8 +89,9 @@ const baseAccountPayload = {
   },
   proxy: null,
   isActive: true,
-  schedulable: true
-}
+  schedulable: true,
+  ...overrides
+})
 
 describe('openaiAccountService Claude bridge fields', () => {
   beforeEach(() => {
@@ -98,7 +99,7 @@ describe('openaiAccountService Claude bridge fields', () => {
   })
 
   test('createAccount sets default Claude bridge flags', async () => {
-    const account = await openaiAccountService.createAccount(baseAccountPayload)
+    const account = await openaiAccountService.createAccount(buildAccountPayload())
 
     expect(account.allowClaudeBridge).toBe('false')
     expect(account.claudeModelMapping).toBe('')
@@ -109,7 +110,7 @@ describe('openaiAccountService Claude bridge fields', () => {
   })
 
   test('updateAccount persists Claude bridge configuration', async () => {
-    await openaiAccountService.createAccount(baseAccountPayload)
+    await openaiAccountService.createAccount(buildAccountPayload())
 
     await openaiAccountService.updateAccount('acc-123', {
       allowClaudeBridge: true,

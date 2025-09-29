@@ -107,13 +107,77 @@ function decrypt(text) {
 }
 
 // 🧹 定期清理缓存（每10分钟）
-setInterval(
-  () => {
+let decryptCacheCleanupInterval = null
+if (process.env.NODE_ENV !== 'test') {
+  decryptCacheCleanupInterval = setInterval(() => {
     decryptCache.cleanup()
     logger.info('🧹 OpenAI decrypt cache cleanup completed', decryptCache.getStats())
-  },
-  10 * 60 * 1000
-)
+  }, 10 * 60 * 1000)
+
+  if (typeof decryptCacheCleanupInterval.unref === 'function') {
+    decryptCacheCleanupInterval.unref()
+  }
+}
+
+function normalizeAllowClaudeBridgeFlag(value) {
+  if (value === true || value === 'true' || value === 1 || value === '1') {
+    return 'true'
+  }
+  return 'false'
+}
+
+function serializeClaudeModelMapping(value) {
+  if (value === null || value === undefined) {
+    return ''
+  }
+
+  if (typeof value === 'string') {
+    return value.trim()
+  }
+
+  if (typeof value === 'object') {
+    try {
+      return JSON.stringify(value)
+    } catch (error) {
+      logger.warn('Failed to serialize claudeModelMapping for OpenAI account', {
+        error: error.message
+      })
+    }
+  }
+
+  return ''
+}
+
+function parseClaudeModelMapping(rawMapping) {
+  if (!rawMapping) {
+    return {}
+  }
+
+  if (typeof rawMapping === 'object') {
+    return rawMapping
+  }
+
+  if (typeof rawMapping === 'string') {
+    const trimmed = rawMapping.trim()
+    if (!trimmed) {
+      return {}
+    }
+
+    try {
+      const parsed = JSON.parse(trimmed)
+      if (parsed && typeof parsed === 'object') {
+        return parsed
+      }
+    } catch (error) {
+      logger.warn('Failed to parse claudeModelMapping for OpenAI account', {
+        rawLength: rawMapping.length,
+        error: error.message
+      })
+    }
+  }
+
+  return {}
+}
 
 function toNumberOrNull(value) {
   if (value === undefined || value === null || value === '') {
@@ -562,7 +626,9 @@ async function createAccount(accountData) {
     schedulable: accountData.schedulable !== false ? 'true' : 'false',
     lastRefresh: now,
     createdAt: now,
-    updatedAt: now
+    updatedAt: now,
+    allowClaudeBridge: normalizeAllowClaudeBridgeFlag(accountData.allowClaudeBridge),
+    claudeModelMapping: serializeClaudeModelMapping(accountData.claudeModelMapping)
   }
 
   // 代理配置
@@ -614,6 +680,11 @@ async function getAccount(accountId) {
     }
   }
 
+  accountData.allowClaudeBridge =
+    accountData.allowClaudeBridge === 'true' || accountData.allowClaudeBridge === true
+
+  accountData.claudeModelMapping = parseClaudeModelMapping(accountData.claudeModelMapping)
+
   // 解析代理配置
   if (accountData.proxy && typeof accountData.proxy === 'string') {
     try {
@@ -656,6 +727,14 @@ async function updateAccount(accountId, updates) {
     updates.email = encrypt(updates.email)
   }
 
+  if (updates.allowClaudeBridge !== undefined) {
+    updates.allowClaudeBridge = normalizeAllowClaudeBridgeFlag(updates.allowClaudeBridge)
+  }
+
+  if (updates.claudeModelMapping !== undefined) {
+    updates.claudeModelMapping = serializeClaudeModelMapping(updates.claudeModelMapping)
+  }
+
   // 处理代理配置
   if (updates.proxy) {
     updates.proxy =
@@ -676,19 +755,7 @@ async function updateAccount(accountId, updates) {
 
   logger.info(`Updated OpenAI account: ${accountId}`)
 
-  // 合并更新后的账户数据
-  const updatedAccount = { ...existingAccount, ...updates }
-
-  // 返回时解析代理配置
-  if (updatedAccount.proxy && typeof updatedAccount.proxy === 'string') {
-    try {
-      updatedAccount.proxy = JSON.parse(updatedAccount.proxy)
-    } catch (e) {
-      updatedAccount.proxy = null
-    }
-  }
-
-  return updatedAccount
+  return await getAccount(accountId)
 }
 
 // 删除账户
@@ -800,6 +867,8 @@ async function getAllAccounts() {
               rateLimitResetAt: null,
               minutesRemaining: 0
             },
+        allowClaudeBridge,
+        claudeModelMapping,
         codexUsage
       })
     }
