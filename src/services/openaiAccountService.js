@@ -824,6 +824,11 @@ async function getAllAccounts() {
       // 时间戳改由 codexUsage.updatedAt 暴露
       delete accountData.codexUsageUpdatedAt
 
+      const allowClaudeBridge =
+        accountData.allowClaudeBridge === 'true' || accountData.allowClaudeBridge === true
+
+      const claudeModelMapping = parseClaudeModelMapping(accountData.claudeModelMapping)
+
       // 获取限流状态信息
       const rateLimitInfo = await getAccountRateLimitInfo(accountData.id)
 
