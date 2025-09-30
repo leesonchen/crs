@@ -1551,14 +1551,14 @@
                 >
                 <div class="flex items-center gap-3">
                   <label class="relative inline-flex cursor-pointer items-center">
-                    <input v-model="form.allowClaudeBridge" type="checkbox" class="peer sr-only" />
+                    <input v-model="form.allowClaudeBridge" class="peer sr-only" type="checkbox" />
                     <div
                       class="peer h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all peer-checked:bg-green-500 peer-checked:after:translate-x-full dark:border-gray-600 dark:bg-gray-700"
                     ></div>
                   </label>
-                  <span class="text-xs text-gray-600 dark:text-gray-400"
-                    >启用后，此 OpenAI 账户可以在 Claude→OpenAI 桥接下参与调度。</span
-                 >
+                  <span class="text-xs text-gray-600 dark:text-gray-400">
+                    启用后，此 OpenAI 账户可以在 Claude→OpenAI 桥接下参与调度。
+                  </span>
                 </div>
               </div>
 
@@ -2104,6 +2104,75 @@
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
               数字越小优先级越高，建议范围：1-100
             </p>
+          </div>
+
+          <!-- OpenAI 特定字段（编辑模式） -->
+          <div v-if="form.platform === 'openai'" class="space-y-4">
+            <div class="rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
+              <label class="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-300"
+                >允许被 Claude 桥接调度</label
+              >
+              <div class="flex items-center gap-3">
+                <label class="relative inline-flex cursor-pointer items-center">
+                  <input v-model="form.allowClaudeBridge" class="peer sr-only" type="checkbox" />
+                  <div
+                    class="peer h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all peer-checked:bg-green-500 peer-checked:after:translate-x-full dark:border-gray-600 dark:bg-gray-700"
+                  ></div>
+                </label>
+                <span class="text-xs text-gray-600 dark:text-gray-400">
+                  启用后，此 OpenAI 账户可在 Claude→OpenAI 桥接下参与调度。
+                </span>
+              </div>
+            </div>
+
+            <div>
+              <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
+                >模型映射表 (可选)</label
+              >
+              <div class="mb-3 rounded-lg bg-blue-50 p-3 dark:bg-blue-900/30">
+                <p class="text-xs text-blue-700 dark:text-blue-300">
+                  <i class="fas fa-info-circle mr-1" />
+                  设置 Claude 模型与 OpenAI 模型的映射关系。留空表示不重写模型，直接透传。
+                </p>
+              </div>
+
+              <div class="mb-3 space-y-2">
+                <div
+                  v-for="(mapping, index) in modelMappings"
+                  :key="index"
+                  class="flex items-center gap-2"
+                >
+                  <input
+                    v-model="mapping.from"
+                    class="form-input flex-1 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                    placeholder="Claude 模型，例如 claude-3-5-haiku-20241022"
+                    type="text"
+                  />
+                  <i class="fas fa-arrow-right text-gray-400 dark:text-gray-500" />
+                  <input
+                    v-model="mapping.to"
+                    class="form-input flex-1 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                    placeholder="对应的 OpenAI 模型，例如 gpt-5-mini"
+                    type="text"
+                  />
+                  <button
+                    class="rounded-lg p-2 text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-900/20"
+                    type="button"
+                    @click="removeModelMapping(index)"
+                  >
+                    <i class="fas fa-trash" />
+                  </button>
+                </div>
+              </div>
+
+              <button
+                class="w-full rounded-lg border-2 border-dashed border-gray-300 px-4 py-2 text-gray-600 transition-colors hover:border-gray-400 hover:text-gray-700 dark:border-gray-600 dark:text-gray-400 dark:hover:border-gray-500 dark:hover:text-gray-300"
+                type="button"
+                @click="addModelMapping"
+              >
+                <i class="fas fa-plus mr-2" /> 添加模型映射
+              </button>
+            </div>
           </div>
 
           <!-- Claude Console 和 CCR 特定字段（编辑模式）-->
