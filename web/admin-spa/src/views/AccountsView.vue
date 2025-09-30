@@ -204,6 +204,11 @@
                 <i v-else class="fas fa-sort ml-1 text-gray-400" />
               </th>
               <th
+                class="w-[10%] min-w-[110px] px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300"
+              >
+                Claude 桥接
+              </th>
+              <th
                 class="w-[10%] min-w-[100px] px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300"
               >
                 代理
@@ -582,6 +587,21 @@
                 <div v-else class="text-sm text-gray-400">
                   <span class="text-xs">N/A</span>
                 </div>
+              </td>
+              <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-600 dark:text-gray-300">
+                <span
+                  v-if="account.platform === 'openai'"
+                  :class="[
+                    'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold',
+                    account.allowClaudeBridge
+                      ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                      : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
+                  ]"
+                >
+                  <i :class="account.allowClaudeBridge ? 'fas fa-check-circle' : 'fas fa-ban'" />
+                  {{ account.allowClaudeBridge ? '已启用' : '未启用' }}
+                </span>
+                <span v-else class="text-gray-400 dark:text-gray-500">—</span>
               </td>
               <td class="px-3 py-4 text-sm text-gray-600">
                 <div
@@ -993,6 +1013,29 @@
               </div>
               <div v-else class="text-sm font-semibold text-gray-400">-</div>
             </div>
+          </div>
+
+          <div
+            v-if="account.platform === 'openai'"
+            class="mb-3 rounded-lg bg-gray-50 p-2 dark:bg-gray-800/50"
+          >
+            <div class="flex items-center justify-between text-xs">
+              <span class="font-medium text-gray-600 dark:text-gray-300">Claude 桥接</span>
+              <span
+                :class="[
+                  'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold',
+                  account.allowClaudeBridge
+                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                    : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
+                ]"
+              >
+                <i :class="account.allowClaudeBridge ? 'fas fa-check-circle' : 'fas fa-ban'" />
+                {{ account.allowClaudeBridge ? '已启用' : '未启用' }}
+              </span>
+            </div>
+            <p class="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+              控制该 OpenAI 账户是否可被 /claude/openai 桥接调度。
+            </p>
           </div>
 
           <!-- 状态信息 -->
