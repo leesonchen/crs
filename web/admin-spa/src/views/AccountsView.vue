@@ -590,7 +590,7 @@
               </td>
               <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-600 dark:text-gray-300">
                 <span
-                  v-if="account.platform === 'openai'"
+                  v-if="account.platform === 'openai' || account.platform === 'openai-responses'"
                   :class="[
                     'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold',
                     account.allowClaudeBridge
@@ -1016,7 +1016,7 @@
           </div>
 
           <div
-            v-if="account.platform === 'openai'"
+            v-if="account.platform === 'openai' || account.platform === 'openai-responses'"
             class="mb-3 rounded-lg bg-gray-50 p-2 dark:bg-gray-800/50"
           >
             <div class="flex items-center justify-between text-xs">
@@ -1034,7 +1034,7 @@
               </span>
             </div>
             <p class="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
-              控制该 OpenAI 账户是否可被 /claude/openai 桥接调度。
+              控制该账户是否可被 Claude→OpenAI 桥接调度。
             </p>
           </div>
 
