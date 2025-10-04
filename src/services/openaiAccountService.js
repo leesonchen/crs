@@ -109,10 +109,13 @@ function decrypt(text) {
 // 🧹 定期清理缓存（每10分钟）
 let decryptCacheCleanupInterval = null
 if (process.env.NODE_ENV !== 'test') {
-  decryptCacheCleanupInterval = setInterval(() => {
-    decryptCache.cleanup()
-    logger.info('🧹 OpenAI decrypt cache cleanup completed', decryptCache.getStats())
-  }, 10 * 60 * 1000)
+  decryptCacheCleanupInterval = setInterval(
+    () => {
+      decryptCache.cleanup()
+      logger.info('🧹 OpenAI decrypt cache cleanup completed', decryptCache.getStats())
+    },
+    10 * 60 * 1000
+  )
 
   if (typeof decryptCacheCleanupInterval.unref === 'function') {
     decryptCacheCleanupInterval.unref()
@@ -1255,6 +1258,7 @@ module.exports = {
   selectAvailableAccount,
   refreshAccountToken,
   isTokenExpired,
+  isRateLimited, // 添加导出限流检查函数
   setAccountRateLimited,
   markAccountUnauthorized,
   resetAccountStatus,
