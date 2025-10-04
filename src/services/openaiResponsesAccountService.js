@@ -124,6 +124,19 @@ class OpenAIResponsesAccountService {
       }
     }
 
+    // 解析 claudeModelMapping 字段（用于 Claude 桥接）
+    if (accountData.claudeModelMapping) {
+      try {
+        accountData.claudeModelMapping = JSON.parse(accountData.claudeModelMapping)
+      } catch (e) {
+        accountData.claudeModelMapping = null
+      }
+    }
+
+    // 解析 allowClaudeBridge 布尔字段
+    accountData.allowClaudeBridge =
+      accountData.allowClaudeBridge === 'true' || accountData.allowClaudeBridge === true
+
     return accountData
   }
 
@@ -253,10 +266,22 @@ class OpenAIResponsesAccountService {
                   minutesRemaining: 0
                 }
 
+            // 解析 claudeModelMapping 字段（用于 Claude 桥接）
+            if (accountData.claudeModelMapping) {
+              try {
+                accountData.claudeModelMapping = JSON.parse(accountData.claudeModelMapping)
+              } catch (e) {
+                accountData.claudeModelMapping = null
+              }
+            }
+
             // 转换 schedulable 字段为布尔值（前端需要布尔值来判断）
             accountData.schedulable = accountData.schedulable !== 'false'
             // 转换 isActive 字段为布尔值
             accountData.isActive = accountData.isActive === 'true'
+            // 转换 allowClaudeBridge 字段为布尔值
+            accountData.allowClaudeBridge =
+              accountData.allowClaudeBridge === 'true' || accountData.allowClaudeBridge === true
 
             accounts.push(accountData)
           }
