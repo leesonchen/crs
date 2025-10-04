@@ -553,12 +553,10 @@ async function handleMessagesRequest(req, res) {
         req._bridgeForceNonStream = !originalStream
         req._bridgeConverter = toClaude
         req._bridgeStreamTransform = (chunkStr) => {
-          toClaude.convertStreamChunk(chunkStr)
-          return null
+          return toClaude.convertStreamChunk(chunkStr)
         }
         req._bridgeStreamFinalize = () => {
-          toClaude.finalizeStream()
-          return null
+          return toClaude.finalizeStream()
         }
         req._bridgeNonStreamConvert = (responseData) => {
           // responseData 是从 OpenAI API 返回的响应数据
@@ -716,95 +714,97 @@ async function handleMessagesRequest(req, res) {
           const ClaudeToOpenAIResponsesConverter = require('../services/claudeToOpenAIResponses')
           const OpenAIResponsesToClaudeConverter = require('../services/openaiResponsesToClaude')
 
-        // 获取账户信息以获取模型映射
-        const accountService =
-          accountType === 'openai'
-            ? require('../services/openaiAccountService')
-            : require('../services/openaiResponsesAccountService')
-        const fullAccount = await accountService.getAccount(accountId)
+          // 获取账户信息以获取模型映射
+          const accountService =
+            accountType === 'openai'
+              ? require('../services/openaiAccountService')
+              : require('../services/openaiResponsesAccountService')
+          const fullAccount = await accountService.getAccount(accountId)
 
-        // 构建模型映射：账户级 → 全局 → 默认
-        // claudeModelMapping 已经在 getAccount() 中被解析为对象，直接使用
-        const accountMapping =
-          fullAccount.claudeModelMapping && typeof fullAccount.claudeModelMapping === 'object'
-            ? fullAccount.claudeModelMapping
-            : {}
-        const globalMapping = config.claudeBridgeDefaults?.modelMapping || {}
-        const modelMapping = { ...globalMapping, ...accountMapping }
-        const defaultModel = config.claudeBridgeDefaults?.defaultModel || 'gpt-5'
+          // 构建模型映射：账户级 → 全局 → 默认
+          // claudeModelMapping 已经在 getAccount() 中被解析为对象，直接使用
+          const accountMapping =
+            fullAccount.claudeModelMapping && typeof fullAccount.claudeModelMapping === 'object'
+              ? fullAccount.claudeModelMapping
+              : {}
+          const globalMapping = config.claudeBridgeDefaults?.modelMapping || {}
+          const modelMapping = { ...globalMapping, ...accountMapping }
+          const defaultModel = config.claudeBridgeDefaults?.defaultModel || 'gpt-5'
 
-        // 记录映射信息
-        const claudeModel = req.body.model
-        const mappedModel = modelMapping[claudeModel] || defaultModel
-        const mappingSource = modelMapping[claudeModel]
-          ? Object.keys(accountMapping).includes(claudeModel)
-            ? 'account'
-            : 'global'
-          : 'default'
-        logger.info(`🔄 Model mapping: ${claudeModel} → ${mappedModel} (source: ${mappingSource})`)
+          // 记录映射信息
+          const claudeModel = req.body.model
+          const mappedModel = modelMapping[claudeModel] || defaultModel
+          const mappingSource = modelMapping[claudeModel]
+            ? Object.keys(accountMapping).includes(claudeModel)
+              ? 'account'
+              : 'global'
+            : 'default'
+          logger.info(
+            `🔄 Model mapping: ${claudeModel} → ${mappedModel} (source: ${mappingSource})`
+          )
 
-        // 转换 Claude 请求为 OpenAI 请求
-        const toOpenAI = new ClaudeToOpenAIResponsesConverter({ modelMapping, defaultModel })
-        const toClaude = new OpenAIResponsesToClaudeConverter()
+          // 转换 Claude 请求为 OpenAI 请求
+          const toOpenAI = new ClaudeToOpenAIResponsesConverter({ modelMapping, defaultModel })
+          const toClaude = new OpenAIResponsesToClaudeConverter()
 
-        let openaiRequest
-        if (accountType === 'openai-responses') {
-          openaiRequest = toOpenAI.convertRequest(req.body)
-        } else {
-          // OpenAI 直连账户：简化转换
-          openaiRequest = {
-            model: mappedModel,
-            messages: req.body.messages || [],
-            stream: false
+          let openaiRequest
+          if (accountType === 'openai-responses') {
+            openaiRequest = toOpenAI.convertRequest(req.body)
+          } else {
+            // OpenAI 直连账户：简化转换
+            openaiRequest = {
+              model: mappedModel,
+              messages: req.body.messages || [],
+              stream: false
+            }
+            if (req.body.system) {
+              openaiRequest.messages.unshift({ role: 'system', content: req.body.system })
+            }
           }
-          if (req.body.system) {
-            openaiRequest.messages.unshift({ role: 'system', content: req.body.system })
+
+          // 设置桥接元数据
+          req._bridgeForceNonStream = true
+          req._bridgeConverter = toClaude
+          req._bridgeNonStreamConvert = (responseData) => {
+            // responseData 是从 OpenAI API 返回的响应数据
+            return toClaude.convertNonStream({ response: responseData })
           }
-        }
 
-        // 设置桥接元数据
-        req._bridgeForceNonStream = true
-        req._bridgeConverter = toClaude
-        req._bridgeNonStreamConvert = (responseData) => {
-          // responseData 是从 OpenAI API 返回的响应数据
-          return toClaude.convertNonStream({ response: responseData })
-        }
+          // 覆写请求体
+          const originalBody = req.body
+          req.body = openaiRequest
 
-        // 覆写请求体
-        const originalBody = req.body
-        req.body = openaiRequest
-
-        // 设置 baseApi 和 apiKey（OpenAI OAuth 账户没有baseApi字段，且accessToken需要解密）
-        if (accountType === 'openai') {
-          if (!fullAccount.baseApi) {
-            fullAccount.baseApi = 'https://api.openai.com'
+          // 设置 baseApi 和 apiKey（OpenAI OAuth 账户没有baseApi字段，且accessToken需要解密）
+          if (accountType === 'openai') {
+            if (!fullAccount.baseApi) {
+              fullAccount.baseApi = 'https://api.openai.com'
+            }
+            // OpenAI OAuth 账户使用 accessToken 作为 apiKey，需要解密
+            if (fullAccount.accessToken && !fullAccount.apiKey) {
+              const { decrypt } = accountService
+              fullAccount.apiKey = decrypt(fullAccount.accessToken)
+            }
           }
-          // OpenAI OAuth 账户使用 accessToken 作为 apiKey，需要解密
-          if (fullAccount.accessToken && !fullAccount.apiKey) {
-            const { decrypt } = accountService
-            fullAccount.apiKey = decrypt(fullAccount.accessToken)
+
+          // 设置上游路径：OpenAI 直连使用 /v1/chat/completions，OpenAI-Responses 使用 /v1/responses
+          if (accountType === 'openai') {
+            req.headers['x-crs-upstream-path'] = '/v1/chat/completions'
+          } else if (accountType === 'openai-responses') {
+            req.headers['x-crs-upstream-path'] = '/v1/responses'
           }
-        }
 
-        // 设置上游路径：OpenAI 直连使用 /v1/chat/completions，OpenAI-Responses 使用 /v1/responses
-        if (accountType === 'openai') {
-          req.headers['x-crs-upstream-path'] = '/v1/chat/completions'
-        } else if (accountType === 'openai-responses') {
-          req.headers['x-crs-upstream-path'] = '/v1/responses'
-        }
+          // 调试日志
+          logger.info('🔍 Bridge debug - Request body:', JSON.stringify(req.body))
+          logger.info('🔍 Bridge debug - Account info:', {
+            id: fullAccount.id,
+            baseApi: fullAccount.baseApi,
+            hasApiKey: !!fullAccount.apiKey,
+            apiKeyLength: fullAccount.apiKey?.length
+          })
 
-        // 调试日志
-        logger.info('🔍 Bridge debug - Request body:', JSON.stringify(req.body))
-        logger.info('🔍 Bridge debug - Account info:', {
-          id: fullAccount.id,
-          baseApi: fullAccount.baseApi,
-          hasApiKey: !!fullAccount.apiKey,
-          apiKeyLength: fullAccount.apiKey?.length
-        })
-
-        // 调用 relay 服务（返回会被桥接转换器处理）
-        const relayService = require('../services/openaiResponsesRelayService')
-        await relayService.handleRequest(req, res, fullAccount, req.apiKey)
+          // 调用 relay 服务（返回会被桥接转换器处理）
+          const relayService = require('../services/openaiResponsesRelayService')
+          await relayService.handleRequest(req, res, fullAccount, req.apiKey)
 
           logger.info(
             `✅ Non-stream bridge completed: Claude request → ${accountType} → Claude response`
