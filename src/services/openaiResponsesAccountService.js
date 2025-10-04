@@ -49,7 +49,9 @@ class OpenAIResponsesAccountService {
       schedulable = true, // 是否可被调度
       dailyQuota = 0, // 每日额度限制（美元），0表示不限制
       quotaResetTime = '00:00', // 额度重置时间（HH:mm格式）
-      rateLimitDuration = 60 // 限流时间（分钟）
+      rateLimitDuration = 60, // 限流时间（分钟）
+      allowClaudeBridge = false, // 是否允许 Claude 桥接调度
+      claudeModelMapping = null // Claude 模型映射配置
     } = options
 
     // 验证必填字段
@@ -88,7 +90,16 @@ class OpenAIResponsesAccountService {
       dailyUsage: '0',
       lastResetDate: redis.getDateStringInTimezone(),
       quotaResetTime,
-      quotaStoppedAt: ''
+      quotaStoppedAt: '',
+      // Claude 桥接相关
+      allowClaudeBridge:
+        allowClaudeBridge === true || allowClaudeBridge === 'true' ? 'true' : 'false',
+      claudeModelMapping:
+        claudeModelMapping && typeof claudeModelMapping === 'object'
+          ? JSON.stringify(claudeModelMapping)
+          : claudeModelMapping && typeof claudeModelMapping === 'string'
+            ? claudeModelMapping
+            : ''
     }
 
     // 保存到 Redis
@@ -155,6 +166,25 @@ class OpenAIResponsesAccountService {
     // 处理 JSON 字段
     if (updates.proxy !== undefined) {
       updates.proxy = updates.proxy ? JSON.stringify(updates.proxy) : ''
+    }
+
+    // 处理 Claude 桥接相关字段
+    if (updates.allowClaudeBridge !== undefined) {
+      updates.allowClaudeBridge =
+        updates.allowClaudeBridge === true || updates.allowClaudeBridge === 'true'
+          ? 'true'
+          : 'false'
+    }
+
+    if (updates.claudeModelMapping !== undefined) {
+      if (typeof updates.claudeModelMapping === 'object' && updates.claudeModelMapping !== null) {
+        updates.claudeModelMapping = JSON.stringify(updates.claudeModelMapping)
+      } else if (typeof updates.claudeModelMapping === 'string') {
+        // 如果已经是字符串，保持不变
+        updates.claudeModelMapping = updates.claudeModelMapping
+      } else {
+        updates.claudeModelMapping = ''
+      }
     }
 
     // 规范化 baseApi
