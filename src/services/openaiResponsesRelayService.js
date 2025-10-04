@@ -50,9 +50,16 @@ class OpenAIResponsesRelayService {
 
     try {
       // 获取完整的账户信息（包含解密的 API Key）
-      const fullAccount = await openaiResponsesAccountService.getAccount(account.id)
-      if (!fullAccount) {
-        throw new Error('Account not found')
+      // 如果传入的 account 已经包含 apiKey 和 baseApi，则直接使用（用于桥接场景）
+      let fullAccount
+      if (account.apiKey && account.baseApi) {
+        fullAccount = account
+        logger.debug('🔗 Using pre-configured account for bridge mode')
+      } else {
+        fullAccount = await openaiResponsesAccountService.getAccount(account.id)
+        if (!fullAccount) {
+          throw new Error('Account not found')
+        }
       }
 
       // 创建 AbortController 用于取消请求

@@ -273,3 +273,4 @@ Do what has been asked; nothing more, nothing less.
 NEVER create files unless they're absolutely necessary for achieving your goal.
 ALWAYS prefer editing an existing file to creating a new one.
 NEVER proactively create documentation files (\*.md) or README files. Only create documentation files if explicitly requested by the User.
+- 如果修改了后端代码，需要重新启动服务，直接运行 crs restart , 否则如无修改可以直接假定服务已启动。连接后端API，需要使用的key是：cr_f656ba569babc360a61823224ba69c4528a68a4f5db9ee48b5819e9ce1c995b9

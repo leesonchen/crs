@@ -510,9 +510,11 @@ async function handleMessagesRequest(req, res) {
         const fullAccount = await accountService.getAccount(accountId)
 
         // 构建模型映射：账户级 → 全局 → 默认
-        const accountMapping = fullAccount.claudeModelMapping
-          ? JSON.parse(fullAccount.claudeModelMapping)
-          : {}
+        // claudeModelMapping 已经在 getAccount() 中被解析为对象，直接使用
+        const accountMapping =
+          fullAccount.claudeModelMapping && typeof fullAccount.claudeModelMapping === 'object'
+            ? fullAccount.claudeModelMapping
+            : {}
         const globalMapping = config.claudeBridgeDefaults?.modelMapping || {}
         const modelMapping = { ...globalMapping, ...accountMapping }
         const defaultModel = config.claudeBridgeDefaults?.defaultModel || 'gpt-5'
@@ -587,8 +589,10 @@ async function handleMessagesRequest(req, res) {
         // 调用对应的 relay 服务（都使用 openaiResponsesRelayService）
         const relayService = require('../services/openaiResponsesRelayService')
 
-        // OpenAI-Responses 需要设置上游路径
-        if (accountType === 'openai-responses') {
+        // 设置上游路径：OpenAI 直连使用 /v1/chat/completions，OpenAI-Responses 使用 /v1/responses
+        if (accountType === 'openai') {
+          req.headers['x-crs-upstream-path'] = '/v1/chat/completions'
+        } else if (accountType === 'openai-responses') {
           req.headers['x-crs-upstream-path'] = '/v1/responses'
         }
 
@@ -706,10 +710,11 @@ async function handleMessagesRequest(req, res) {
           `🌉 Using OpenAI bridge for non-stream Claude request - Account: ${accountId}, Type: ${accountType}`
         )
 
-        // 导入必要的服务和转换器（与流式请求相同）
-        const config = require('../../config/config')
-        const ClaudeToOpenAIResponsesConverter = require('../services/claudeToOpenAIResponses')
-        const OpenAIResponsesToClaudeConverter = require('../services/openaiResponsesToClaude')
+        try {
+          // 导入必要的服务和转换器（与流式请求相同）
+          const config = require('../../config/config')
+          const ClaudeToOpenAIResponsesConverter = require('../services/claudeToOpenAIResponses')
+          const OpenAIResponsesToClaudeConverter = require('../services/openaiResponsesToClaude')
 
         // 获取账户信息以获取模型映射
         const accountService =
@@ -719,9 +724,11 @@ async function handleMessagesRequest(req, res) {
         const fullAccount = await accountService.getAccount(accountId)
 
         // 构建模型映射：账户级 → 全局 → 默认
-        const accountMapping = fullAccount.claudeModelMapping
-          ? JSON.parse(fullAccount.claudeModelMapping)
-          : {}
+        // claudeModelMapping 已经在 getAccount() 中被解析为对象，直接使用
+        const accountMapping =
+          fullAccount.claudeModelMapping && typeof fullAccount.claudeModelMapping === 'object'
+            ? fullAccount.claudeModelMapping
+            : {}
         const globalMapping = config.claudeBridgeDefaults?.modelMapping || {}
         const modelMapping = { ...globalMapping, ...accountMapping }
         const defaultModel = config.claudeBridgeDefaults?.defaultModel || 'gpt-5'
@@ -779,21 +786,41 @@ async function handleMessagesRequest(req, res) {
           }
         }
 
-        // OpenAI-Responses 需要设置上游路径
-        if (accountType === 'openai-responses') {
+        // 设置上游路径：OpenAI 直连使用 /v1/chat/completions，OpenAI-Responses 使用 /v1/responses
+        if (accountType === 'openai') {
+          req.headers['x-crs-upstream-path'] = '/v1/chat/completions'
+        } else if (accountType === 'openai-responses') {
           req.headers['x-crs-upstream-path'] = '/v1/responses'
         }
+
+        // 调试日志
+        logger.info('🔍 Bridge debug - Request body:', JSON.stringify(req.body))
+        logger.info('🔍 Bridge debug - Account info:', {
+          id: fullAccount.id,
+          baseApi: fullAccount.baseApi,
+          hasApiKey: !!fullAccount.apiKey,
+          apiKeyLength: fullAccount.apiKey?.length
+        })
 
         // 调用 relay 服务（返回会被桥接转换器处理）
         const relayService = require('../services/openaiResponsesRelayService')
         await relayService.handleRequest(req, res, fullAccount, req.apiKey)
 
-        logger.info(
-          `✅ Non-stream bridge completed: Claude request → ${accountType} → Claude response`
-        )
+          logger.info(
+            `✅ Non-stream bridge completed: Claude request → ${accountType} → Claude response`
+          )
 
-        // 桥接请求已在 relay 服务内部完成，直接返回
-        return
+          // 桥接请求已在 relay 服务内部完成，直接返回
+          return
+        } catch (bridgeError) {
+          logger.error('❌ Bridge error details:', {
+            message: bridgeError.message,
+            stack: bridgeError.stack,
+            accountId,
+            accountType
+          })
+          throw bridgeError
+        }
       }
 
       logger.info('📡 Claude API response received', {
