@@ -52,14 +52,18 @@ class OpenAIResponsesRelayService {
       // 获取完整的账户信息（包含解密的 API Key）
       // 如果传入的 account 已经包含 apiKey 和 baseApi，则直接使用（用于桥接场景）
       let fullAccount
+      let accountType = 'openai-responses' // 默认类型
       if (account.apiKey && account.baseApi) {
         fullAccount = account
-        logger.debug('🔗 Using pre-configured account for bridge mode')
+        // 桥接模式：从 account 对象中检测实际类型
+        accountType = account.platform || account.accountType || 'openai-responses'
+        logger.debug(`🔗 Using pre-configured account for bridge mode, type: ${accountType}`)
       } else {
         fullAccount = await openaiResponsesAccountService.getAccount(account.id)
         if (!fullAccount) {
           throw new Error('Account not found')
         }
+        accountType = 'openai-responses'
       }
 
       // 创建 AbortController 用于取消请求
@@ -157,7 +161,8 @@ class OpenAIResponsesRelayService {
           account,
           response,
           req.body?.stream,
-          sessionHash
+          sessionHash,
+          accountType
         )
 
         // 返回错误响应（使用处理后的数据，避免循环引用）
@@ -666,7 +671,7 @@ class OpenAIResponsesRelayService {
 
         await unifiedOpenAIScheduler.markAccountRateLimited(
           account.id,
-          'openai-responses',
+          accountType,
           sessionHash,
           rateLimitResetsInSeconds
         )
@@ -841,7 +846,13 @@ class OpenAIResponsesRelayService {
   }
 
   // 处理 429 限流错误
-  async _handle429Error(account, response, isStream = false, sessionHash = null) {
+  async _handle429Error(
+    account,
+    response,
+    isStream = false,
+    sessionHash = null,
+    accountType = 'openai-responses'
+  ) {
     let resetsInSeconds = null
     let errorData = null
 
@@ -926,7 +937,7 @@ class OpenAIResponsesRelayService {
     // 使用统一调度器标记账户为限流状态（与普通OpenAI账号保持一致）
     await unifiedOpenAIScheduler.markAccountRateLimited(
       account.id,
-      'openai-responses',
+      accountType,
       sessionHash,
       resetsInSeconds
     )
