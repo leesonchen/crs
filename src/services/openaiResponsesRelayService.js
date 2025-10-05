@@ -80,7 +80,19 @@ class OpenAIResponsesRelayService {
 
       // 构建目标 URL，允许通过头覆盖上游路径
       const upstreamPath = req.headers['x-crs-upstream-path'] || req.path
-      const targetUrl = `${fullAccount.baseApi}${upstreamPath}`
+      // 智能拼接 URL，避免重复路径片段
+      let targetUrl
+      const baseApi = fullAccount.baseApi.replace(/\/+$/, '') // 移除末尾斜杠
+      // 如果 baseApi 已包含完整路径（如 /v1/responses），则检测并避免重复
+      if (baseApi.endsWith(upstreamPath)) {
+        targetUrl = baseApi
+      } else if (baseApi.endsWith('/v1') && upstreamPath.startsWith('/v1/')) {
+        // baseApi 含 /v1，upstreamPath 也是 /v1/xxx，则只拼接 /xxx 部分
+        targetUrl = `${baseApi}${upstreamPath.slice(3)}` // 去掉 upstreamPath 的前 3 个字符 "/v1"
+      } else {
+        // 正常拼接
+        targetUrl = `${baseApi}${upstreamPath}`
+      }
       logger.info(`🎯 Forwarding to: ${targetUrl}`)
 
       // 构建请求头

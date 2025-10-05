@@ -569,7 +569,8 @@ async function handleMessagesRequest(req, res) {
         // 设置 baseApi 和 apiKey（OpenAI OAuth 账户没有baseApi字段，且accessToken需要解密）
         if (accountType === 'openai') {
           if (!fullAccount.baseApi) {
-            fullAccount.baseApi = 'https://api.openai.com'
+            // OpenAI OAuth 账户默认使用 ChatGPT Codex API（与 /openai/responses 路由一致）
+            fullAccount.baseApi = 'https://chatgpt.com/backend-api/codex'
           }
           // OpenAI OAuth 账户使用 accessToken 作为 apiKey，需要解密
           if (fullAccount.accessToken && !fullAccount.apiKey) {
@@ -587,9 +588,9 @@ async function handleMessagesRequest(req, res) {
         // 调用对应的 relay 服务（都使用 openaiResponsesRelayService）
         const relayService = require('../services/openaiResponsesRelayService')
 
-        // 设置上游路径：OpenAI 直连使用 /v1/chat/completions，OpenAI-Responses 使用 /v1/responses
+        // 设置上游路径：OpenAI OAuth 使用 /responses（Codex API），OpenAI-Responses 使用 /v1/responses
         if (accountType === 'openai') {
-          req.headers['x-crs-upstream-path'] = '/v1/chat/completions'
+          req.headers['x-crs-upstream-path'] = '/responses'
         } else if (accountType === 'openai-responses') {
           req.headers['x-crs-upstream-path'] = '/v1/responses'
         }
@@ -777,7 +778,8 @@ async function handleMessagesRequest(req, res) {
           // 设置 baseApi 和 apiKey（OpenAI OAuth 账户没有baseApi字段，且accessToken需要解密）
           if (accountType === 'openai') {
             if (!fullAccount.baseApi) {
-              fullAccount.baseApi = 'https://api.openai.com'
+              // OpenAI OAuth 账户默认使用 ChatGPT Codex API（与 /openai/responses 路由一致）
+              fullAccount.baseApi = 'https://chatgpt.com/backend-api/codex'
             }
             // OpenAI OAuth 账户使用 accessToken 作为 apiKey，需要解密
             if (fullAccount.accessToken && !fullAccount.apiKey) {
@@ -786,9 +788,9 @@ async function handleMessagesRequest(req, res) {
             }
           }
 
-          // 设置上游路径：OpenAI 直连使用 /v1/chat/completions，OpenAI-Responses 使用 /v1/responses
+          // 设置上游路径：OpenAI OAuth 使用 /responses（Codex API），OpenAI-Responses 使用 /v1/responses
           if (accountType === 'openai') {
-            req.headers['x-crs-upstream-path'] = '/v1/chat/completions'
+            req.headers['x-crs-upstream-path'] = '/responses'
           } else if (accountType === 'openai-responses') {
             req.headers['x-crs-upstream-path'] = '/v1/responses'
           }
