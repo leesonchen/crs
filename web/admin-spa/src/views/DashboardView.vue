@@ -673,6 +673,160 @@
         </div>
       </div>
     </div>
+
+    <!-- 调用明细列表 -->
+    <div class="mb-4 sm:mb-6 md:mb-8">
+      <div class="card p-4 sm:p-6">
+        <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100 sm:text-lg">
+            <i class="fas fa-list-ul mr-2 text-blue-600" />
+            调用明细
+          </h3>
+          <button
+            class="flex items-center gap-1 rounded-md border border-gray-300 bg-white px-3 py-1 text-sm font-medium text-blue-600 shadow-sm transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700"
+            :disabled="loadingDetails"
+            @click="loadUsageDetails()"
+          >
+            <i :class="['fas fa-sync-alt text-xs', { 'animate-spin': loadingDetails }]" />
+            刷新
+          </button>
+        </div>
+
+        <!-- 加载中 -->
+        <div v-if="loadingDetails && usageDetails.length === 0" class="py-8 text-center">
+          <i class="fas fa-spinner fa-spin text-2xl text-blue-500" />
+          <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">正在加载明细数据...</p>
+        </div>
+
+        <!-- 表格 -->
+        <div v-else-if="usageDetails.length > 0" class="space-y-4">
+          <div class="overflow-x-auto">
+            <table class="min-w-full">
+              <thead class="bg-gray-50 dark:bg-gray-700">
+                <tr>
+                  <th
+                    class="px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 sm:px-4 sm:text-sm"
+                  >
+                    时间
+                  </th>
+                  <th
+                    class="px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 sm:px-4 sm:text-sm"
+                  >
+                    API Key
+                  </th>
+                  <th
+                    class="hidden px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 sm:table-cell sm:px-4 sm:text-sm"
+                  >
+                    账户
+                  </th>
+                  <th
+                    class="px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 sm:px-4 sm:text-sm"
+                  >
+                    模型
+                  </th>
+                  <th
+                    class="hidden px-3 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300 sm:px-4 sm:text-sm md:table-cell"
+                  >
+                    Token
+                  </th>
+                  <th
+                    class="px-3 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300 sm:px-4 sm:text-sm"
+                  >
+                    费用
+                  </th>
+                  <th
+                    class="hidden px-3 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300 sm:table-cell sm:px-4 sm:text-sm"
+                  >
+                    请求数
+                  </th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-200 dark:divide-gray-600">
+                <tr
+                  v-for="(record, index) in usageDetails"
+                  :key="index"
+                  class="hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  <td class="px-3 py-2 text-xs text-gray-900 dark:text-gray-100 sm:px-4 sm:text-sm">
+                    {{ formatTimestamp(record.timestamp) }}
+                  </td>
+                  <td class="px-3 py-2 text-xs text-gray-900 dark:text-gray-100 sm:px-4 sm:text-sm">
+                    <span
+                      class="block max-w-[100px] truncate sm:max-w-[150px]"
+                      :title="record.apiKey"
+                    >
+                      {{ record.apiKey }}
+                    </span>
+                  </td>
+                  <td
+                    class="hidden px-3 py-2 text-xs text-gray-600 dark:text-gray-400 sm:table-cell sm:px-4 sm:text-sm"
+                  >
+                    <span
+                      class="block max-w-[100px] truncate sm:max-w-none"
+                      :title="record.account"
+                    >
+                      {{ record.account }}
+                    </span>
+                  </td>
+                  <td class="px-3 py-2 text-xs text-gray-900 dark:text-gray-100 sm:px-4 sm:text-sm">
+                    <span class="block max-w-[120px] truncate sm:max-w-none" :title="record.model">
+                      {{ record.model }}
+                    </span>
+                  </td>
+                  <td
+                    class="hidden px-3 py-2 text-right text-xs text-gray-600 dark:text-gray-400 sm:px-4 sm:text-sm md:table-cell"
+                  >
+                    {{ formatTokenCount(record.totalTokens) }}
+                  </td>
+                  <td
+                    class="px-3 py-2 text-right text-xs font-medium text-green-600 sm:px-4 sm:text-sm"
+                  >
+                    {{ record.cost }}
+                  </td>
+                  <td
+                    class="hidden px-3 py-2 text-right text-xs text-gray-600 dark:text-gray-400 sm:table-cell sm:px-4 sm:text-sm"
+                  >
+                    {{ record.requests }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- 分页 -->
+          <div class="flex flex-col items-center justify-between gap-3 sm:flex-row">
+            <div class="text-sm text-gray-600 dark:text-gray-400">
+              共 {{ usageDetailsPagination.total }} 条记录，第 {{ usageDetailsPagination.page }}
+              /
+              {{ usageDetailsPagination.totalPages }} 页
+            </div>
+            <div class="flex gap-2">
+              <button
+                class="rounded-md border border-gray-300 bg-white px-3 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800"
+                :disabled="usageDetailsPagination.page <= 1 || loadingDetails"
+                @click="changePage(usageDetailsPagination.page - 1)"
+              >
+                上一页
+              </button>
+              <button
+                class="rounded-md border border-gray-300 bg-white px-3 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800"
+                :disabled="
+                  usageDetailsPagination.page >= usageDetailsPagination.totalPages || loadingDetails
+                "
+                @click="changePage(usageDetailsPagination.page + 1)"
+              >
+                下一页
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 暂无数据 -->
+        <div v-else class="py-8 text-center">
+          <p class="text-sm text-gray-500 dark:text-gray-400">暂无调用明细数据</p>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -682,6 +836,7 @@ import { storeToRefs } from 'pinia'
 import { useDashboardStore } from '@/stores/dashboard'
 import { useThemeStore } from '@/stores/theme'
 import Chart from 'chart.js/auto'
+import axios from 'axios'
 
 const dashboardStore = useDashboardStore()
 const themeStore = useThemeStore()
@@ -1563,10 +1718,73 @@ watch(isDarkMode, () => {
   })
 })
 
+// 使用明细相关
+const usageDetails = ref([])
+const loadingDetails = ref(false)
+const usageDetailsPagination = ref({
+  page: 1,
+  pageSize: 20,
+  total: 0,
+  totalPages: 0
+})
+
+// 加载使用明细
+const loadUsageDetails = async (page = 1) => {
+  loadingDetails.value = true
+  try {
+    const response = await axios.get('/admin/usage-details', {
+      params: {
+        page,
+        limit: usageDetailsPagination.value.pageSize
+      }
+    })
+    if (response.data.success) {
+      usageDetails.value = response.data.data.records
+      usageDetailsPagination.value = {
+        page: response.data.data.page,
+        pageSize: response.data.data.pageSize,
+        total: response.data.data.total,
+        totalPages: response.data.data.totalPages
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load usage details:', error)
+  } finally {
+    loadingDetails.value = false
+  }
+}
+
+// 切换分页
+const changePage = (page) => {
+  if (page >= 1 && page <= usageDetailsPagination.value.totalPages) {
+    loadUsageDetails(page)
+  }
+}
+
+// 格式化时间戳
+const formatTimestamp = (timestamp) => {
+  if (!timestamp) return ''
+  const date = new Date(timestamp)
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hour = String(date.getHours()).padStart(2, '0')
+  const minute = String(date.getMinutes()).padStart(2, '0')
+  return `${month}-${day} ${hour}:${minute}`
+}
+
+// 格式化Token数量（添加千位分隔符）
+const formatTokenCount = (num) => {
+  if (num === undefined || num === null) return '0'
+  return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+}
+
 // 初始化
 onMounted(async () => {
   // 加载所有数据
   await refreshAllData()
+
+  // 加载使用明细
+  await loadUsageDetails()
 
   // 创建图表
   await nextTick()

@@ -26,7 +26,6 @@ const ProxyHelper = require('../utils/proxyHelper')
 
 const router = express.Router()
 
-
 function parseBooleanFlag(value, defaultValue = false) {
   if (value === undefined || value === null) {
     return defaultValue
@@ -8299,6 +8298,217 @@ router.post('/openai-responses-accounts/:id/reset-usage', authenticateAdmin, asy
     res.status(500).json({
       success: false,
       error: error.message
+    })
+  }
+})
+
+// 📊 获取模型价格列表（用于使用教程页面展示）
+router.get('/model-pricing', authenticateAdmin, async (req, res) => {
+  try {
+    const pricingService = require('../services/pricingService')
+
+    // 获取所有模型价格数据
+    const allPricing = pricingService.pricingData || {}
+
+    // 按平台分类并格式化
+    const categorizedPricing = {
+      claude: [],
+      openai: [],
+      gemini: [],
+      other: []
+    }
+
+    const lastUpdated = pricingService.lastUpdated
+
+    // 遍历所有模型并分类
+    for (const [modelName, pricing] of Object.entries(allPricing)) {
+      const formattedModel = {
+        name: modelName,
+        inputPrice: pricing.input_cost_per_token ? pricing.input_cost_per_token * 1000000 : 0,
+        outputPrice: pricing.output_cost_per_token ? pricing.output_cost_per_token * 1000000 : 0,
+        cacheCreatePrice: pricing.cache_creation_input_token_cost
+          ? pricing.cache_creation_input_token_cost * 1000000
+          : 0,
+        cacheReadPrice: pricing.cache_read_input_token_cost
+          ? pricing.cache_read_input_token_cost * 1000000
+          : 0
+      }
+
+      // 按模型名称分类
+      const modelLower = modelName.toLowerCase()
+      if (modelLower.includes('claude')) {
+        categorizedPricing.claude.push(formattedModel)
+      } else if (modelLower.includes('gpt') || modelLower.includes('o1')) {
+        categorizedPricing.openai.push(formattedModel)
+      } else if (modelLower.includes('gemini')) {
+        categorizedPricing.gemini.push(formattedModel)
+      } else {
+        categorizedPricing.other.push(formattedModel)
+      }
+    }
+
+    // 按价格从高到低排序每个分类
+    const sortByPrice = (a, b) => b.outputPrice - a.outputPrice
+    categorizedPricing.claude.sort(sortByPrice)
+    categorizedPricing.openai.sort(sortByPrice)
+    categorizedPricing.gemini.sort(sortByPrice)
+    categorizedPricing.other.sort(sortByPrice)
+
+    return res.json({
+      success: true,
+      data: categorizedPricing,
+      lastUpdated: lastUpdated ? lastUpdated.toISOString() : null,
+      totalModels: Object.keys(allPricing).length
+    })
+  } catch (error) {
+    logger.error('❌ Failed to get model pricing:', error)
+    return res.status(500).json({
+      error: 'Failed to get model pricing',
+      message: error.message
+    })
+  }
+})
+
+// 📋 获取使用明细列表（用于仪表盘展示）
+router.get('/usage-details', authenticateAdmin, async (req, res) => {
+  try {
+    const { page = 1, limit = 20, startDate, endDate, apiKeyId, accountId, model } = req.query
+
+    const pageNum = parseInt(page)
+    const pageSize = parseInt(limit)
+    const offset = (pageNum - 1) * pageSize
+
+    const client = redis.getClientSafe()
+
+    // 构建时间范围
+    const now = redis.getDateInTimezone()
+    const endDateTime = endDate ? new Date(endDate) : new Date(now.getTime() + 24 * 60 * 60 * 1000)
+    const startDateTime = startDate
+      ? new Date(startDate)
+      : new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+
+    logger.info(
+      `📋 Fetching usage details: page=${pageNum}, limit=${pageSize}, range=${startDateTime.toISOString()} to ${endDateTime.toISOString()}`
+    )
+
+    // 收集所有匹配的使用记录
+    const allRecords = []
+
+    // 按小时粒度扫描数据（更精确）
+    let currentTime = new Date(startDateTime)
+    while (currentTime <= endDateTime) {
+      const year = currentTime.getUTCFullYear()
+      const month = String(currentTime.getUTCMonth() + 1).padStart(2, '0')
+      const day = String(currentTime.getUTCDate()).padStart(2, '0')
+      const hour = String(currentTime.getUTCHours()).padStart(2, '0')
+      const hourStr = `${year}-${month}-${day}:${hour}`
+
+      // 构建搜索pattern
+      let pattern
+      if (apiKeyId && model) {
+        pattern = `usage:${apiKeyId}:model:hourly:${model}:${hourStr}`
+      } else if (apiKeyId) {
+        pattern = `usage:${apiKeyId}:model:hourly:*:${hourStr}`
+      } else if (model) {
+        pattern = `usage:*:model:hourly:${model}:${hourStr}`
+      } else {
+        pattern = `usage:*:model:hourly:*:${hourStr}`
+      }
+
+      // 使用 SCAN 而非 KEYS
+      const keys = []
+      let cursor = '0'
+      do {
+        const result = await client.scan(cursor, 'MATCH', pattern, 'COUNT', 100)
+        cursor = result[0]
+        keys.push(...result[1])
+      } while (cursor !== '0')
+
+      // 获取每个key的数据
+      for (const key of keys) {
+        // 解析key: usage:{keyId}:model:hourly:{model}:{date}:{hour}
+        const match = key.match(/usage:(.+):model:hourly:(.+):(\d{4}-\d{2}-\d{2}:\d{2})$/)
+        if (!match) continue
+
+        const [, keyId, modelName, timestamp] = match
+
+        // 应用过滤条件
+        if (apiKeyId && keyId !== apiKeyId) continue
+        if (accountId && !key.includes(accountId)) continue // 简化处理
+        if (model && modelName !== model) continue
+
+        const data = await client.hgetall(key)
+        if (!data || Object.keys(data).length === 0) continue
+
+        // 获取API Key名称
+        let apiKeyName = keyId
+        try {
+          const apiKey = await apiKeyService.getApiKeyById(keyId)
+          if (apiKey) {
+            apiKeyName = apiKey.name || keyId
+          }
+        } catch (e) {
+          // 忽略错误，使用keyId作为名称
+        }
+
+        // 计算费用
+        const usage = {
+          input_tokens: parseInt(data.totalInputTokens || data.inputTokens) || 0,
+          output_tokens: parseInt(data.totalOutputTokens || data.outputTokens) || 0,
+          cache_creation_input_tokens:
+            parseInt(data.totalCacheCreateTokens || data.cacheCreateTokens) || 0,
+          cache_read_input_tokens: parseInt(data.totalCacheReadTokens || data.cacheReadTokens) || 0
+        }
+
+        const CostCalculator = require('../utils/costCalculator')
+        const costResult = CostCalculator.calculateCost(usage, modelName)
+
+        allRecords.push({
+          timestamp: timestamp.replace(':', ' ') + ':00:00',
+          apiKey: apiKeyName,
+          apiKeyId: keyId,
+          account: data.accountId || data.account || 'N/A',
+          model: modelName,
+          inputTokens: usage.input_tokens,
+          outputTokens: usage.output_tokens,
+          cacheCreateTokens: usage.cache_creation_input_tokens,
+          cacheReadTokens: usage.cache_read_input_tokens,
+          totalTokens:
+            usage.input_tokens +
+            usage.output_tokens +
+            usage.cache_creation_input_tokens +
+            usage.cache_read_input_tokens,
+          cost: costResult.formatted.total,
+          costValue: costResult.costs.total,
+          requests: parseInt(data.requests || data.totalRequests) || 0
+        })
+      }
+
+      // 前进到下一个小时
+      currentTime.setHours(currentTime.getHours() + 1)
+    }
+
+    // 按时间倒序排序
+    allRecords.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+
+    // 分页
+    const paginatedRecords = allRecords.slice(offset, offset + pageSize)
+
+    return res.json({
+      success: true,
+      data: {
+        records: paginatedRecords,
+        total: allRecords.length,
+        page: pageNum,
+        pageSize: pageSize,
+        totalPages: Math.ceil(allRecords.length / pageSize)
+      }
+    })
+  } catch (error) {
+    logger.error('❌ Failed to get usage details:', error)
+    return res.status(500).json({
+      error: 'Failed to get usage details',
+      message: error.message
     })
   }
 })

@@ -1690,6 +1690,250 @@
       </div>
     </div>
 
+    <!-- 模型价格参考 -->
+    <div class="mb-8">
+      <h4
+        class="mb-3 flex items-center text-lg font-semibold text-gray-800 dark:text-gray-300 sm:mb-4 sm:text-xl"
+      >
+        <i class="fas fa-dollar-sign mr-2 text-green-600 sm:mr-3" />
+        模型价格参考
+      </h4>
+      <p class="mb-4 text-sm text-gray-600 dark:text-gray-400 sm:text-base">
+        以下是当前支持的各平台模型价格，仅供参考。价格可能随官方调整而变化。
+      </p>
+
+      <!-- 加载中状态 -->
+      <div v-if="loadingPricing" class="py-8 text-center">
+        <i class="fas fa-spinner fa-spin text-2xl text-blue-500" />
+        <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">正在加载价格数据...</p>
+      </div>
+
+      <!-- 价格表格 -->
+      <div v-else-if="modelPricing" class="space-y-6">
+        <!-- Claude 模型 -->
+        <div v-if="modelPricing.claude && modelPricing.claude.length > 0" class="card p-4 sm:p-6">
+          <h5
+            class="mb-3 flex items-center text-base font-semibold text-gray-800 dark:text-gray-200 sm:mb-4 sm:text-lg"
+          >
+            <i class="fas fa-brain mr-2 text-indigo-600" />
+            Claude 模型
+          </h5>
+          <div class="overflow-x-auto">
+            <table class="min-w-full">
+              <thead class="bg-gray-50 dark:bg-gray-700">
+                <tr>
+                  <th
+                    class="px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 sm:px-4 sm:text-sm"
+                  >
+                    模型名称
+                  </th>
+                  <th
+                    class="px-3 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300 sm:px-4 sm:text-sm"
+                  >
+                    输入
+                  </th>
+                  <th
+                    class="px-3 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300 sm:px-4 sm:text-sm"
+                  >
+                    输出
+                  </th>
+                  <th
+                    class="hidden px-3 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300 sm:table-cell sm:px-4 sm:text-sm"
+                  >
+                    缓存创建
+                  </th>
+                  <th
+                    class="hidden px-3 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300 sm:table-cell sm:px-4 sm:text-sm"
+                  >
+                    缓存读取
+                  </th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-200 dark:divide-gray-600">
+                <tr
+                  v-for="model in modelPricing.claude.slice(0, 10)"
+                  :key="model.name"
+                  class="hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  <td class="px-3 py-2 text-xs text-gray-900 dark:text-gray-100 sm:px-4 sm:text-sm">
+                    <span class="block max-w-[150px] truncate sm:max-w-none" :title="model.name">
+                      {{ model.name }}
+                    </span>
+                  </td>
+                  <td
+                    class="px-3 py-2 text-right text-xs text-gray-600 dark:text-gray-400 sm:px-4 sm:text-sm"
+                  >
+                    ${{ model.inputPrice.toFixed(2) }}
+                  </td>
+                  <td
+                    class="px-3 py-2 text-right text-xs text-gray-600 dark:text-gray-400 sm:px-4 sm:text-sm"
+                  >
+                    ${{ model.outputPrice.toFixed(2) }}
+                  </td>
+                  <td
+                    class="hidden px-3 py-2 text-right text-xs text-gray-600 dark:text-gray-400 sm:table-cell sm:px-4 sm:text-sm"
+                  >
+                    ${{ model.cacheCreatePrice.toFixed(2) }}
+                  </td>
+                  <td
+                    class="hidden px-3 py-2 text-right text-xs text-gray-600 dark:text-gray-400 sm:table-cell sm:px-4 sm:text-sm"
+                  >
+                    ${{ model.cacheReadPrice.toFixed(2) }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- OpenAI 模型 -->
+        <div v-if="modelPricing.openai && modelPricing.openai.length > 0" class="card p-4 sm:p-6">
+          <h5
+            class="mb-3 flex items-center text-base font-semibold text-gray-800 dark:text-gray-200 sm:mb-4 sm:text-lg"
+          >
+            <i class="fas fa-robot mr-2 text-gray-700 dark:text-gray-300" />
+            OpenAI 模型
+          </h5>
+          <div class="overflow-x-auto">
+            <table class="min-w-full">
+              <thead class="bg-gray-50 dark:bg-gray-700">
+                <tr>
+                  <th
+                    class="px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 sm:px-4 sm:text-sm"
+                  >
+                    模型名称
+                  </th>
+                  <th
+                    class="px-3 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300 sm:px-4 sm:text-sm"
+                  >
+                    输入
+                  </th>
+                  <th
+                    class="px-3 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300 sm:px-4 sm:text-sm"
+                  >
+                    输出
+                  </th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-200 dark:divide-gray-600">
+                <tr
+                  v-for="model in modelPricing.openai.slice(0, 10)"
+                  :key="model.name"
+                  class="hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  <td class="px-3 py-2 text-xs text-gray-900 dark:text-gray-100 sm:px-4 sm:text-sm">
+                    <span class="block max-w-[150px] truncate sm:max-w-none" :title="model.name">
+                      {{ model.name }}
+                    </span>
+                  </td>
+                  <td
+                    class="px-3 py-2 text-right text-xs text-gray-600 dark:text-gray-400 sm:px-4 sm:text-sm"
+                  >
+                    ${{ model.inputPrice.toFixed(2) }}
+                  </td>
+                  <td
+                    class="px-3 py-2 text-right text-xs text-gray-600 dark:text-gray-400 sm:px-4 sm:text-sm"
+                  >
+                    ${{ model.outputPrice.toFixed(2) }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Gemini 模型 -->
+        <div v-if="modelPricing.gemini && modelPricing.gemini.length > 0" class="card p-4 sm:p-6">
+          <h5
+            class="mb-3 flex items-center text-base font-semibold text-gray-800 dark:text-gray-200 sm:mb-4 sm:text-lg"
+          >
+            <i class="fas fa-star mr-2 text-yellow-600" />
+            Gemini 模型
+          </h5>
+          <div class="overflow-x-auto">
+            <table class="min-w-full">
+              <thead class="bg-gray-50 dark:bg-gray-700">
+                <tr>
+                  <th
+                    class="px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 sm:px-4 sm:text-sm"
+                  >
+                    模型名称
+                  </th>
+                  <th
+                    class="px-3 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300 sm:px-4 sm:text-sm"
+                  >
+                    输入
+                  </th>
+                  <th
+                    class="px-3 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300 sm:px-4 sm:text-sm"
+                  >
+                    输出
+                  </th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-200 dark:divide-gray-600">
+                <tr
+                  v-for="model in modelPricing.gemini.slice(0, 10)"
+                  :key="model.name"
+                  class="hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  <td class="px-3 py-2 text-xs text-gray-900 dark:text-gray-100 sm:px-4 sm:text-sm">
+                    <span class="block max-w-[150px] truncate sm:max-w-none" :title="model.name">
+                      {{ model.name }}
+                    </span>
+                  </td>
+                  <td
+                    class="px-3 py-2 text-right text-xs text-gray-600 dark:text-gray-400 sm:px-4 sm:text-sm"
+                  >
+                    ${{ model.inputPrice.toFixed(2) }}
+                  </td>
+                  <td
+                    class="px-3 py-2 text-right text-xs text-gray-600 dark:text-gray-400 sm:px-4 sm:text-sm"
+                  >
+                    ${{ model.outputPrice.toFixed(2) }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 价格说明 -->
+        <div
+          class="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-700 dark:bg-blue-900/20 sm:p-4"
+        >
+          <div class="flex items-start gap-2">
+            <i class="fas fa-info-circle mt-0.5 text-blue-600 dark:text-blue-400" />
+            <div class="flex-1">
+              <p class="text-xs text-blue-700 dark:text-blue-300 sm:text-sm">
+                <strong>价格单位：</strong> 美元/百万 Token (USD per 1M tokens)
+              </p>
+              <p class="mt-1 text-xs text-blue-700 dark:text-blue-300 sm:text-sm">
+                <strong>缓存创建：</strong> 通常为输入价格的 1.25 倍
+              </p>
+              <p class="mt-1 text-xs text-blue-700 dark:text-blue-300 sm:text-sm">
+                <strong>缓存读取：</strong> 通常为输入价格的 0.1 倍
+              </p>
+              <p v-if="pricingLastUpdated" class="mt-2 text-xs text-blue-600 dark:text-blue-400">
+                最后更新: {{ formatDate(pricingLastUpdated) }}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 加载失败 -->
+      <div
+        v-else
+        class="rounded-lg border border-yellow-200 bg-yellow-50 p-4 dark:border-yellow-700 dark:bg-yellow-900/20"
+      >
+        <p class="text-sm text-yellow-700 dark:text-yellow-300">
+          <i class="fas fa-exclamation-triangle mr-2" />
+          暂时无法加载价格数据，请稍后再试
+        </p>
+      </div>
+    </div>
+
     <!-- 结尾 -->
     <div
       class="rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 p-4 text-center text-white sm:p-6"
@@ -1706,7 +1950,8 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted } from 'vue'
+import axios from 'axios'
 
 // 当前系统选择
 const activeTutorialSystem = ref('windows')
@@ -1865,6 +2110,46 @@ const codexConfigContent = computed(() => {
     authJson: ['{', '  "OPENAI_API_KEY": null', '}'],
     authInstructions: getCurrentPlatformAuthInstructions()
   }
+})
+
+// 模型价格相关
+const modelPricing = ref(null)
+const loadingPricing = ref(false)
+const pricingLastUpdated = ref(null)
+
+// 加载模型价格数据
+const loadModelPricing = async () => {
+  loadingPricing.value = true
+  try {
+    const response = await axios.get('/admin/model-pricing')
+    if (response.data.success) {
+      modelPricing.value = response.data.data
+      pricingLastUpdated.value = response.data.lastUpdated
+    }
+  } catch (error) {
+    console.error('Failed to load model pricing:', error)
+    modelPricing.value = null
+  } finally {
+    loadingPricing.value = false
+  }
+}
+
+// 格式化日期
+const formatDate = (dateString) => {
+  if (!dateString) return ''
+  const date = new Date(dateString)
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
+// 组件挂载时加载价格数据
+onMounted(() => {
+  loadModelPricing()
 })
 </script>
 
