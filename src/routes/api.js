@@ -72,7 +72,10 @@ async function prepareOpenAIBridge(req, accountId, accountType) {
     }
 
     // 添加 Codex CLI instructions（OpenAI OAuth 专用）
-    if (!openaiRequest.instructions || !openaiRequest.instructions.startsWith('You are a coding agent')) {
+    if (
+      !openaiRequest.instructions ||
+      !openaiRequest.instructions.startsWith('You are a coding agent')
+    ) {
       INCOMPATIBLE_FIELDS.forEach((field) => delete openaiRequest[field])
       openaiRequest.instructions = CODEX_CLI_INSTRUCTIONS
       logger.debug('📝 Added Codex CLI instructions to OpenAI OAuth bridge request')
@@ -91,8 +94,7 @@ async function prepareOpenAIBridge(req, accountId, accountType) {
   }
 
   // 设置上游路径
-  req.headers['x-crs-upstream-path'] =
-    accountType === 'openai' ? '/responses' : '/v1/responses'
+  req.headers['x-crs-upstream-path'] = accountType === 'openai' ? '/responses' : '/v1/responses'
 
   // 设置桥接转换器
   req._bridgeConverter = toClaude
@@ -586,259 +588,23 @@ async function handleMessagesRequest(req, res) {
           `🌉 Using OpenAI bridge for Claude request - Account: ${accountId}, Type: ${accountType}`
         )
 
-        // 导入必要的服务和转换器
-        const config = require('../../config/config')
-        const ClaudeToOpenAIResponsesConverter = require('../services/claudeToOpenAIResponses')
-        const OpenAIResponsesToClaudeConverter = require('../services/openaiResponsesToClaude')
-
-        // 获取账户信息以获取模型映射
-        const accountService =
-          accountType === 'openai'
-            ? require('../services/openaiAccountService')
-            : require('../services/openaiResponsesAccountService')
-        const fullAccount = await accountService.getAccount(accountId)
-
-        // 构建模型映射：账户级 → 全局 → 默认
-        // claudeModelMapping 已经在 getAccount() 中被解析为对象，直接使用
-        const accountMapping =
-          fullAccount.claudeModelMapping && typeof fullAccount.claudeModelMapping === 'object'
-            ? fullAccount.claudeModelMapping
-            : {}
-        const globalMapping = config.claudeBridgeDefaults?.modelMapping || {}
-        const modelMapping = { ...globalMapping, ...accountMapping }
-        const defaultModel = config.claudeBridgeDefaults?.defaultModel || 'gpt-5'
-
-        // 记录映射信息
-        const claudeModel = req.body.model
-        const mappedModel = modelMapping[claudeModel] || defaultModel
-        const mappingSource = modelMapping[claudeModel]
-          ? Object.keys(accountMapping).includes(claudeModel)
-            ? 'account'
-            : 'global'
-          : 'default'
-        logger.info(`🔄 Model mapping: ${claudeModel} → ${mappedModel} (source: ${mappingSource})`)
-
-        // 转换 Claude 请求为 OpenAI 请求
-        const toOpenAI = new ClaudeToOpenAIResponsesConverter({ modelMapping, defaultModel })
-        const toClaude = new OpenAIResponsesToClaudeConverter()
-        const originalStream = Boolean(req.body && req.body.stream)
-
-        let openaiRequest
-        if (accountType === 'openai-responses') {
-          openaiRequest = toOpenAI.convertRequest(req.body)
-        } else {
-          // OpenAI 直连账户：简化转换
-          openaiRequest = {
-            model: mappedModel,
-            messages: req.body.messages || [],
-            stream: Boolean(req.body.stream)
-          }
-          if (req.body.system) {
-            openaiRequest.messages.unshift({ role: 'system', content: req.body.system })
-          }
-        }
-
-        // 设置桥接元数据
-        req._bridgeForceNonStream = !originalStream
-        req._bridgeConverter = toClaude
-        req._bridgeStreamTransform = (chunkStr) => {
-          return toClaude.convertStreamChunk(chunkStr)
-        }
-        req._bridgeStreamFinalize = () => {
-          return toClaude.finalizeStream()
-        }
-        req._bridgeNonStreamConvert = (responseData) => {
-          // responseData 是从 OpenAI API 返回的响应数据
-          return toClaude.convertNonStream({ response: responseData })
-        }
+        // 🔄 使用统一的 OpenAI bridge 配置准备函数
+        logger.info(`🎬 Using OpenAI bridge mode for account: ${accountId} (type: ${accountType})`)
+        const { fullAccount: bridgeAccount, openaiRequest } = await prepareOpenAIBridge(
+          req,
+          accountId,
+          accountType
+        )
 
         // 覆写请求体
         req.body = openaiRequest
 
-        // 设置 baseApi 和 apiKey（OpenAI OAuth 账户没有baseApi字段，且accessToken需要解密）
-        if (accountType === 'openai') {
-          if (!fullAccount.baseApi) {
-            // OpenAI OAuth 账户默认使用 ChatGPT Codex API（与 /openai/responses 路由一致）
-            fullAccount.baseApi = 'https://chatgpt.com/backend-api/codex'
-          }
-          // OpenAI OAuth 账户使用 accessToken 作为 apiKey，需要解密
-          if (fullAccount.accessToken && !fullAccount.apiKey) {
-            const { decrypt } = accountService
-            fullAccount.apiKey = decrypt(fullAccount.accessToken)
-            logger.info(
-              `🔑 Set OpenAI apiKey from accessToken, length: ${fullAccount.apiKey?.length || 0}`
-            )
-          }
-          logger.info(
-            `🌐 OpenAI bridge config: baseApi=${fullAccount.baseApi}, hasApiKey=${!!fullAccount.apiKey}`
-          )
-        }
-
-        // 根据账户类型选择不同的处理方式
-        if (accountType === 'openai') {
-          // OpenAI OAuth 账户：直接使用类似 openaiRoutes.js 的逻辑
-          logger.info(`🎬 Using OpenAI OAuth bridge mode for account: ${fullAccount.name}`)
-
-          // 获取 accessToken（已解密）
-          const accessToken = fullAccount.apiKey
-          if (!accessToken) {
-            throw new Error('OpenAI account missing accessToken')
-          }
-
-          // 构建符合 ChatGPT Codex API 要求的请求头
-          const headers = {
-            'authorization': `Bearer ${accessToken}`,
-            'chatgpt-account-id': fullAccount.accountId || fullAccount.chatgptUserId,
-            'host': 'chatgpt.com',
-            'accept': req.body?.stream ? 'text/event-stream' : 'application/json',
-            'content-type': 'application/json'
-          }
-
-          // 设置 store=false（ChatGPT Codex API 要求）
-          req.body.store = false
-
-          // 添加 Codex CLI instructions（如果请求中没有）
-          if (!req.body.instructions || !req.body.instructions.startsWith('You are a coding agent running in the Codex CLI')) {
-            // 移除不需要的请求体字段（与 openaiRoutes.js 保持一���）
-            INCOMPATIBLE_FIELDS.forEach((field) => {
-              delete req.body[field]
-            })
-
-            // 设置固定的 Codex CLI instructions
-            req.body.instructions = CODEX_CLI_INSTRUCTIONS
-            logger.debug('📝 Added Codex CLI instructions to bridge request')
-          }
-
-          // 创建代理配置
-          const proxyAgent = fullAccount.proxy ? ProxyHelper.createProxyAgent(fullAccount.proxy) : null
-          const axiosConfig = {
-            headers,
-            timeout: config.requestTimeout || 600000,
-            validateStatus: () => true
-          }
-
-          if (proxyAgent) {
-            axiosConfig.httpsAgent = proxyAgent
-            axiosConfig.proxy = false
-            logger.info(`🌐 Using proxy for OpenAI bridge: ${ProxyHelper.getProxyDescription(fullAccount.proxy)}`)
-          }
-
-          // 发送请求到 ChatGPT Codex API
-          const targetUrl = 'https://chatgpt.com/backend-api/codex/responses'
-          logger.info(`🎯 Forwarding to: ${targetUrl}`)
-
-          let upstream
-          if (req.body?.stream) {
-            // 流式请求
-            upstream = await axios.post(targetUrl, req.body, {
-              ...axiosConfig,
-              responseType: 'stream'
-            })
-
-            // 处理流式响应并转换回 Claude 格式
-            if (upstream.status >= 400) {
-              logger.error(`❌ OpenAI bridge upstream error: ${upstream.status} ${upstream.statusText}`)
-              return res.status(upstream.status).json({
-                type: 'error',
-                error: {
-                  type: 'api_error',
-                  message: `Upstream API error: ${upstream.status} ${upstream.statusText}`
-                }
-              })
-            }
-
-            // 设置 Claude SSE 响应头
-            res.setHeader('Content-Type', 'text/event-stream')
-            res.setHeader('Cache-Control', 'no-cache')
-            res.setHeader('Connection', 'keep-alive')
-            res.setHeader('X-Accel-Buffering', 'no')
-            if (typeof res.flushHeaders === 'function') {
-              res.flushHeaders()
-            }
-
-            // 转发流式数据（应用转换器）
-            upstream.data.on('data', (chunk) => {
-              try {
-                const chunkStr = chunk.toString()
-                const transform = req._bridgeStreamTransform
-                if (typeof transform === 'function') {
-                  const converted = transform(chunkStr)
-                  if (converted && !res.destroyed) {
-                    res.write(converted)
-                    if (typeof res.flush === 'function') {
-                      res.flush()
-                    }
-                  }
-                } else {
-                  if (!res.destroyed) {
-                    res.write(chunk)
-                  }
-                }
-              } catch (error) {
-                logger.error('Error processing OpenAI bridge stream chunk:', error)
-              }
-            })
-
-            upstream.data.on('end', () => {
-              if (typeof req._bridgeStreamFinalize === 'function') {
-                try {
-                  const trailing = req._bridgeStreamFinalize()
-                  if (trailing && !res.destroyed) {
-                    res.write(trailing)
-                  }
-                } catch (error) {
-                  logger.error('Bridge stream finalizer error:', error)
-                }
-              }
-              if (!res.destroyed) {
-                res.end()
-              }
-              logger.info('✅ OpenAI bridge stream completed')
-            })
-
-            upstream.data.on('error', (error) => {
-              logger.error('OpenAI bridge stream error:', error)
-              if (!res.headersSent && !res.destroyed) {
-                res.status(502).json({
-                  type: 'error',
-                  error: { type: 'api_error', message: 'Upstream stream error' }
-                })
-              } else if (!res.destroyed) {
-                res.end()
-              }
-            })
-          } else {
-            // 非流式请求
-            upstream = await axios.post(targetUrl, req.body, axiosConfig)
-
-            if (upstream.status >= 400) {
-              logger.error(`❌ OpenAI bridge upstream error: ${upstream.status} ${upstream.statusText}`)
-              return res.status(upstream.status).json({
-                type: 'error',
-                error: {
-                  type: 'api_error',
-                  message: `Upstream API error: ${upstream.status} ${upstream.statusText}`
-                }
-              })
-            }
-
-            // 转换响应为 Claude 格式
-            const converted = req._bridgeNonStreamConvert(upstream.data)
-            logger.info('✅ OpenAI bridge completed (non-stream)')
-            return res.status(200).json(converted)
-          }
-        } else if (accountType === 'openai-responses') {
-          // OpenAI-Responses 账户：使用 relay service
-          const relayService = require('../services/openaiResponsesRelayService')
-          req.headers['x-crs-upstream-path'] = '/v1/responses'
-
-          logger.info(`🎬 Calling relay service for OpenAI-Responses account: ${fullAccount.name}`)
-          await relayService.handleRequest(req, res, fullAccount, req.apiKey)
-
-          logger.info(`✅ Bridge completed: Claude request → openai-responses → Claude response`)
-        } else {
-          throw new Error(`Unsupported account type for bridge mode: ${accountType}`)
-        }
+        // 🚀 使用统一的 relay service 处理（支持流式和非流式）
+        const relayService = require('../services/openaiResponsesRelayService')
+        logger.info(
+          `📡 Forwarding to relay service for ${accountType} account: ${bridgeAccount.name}`
+        )
+        await relayService.handleRequest(req, res, bridgeAccount, req.apiKey)
       }
 
       // 流式请求完成后 - 如果没有捕获到usage数据，记录警告但不进行估算
@@ -949,120 +715,25 @@ async function handleMessagesRequest(req, res) {
           `🌉 Using OpenAI bridge for non-stream Claude request - Account: ${accountId}, Type: ${accountType}`
         )
 
-        try {
-          // 导入必要的服务和转换器（与流式请求相同）
-          const config = require('../../config/config')
-          const ClaudeToOpenAIResponsesConverter = require('../services/claudeToOpenAIResponses')
-          const OpenAIResponsesToClaudeConverter = require('../services/openaiResponsesToClaude')
+        // 🔄 使用统一的 OpenAI bridge 配置准备函数
+        const { fullAccount: bridgeAccount, openaiRequest } = await prepareOpenAIBridge(
+          req,
+          accountId,
+          accountType
+        )
 
-          // 获取账户信息以获取模型映射
-          const accountService =
-            accountType === 'openai'
-              ? require('../services/openaiAccountService')
-              : require('../services/openaiResponsesAccountService')
-          const fullAccount = await accountService.getAccount(accountId)
+        // 覆写请求体
+        req.body = openaiRequest
 
-          // 构建模型映射：账户级 → 全局 → 默认
-          // claudeModelMapping 已经在 getAccount() 中被解析为对象，直接使用
-          const accountMapping =
-            fullAccount.claudeModelMapping && typeof fullAccount.claudeModelMapping === 'object'
-              ? fullAccount.claudeModelMapping
-              : {}
-          const globalMapping = config.claudeBridgeDefaults?.modelMapping || {}
-          const modelMapping = { ...globalMapping, ...accountMapping }
-          const defaultModel = config.claudeBridgeDefaults?.defaultModel || 'gpt-5'
+        // 🚀 使用统一的 relay service 处理
+        const relayService = require('../services/openaiResponsesRelayService')
+        logger.info(
+          `📡 Forwarding to relay service for ${accountType} account: ${bridgeAccount.name}`
+        )
+        await relayService.handleRequest(req, res, bridgeAccount, req.apiKey)
 
-          // 记录映射信息
-          const claudeModel = req.body.model
-          const mappedModel = modelMapping[claudeModel] || defaultModel
-          const mappingSource = modelMapping[claudeModel]
-            ? Object.keys(accountMapping).includes(claudeModel)
-              ? 'account'
-              : 'global'
-            : 'default'
-          logger.info(
-            `🔄 Model mapping: ${claudeModel} → ${mappedModel} (source: ${mappingSource})`
-          )
-
-          // 转换 Claude 请求为 OpenAI 请求
-          const toOpenAI = new ClaudeToOpenAIResponsesConverter({ modelMapping, defaultModel })
-          const toClaude = new OpenAIResponsesToClaudeConverter()
-
-          let openaiRequest
-          if (accountType === 'openai-responses') {
-            openaiRequest = toOpenAI.convertRequest(req.body)
-          } else {
-            // OpenAI 直连账户：简化转换
-            openaiRequest = {
-              model: mappedModel,
-              messages: req.body.messages || [],
-              stream: false
-            }
-            if (req.body.system) {
-              openaiRequest.messages.unshift({ role: 'system', content: req.body.system })
-            }
-          }
-
-          // 设置桥接元数据
-          req._bridgeForceNonStream = true
-          req._bridgeConverter = toClaude
-          req._bridgeNonStreamConvert = (responseData) => {
-            // responseData 是从 OpenAI API 返回的响应数据
-            return toClaude.convertNonStream({ response: responseData })
-          }
-
-          // 覆写请求体
-          const originalBody = req.body
-          req.body = openaiRequest
-
-          // 设置 baseApi 和 apiKey（OpenAI OAuth 账户没有baseApi字段，且accessToken需要解密）
-          if (accountType === 'openai') {
-            if (!fullAccount.baseApi) {
-              // OpenAI OAuth 账户默认使用 ChatGPT Codex API（与 /openai/responses 路由一致）
-              fullAccount.baseApi = 'https://chatgpt.com/backend-api/codex'
-            }
-            // OpenAI OAuth 账户使用 accessToken 作为 apiKey，需要解密
-            if (fullAccount.accessToken && !fullAccount.apiKey) {
-              const { decrypt } = accountService
-              fullAccount.apiKey = decrypt(fullAccount.accessToken)
-            }
-          }
-
-          // 设置上游路径：OpenAI OAuth 使用 /responses（Codex API），OpenAI-Responses 使用 /v1/responses
-          if (accountType === 'openai') {
-            req.headers['x-crs-upstream-path'] = '/responses'
-          } else if (accountType === 'openai-responses') {
-            req.headers['x-crs-upstream-path'] = '/v1/responses'
-          }
-
-          // 调试日志
-          logger.info('🔍 Bridge debug - Request body:', JSON.stringify(req.body))
-          logger.info('🔍 Bridge debug - Account info:', {
-            id: fullAccount.id,
-            baseApi: fullAccount.baseApi,
-            hasApiKey: !!fullAccount.apiKey,
-            apiKeyLength: fullAccount.apiKey?.length
-          })
-
-          // 调用 relay 服务（返回会被桥接转换器处理）
-          const relayService = require('../services/openaiResponsesRelayService')
-          await relayService.handleRequest(req, res, fullAccount, req.apiKey)
-
-          logger.info(
-            `✅ Non-stream bridge completed: Claude request → ${accountType} → Claude response`
-          )
-
-          // 桥接请求已在 relay 服务内部完成，直接返回
-          return
-        } catch (bridgeError) {
-          logger.error('❌ Bridge error details:', {
-            message: bridgeError.message,
-            stack: bridgeError.stack,
-            accountId,
-            accountType
-          })
-          throw bridgeError
-        }
+        // 桥接请求已在 relay 服务内部完成，直接返回
+        return
       }
 
       logger.info('📡 Claude API response received', {
