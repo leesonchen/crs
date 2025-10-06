@@ -89,7 +89,8 @@ class ClaudeToOpenAIResponsesConverter {
       return false
     }
 
-    const allowedTypes = new Set(['text', 'tool_use', 'tool_result'])
+    // 支持的内容类型：text, tool_use, tool_result, thinking (extended thinking), document
+    const allowedTypes = new Set(['text', 'tool_use', 'tool_result', 'thinking', 'document'])
 
     return messages.some((message) => {
       if (!Array.isArray(message?.content)) {
@@ -175,6 +176,22 @@ class ClaudeToOpenAIResponsesConverter {
           continue
         }
 
+        // 支持 extended thinking 内容
+        if (block.type === 'thinking') {
+          const thinkingText = block.thinking || block.text || ''
+          if (thinkingText) {
+            textBuffer += `[Thinking: ${thinkingText}]\n`
+          }
+          continue
+        }
+
+        // 支持 document 内容
+        if (block.type === 'document') {
+          flushBuffer()
+          this._pushDocumentContent(block, inputMessages)
+          continue
+        }
+
         const err = new Error(
           `Content block type '${block.type}' is not supported in Claude→OpenAI bridge`
         )
@@ -251,6 +268,20 @@ class ClaudeToOpenAIResponsesConverter {
     const prefix = block.is_error ? '[tool_error]' : '[tool_result]'
     const summary = `${prefix} id=${block.tool_use_id} ${payload}`
     this._pushTextMessage('user', summary, inputMessages)
+  }
+
+  _pushDocumentContent(block, inputMessages) {
+    // 处理 document 类型的内容块
+    const title = block.title || 'Document'
+    const content = block.content || block.document || block.text || ''
+
+    if (!content) {
+      return
+    }
+
+    // 将文档内容格式化为文本消息
+    const documentText = `[${title}]\n${content}`
+    this._pushTextMessage('user', documentText, inputMessages)
   }
 
   _convertTools(tools) {

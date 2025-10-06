@@ -206,9 +206,18 @@ class OpenAIResponsesRelayService {
                   }
                 }
               }
+            } else if (fullResponse && fullResponse.trim()) {
+              // 普通JSON - 只在有内容时解析
+              try {
+                errorData = JSON.parse(fullResponse)
+              } catch (parseError) {
+                logger.debug('Failed to parse as JSON, treating as plain text:', parseError.message)
+                errorData = { error: { message: fullResponse.trim() } }
+              }
             } else {
-              // 普通JSON
-              errorData = JSON.parse(fullResponse)
+              // 空响应
+              logger.warn('⚠️ Upstream returned empty response body')
+              errorData = { error: { message: 'Empty response from upstream' } }
             }
           } catch (e) {
             logger.error('Failed to parse error response:', e)
@@ -221,6 +230,32 @@ class OpenAIResponsesRelayService {
           statusText: response.statusText,
           errorData
         })
+
+        // 处理 502 Bad Gateway 错误
+        if (response.status === 502) {
+          let reason = 'OpenAI 上游服务不可用（502 Bad Gateway）'
+
+          // 特殊处理 ChatGPT Codex API
+          if (fullAccount.baseApi?.includes('chatgpt.com')) {
+            reason =
+              'ChatGPT Codex API 返回 502 错误，可能原因：\n' +
+              '1. 账户无 Codex API 访问权限\n' +
+              '2. API 端点不支持当前认证方式\n' +
+              '3. 上游服务暂时不可用\n' +
+              '建议：使用 OpenAI-Responses (API Key) 账户代替 OAuth 账户'
+          }
+
+          await this._handle502Error(account, response, isStream, sessionHash, accountType)
+
+          const errorResponse = {
+            type: 'error',
+            error: {
+              type: 'api_error',
+              message: reason
+            }
+          }
+          return res.status(502).json(errorResponse)
+        }
 
         if (response.status === 401) {
           let reason = 'OpenAI Responses账号认证失败（401错误）'
@@ -952,6 +987,30 @@ class OpenAIResponsesRelayService {
 
     // 返回处理后的数据，避免循环引用
     return { resetsInSeconds, errorData }
+  }
+
+  // 处理 502 Bad Gateway 错误
+  async _handle502Error(
+    account,
+    response,
+    isStream = false,
+    sessionHash = null,
+    accountType = 'openai-responses'
+  ) {
+    logger.warn(
+      `⚠️ Upstream API returned 502 Bad Gateway for account ${account.id} (${accountType})`
+    )
+
+    // 502 通常是临时性的上游问题，不标记账户为错误状态
+    // 特殊处理 ChatGPT Codex API
+    if (account.baseApi?.includes('chatgpt.com')) {
+      logger.warn(
+        '⚠️ ChatGPT Codex API 502 错误可能表示：OAuth token 不支持 Codex API 或账户无访问权限'
+      )
+    }
+
+    // 可以记录到监控系统，但不影响账户状态
+    return { handled: true }
   }
 
   // 过滤请求头
