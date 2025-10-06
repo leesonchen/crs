@@ -19,6 +19,91 @@ const { CODEX_CLI_INSTRUCTIONS, INCOMPATIBLE_FIELDS } = require('../../config/co
 
 const router = express.Router()
 
+// 🔧 辅助函数：准备 OpenAI 桥接配置
+async function prepareOpenAIBridge(req, accountId, accountType) {
+  const config = require('../../config/config')
+  const ClaudeToOpenAIResponsesConverter = require('../services/claudeToOpenAIResponses')
+  const OpenAIResponsesToClaudeConverter = require('../services/openaiResponsesToClaude')
+
+  // 获取账户服务
+  const accountService =
+    accountType === 'openai'
+      ? require('../services/openaiAccountService')
+      : require('../services/openaiResponsesAccountService')
+  const fullAccount = await accountService.getAccount(accountId)
+
+  // 构建模型映射
+  const accountMapping =
+    fullAccount.claudeModelMapping && typeof fullAccount.claudeModelMapping === 'object'
+      ? fullAccount.claudeModelMapping
+      : {}
+  const globalMapping = config.claudeBridgeDefaults?.modelMapping || {}
+  const modelMapping = { ...globalMapping, ...accountMapping }
+  const defaultModel = config.claudeBridgeDefaults?.defaultModel || 'gpt-5'
+
+  // 记录映射
+  const claudeModel = req.body.model
+  const mappedModel = modelMapping[claudeModel] || defaultModel
+  const mappingSource = modelMapping[claudeModel]
+    ? Object.keys(accountMapping).includes(claudeModel)
+      ? 'account'
+      : 'global'
+    : 'default'
+  logger.info(`🔄 Model mapping: ${claudeModel} → ${mappedModel} (source: ${mappingSource})`)
+
+  // 创建转换器
+  const toOpenAI = new ClaudeToOpenAIResponsesConverter({ modelMapping, defaultModel })
+  const toClaude = new OpenAIResponsesToClaudeConverter()
+
+  // 转换请求
+  let openaiRequest
+  if (accountType === 'openai-responses') {
+    openaiRequest = toOpenAI.convertRequest(req.body)
+  } else {
+    // OpenAI OAuth: 简化转换 + 特殊处理
+    openaiRequest = {
+      model: mappedModel,
+      messages: req.body.messages || [],
+      stream: Boolean(req.body.stream),
+      store: false // ChatGPT Codex API 要求
+    }
+    if (req.body.system) {
+      openaiRequest.messages.unshift({ role: 'system', content: req.body.system })
+    }
+
+    // 添加 Codex CLI instructions（OpenAI OAuth 专用）
+    if (!openaiRequest.instructions || !openaiRequest.instructions.startsWith('You are a coding agent')) {
+      INCOMPATIBLE_FIELDS.forEach((field) => delete openaiRequest[field])
+      openaiRequest.instructions = CODEX_CLI_INSTRUCTIONS
+      logger.debug('📝 Added Codex CLI instructions to OpenAI OAuth bridge request')
+    }
+  }
+
+  // 设置账户配置
+  if (accountType === 'openai') {
+    if (!fullAccount.baseApi) {
+      fullAccount.baseApi = 'https://chatgpt.com/backend-api/codex'
+    }
+    if (fullAccount.accessToken && !fullAccount.apiKey) {
+      const { decrypt } = accountService
+      fullAccount.apiKey = decrypt(fullAccount.accessToken)
+    }
+  }
+
+  // 设置上游路径
+  req.headers['x-crs-upstream-path'] =
+    accountType === 'openai' ? '/responses' : '/v1/responses'
+
+  // 设置桥接转换器
+  req._bridgeConverter = toClaude
+  req._bridgeStreamTransform = (chunkStr) => toClaude.convertStreamChunk(chunkStr)
+  req._bridgeStreamFinalize = () => toClaude.finalizeStream()
+  req._bridgeNonStreamConvert = (responseData) =>
+    toClaude.convertNonStream({ response: responseData })
+
+  return { fullAccount, openaiRequest }
+}
+
 // 🔧 共享的消息处理函数
 async function handleMessagesRequest(req, res) {
   try {
