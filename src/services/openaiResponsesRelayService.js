@@ -117,6 +117,15 @@ class OpenAIResponsesRelayService {
         logger.debug(`📱 Forwarding original User-Agent: ${req.headers['user-agent']}`)
       }
 
+      // ChatGPT Codex API 特殊处理：添加必需的 chatgpt-account-id 和 host headers
+      if (accountType === 'openai' && fullAccount.chatgptAccountId) {
+        headers['chatgpt-account-id'] = fullAccount.chatgptAccountId
+        headers['host'] = 'chatgpt.com'
+        logger.debug(
+          `🔑 Added ChatGPT Codex API headers: chatgpt-account-id=${fullAccount.chatgptAccountId}`
+        )
+      }
+
       // 配置请求选项
       const requestOptions = {
         method: req.method,
