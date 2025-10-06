@@ -55,23 +55,15 @@ async function prepareOpenAIBridge(req, accountId, accountType) {
   const toOpenAI = new ClaudeToOpenAIResponsesConverter({ modelMapping, defaultModel })
   const toClaude = new OpenAIResponsesToClaudeConverter()
 
-  // 转换请求
-  let openaiRequest
-  if (accountType === 'openai-responses') {
-    openaiRequest = toOpenAI.convertRequest(req.body)
-  } else {
-    // OpenAI OAuth: 简化转换 + 特殊处理
-    openaiRequest = {
-      model: mappedModel,
-      messages: req.body.messages || [],
-      stream: Boolean(req.body.stream),
-      store: false // ChatGPT Codex API 要求
-    }
-    if (req.body.system) {
-      openaiRequest.messages.unshift({ role: 'system', content: req.body.system })
-    }
+  // 转换请求 - 统一使用转换器（OpenAI OAuth 和 API Key 都使用 Responses 格式）
+  const openaiRequest = toOpenAI.convertRequest(req.body)
 
-    // 添加 Codex CLI instructions（OpenAI OAuth 专用）
+  // OpenAI OAuth 特殊处理：添加 Codex CLI 必需字段
+  if (accountType === 'openai') {
+    // ChatGPT Codex API 要求 store: false
+    openaiRequest.store = false
+
+    // 添��� Codex CLI instructions（如果还没有）
     if (
       !openaiRequest.instructions ||
       !openaiRequest.instructions.startsWith('You are a coding agent')
