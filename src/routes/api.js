@@ -95,6 +95,8 @@ async function prepareOpenAIBridge(req, accountId, accountType) {
     // chatgptUserId 或 accountId 字段是 Codex API 的必需 header
     fullAccount.chatgptAccountId = fullAccount.accountId || fullAccount.chatgptUserId || accountId
     logger.debug(`🔑 OpenAI OAuth account ID for Codex API: ${fullAccount.chatgptAccountId}`)
+    // 标记账户类型，以便 relay service 能够正确识别并添加 Codex 特殊头
+    fullAccount.accountType = 'openai'
   }
 
   // 设置上游路径
