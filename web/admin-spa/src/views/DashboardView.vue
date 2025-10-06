@@ -748,7 +748,7 @@
                   class="hover:bg-gray-50 dark:hover:bg-gray-700"
                 >
                   <td class="px-3 py-2 text-xs text-gray-900 dark:text-gray-100 sm:px-4 sm:text-sm">
-                    {{ formatTimestamp(record.timestamp) }}
+                    {{ formatFullTimestamp(record.timestamp) }}
                   </td>
                   <td class="px-3 py-2 text-xs text-gray-900 dark:text-gray-100 sm:px-4 sm:text-sm">
                     <span
@@ -793,31 +793,9 @@
             </table>
           </div>
 
-          <!-- 分页 -->
-          <div class="flex flex-col items-center justify-between gap-3 sm:flex-row">
-            <div class="text-sm text-gray-600 dark:text-gray-400">
-              共 {{ usageDetailsPagination.total }} 条记录，第 {{ usageDetailsPagination.page }}
-              /
-              {{ usageDetailsPagination.totalPages }} 页
-            </div>
-            <div class="flex gap-2">
-              <button
-                class="rounded-md border border-gray-300 bg-white px-3 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800"
-                :disabled="usageDetailsPagination.page <= 1 || loadingDetails"
-                @click="changePage(usageDetailsPagination.page - 1)"
-              >
-                上一页
-              </button>
-              <button
-                class="rounded-md border border-gray-300 bg-white px-3 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800"
-                :disabled="
-                  usageDetailsPagination.page >= usageDetailsPagination.totalPages || loadingDetails
-                "
-                @click="changePage(usageDetailsPagination.page + 1)"
-              >
-                下一页
-              </button>
-            </div>
+          <!-- 记录数提示 -->
+          <div class="mt-3 text-sm text-gray-600 dark:text-gray-400">
+            显示最近 {{ usageDetails.length }} 条调用记录
           </div>
         </div>
 
@@ -836,7 +814,7 @@ import { storeToRefs } from 'pinia'
 import { useDashboardStore } from '@/stores/dashboard'
 import { useThemeStore } from '@/stores/theme'
 import Chart from 'chart.js/auto'
-import axios from 'axios'
+import { apiClient } from '@/config/api'
 
 const dashboardStore = useDashboardStore()
 const themeStore = useThemeStore()
@@ -1721,31 +1699,16 @@ watch(isDarkMode, () => {
 // 使用明细相关
 const usageDetails = ref([])
 const loadingDetails = ref(false)
-const usageDetailsPagination = ref({
-  page: 1,
-  pageSize: 20,
-  total: 0,
-  totalPages: 0
-})
 
-// 加载使用明细
-const loadUsageDetails = async (page = 1) => {
+// 加载使用明细（最近200条）
+const loadUsageDetails = async () => {
   loadingDetails.value = true
   try {
-    const response = await axios.get('/admin/usage-details', {
-      params: {
-        page,
-        limit: usageDetailsPagination.value.pageSize
-      }
+    const response = await apiClient.get('/admin/usage-details', {
+      params: { limit: 200 }
     })
-    if (response.data.success) {
-      usageDetails.value = response.data.data.records
-      usageDetailsPagination.value = {
-        page: response.data.data.page,
-        pageSize: response.data.data.pageSize,
-        total: response.data.data.total,
-        totalPages: response.data.data.totalPages
-      }
+    if (response.success) {
+      usageDetails.value = response.data.records
     }
   } catch (error) {
     console.error('Failed to load usage details:', error)
@@ -1754,22 +1717,16 @@ const loadUsageDetails = async (page = 1) => {
   }
 }
 
-// 切换分页
-const changePage = (page) => {
-  if (page >= 1 && page <= usageDetailsPagination.value.totalPages) {
-    loadUsageDetails(page)
-  }
-}
-
-// 格式化时间戳
-const formatTimestamp = (timestamp) => {
+// 格式化完整时间戳（精确到秒）
+const formatFullTimestamp = (timestamp) => {
   if (!timestamp) return ''
   const date = new Date(timestamp)
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
   const hour = String(date.getHours()).padStart(2, '0')
   const minute = String(date.getMinutes()).padStart(2, '0')
-  return `${month}-${day} ${hour}:${minute}`
+  const second = String(date.getSeconds()).padStart(2, '0')
+  return `${month}-${day} ${hour}:${minute}:${second}`
 }
 
 // 格式化Token数量（添加千位分隔符）

@@ -8369,139 +8369,90 @@ router.get('/model-pricing', authenticateAdmin, async (req, res) => {
   }
 })
 
-// 📋 获取使用明细列表（用于仪表盘展示）
+// 📋 获取使用明细列表（使用详细记录数据）
 router.get('/usage-details', authenticateAdmin, async (req, res) => {
   try {
-    const { page = 1, limit = 20, startDate, endDate, apiKeyId, accountId, model } = req.query
+    const { limit = 200, apiKeyId } = req.query
 
-    const pageNum = parseInt(page)
-    const pageSize = parseInt(limit)
-    const offset = (pageNum - 1) * pageSize
+    logger.info(`📋 Fetching usage details: limit=${limit}, apiKeyId=${apiKeyId || 'all'}`)
 
-    const client = redis.getClientSafe()
+    // 如果指定了 apiKeyId，只查询该 key 的记录
+    if (apiKeyId) {
+      const records = await redis.getUsageRecords(apiKeyId, parseInt(limit))
 
-    // 构建时间范围
-    const now = redis.getDateInTimezone()
-    const endDateTime = endDate ? new Date(endDate) : new Date(now.getTime() + 24 * 60 * 60 * 1000)
-    const startDateTime = startDate
-      ? new Date(startDate)
-      : new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+      // 获取 API Key 名称
+      let apiKeyName = apiKeyId
+      try {
+        const apiKey = await apiKeyService.getApiKeyById(apiKeyId)
+        if (apiKey) apiKeyName = apiKey.name || apiKeyId
+      } catch (e) {
+        // 忽略错误
+      }
 
-    logger.info(
-      `📋 Fetching usage details: page=${pageNum}, limit=${pageSize}, range=${startDateTime.toISOString()} to ${endDateTime.toISOString()}`
-    )
+      // 格式化返回数据
+      const formattedRecords = records.map((record) => ({
+        timestamp: record.timestamp, // ISO 8601 格式: 2025-10-05T18:23:45.123Z
+        apiKey: apiKeyName,
+        apiKeyId,
+        account: record.accountId || 'N/A',
+        model: record.model,
+        inputTokens: record.inputTokens,
+        outputTokens: record.outputTokens,
+        cacheCreateTokens: record.cacheCreateTokens || 0,
+        cacheReadTokens: record.cacheReadTokens || 0,
+        totalTokens: record.totalTokens,
+        cost: record.cost ? `$${record.cost.toFixed(6)}` : '$0.000000',
+        costValue: record.cost || 0,
+        requests: 1 // 单次请求
+      }))
 
-    // 收集所有匹配的使用记录
+      return res.json({
+        success: true,
+        data: {
+          records: formattedRecords,
+          total: formattedRecords.length,
+          apiKeyId
+        }
+      })
+    }
+
+    // 未指定 apiKeyId，返回所有 API Key 的最新记录
+    const allKeys = await apiKeyService.getAllApiKeys()
     const allRecords = []
 
-    // 按小时粒度扫描数据（更精确）
-    let currentTime = new Date(startDateTime)
-    while (currentTime <= endDateTime) {
-      const year = currentTime.getUTCFullYear()
-      const month = String(currentTime.getUTCMonth() + 1).padStart(2, '0')
-      const day = String(currentTime.getUTCDate()).padStart(2, '0')
-      const hour = String(currentTime.getUTCHours()).padStart(2, '0')
-      const hourStr = `${year}-${month}-${day}:${hour}`
+    for (const key of allKeys) {
+      const records = await redis.getUsageRecords(key.id, 50) // 每个key取50条
 
-      // 构建搜索pattern
-      let pattern
-      if (apiKeyId && model) {
-        pattern = `usage:${apiKeyId}:model:hourly:${model}:${hourStr}`
-      } else if (apiKeyId) {
-        pattern = `usage:${apiKeyId}:model:hourly:*:${hourStr}`
-      } else if (model) {
-        pattern = `usage:*:model:hourly:${model}:${hourStr}`
-      } else {
-        pattern = `usage:*:model:hourly:*:${hourStr}`
-      }
-
-      // 使用 SCAN 而非 KEYS
-      const keys = []
-      let cursor = '0'
-      do {
-        const result = await client.scan(cursor, 'MATCH', pattern, 'COUNT', 100)
-        cursor = result[0]
-        keys.push(...result[1])
-      } while (cursor !== '0')
-
-      // 获取每个key的数据
-      for (const key of keys) {
-        // 解析key: usage:{keyId}:model:hourly:{model}:{date}:{hour}
-        const match = key.match(/usage:(.+):model:hourly:(.+):(\d{4}-\d{2}-\d{2}:\d{2})$/)
-        if (!match) continue
-
-        const [, keyId, modelName, timestamp] = match
-
-        // 应用过滤条件
-        if (apiKeyId && keyId !== apiKeyId) continue
-        if (accountId && !key.includes(accountId)) continue // 简化处理
-        if (model && modelName !== model) continue
-
-        const data = await client.hgetall(key)
-        if (!data || Object.keys(data).length === 0) continue
-
-        // 获取API Key名称
-        let apiKeyName = keyId
-        try {
-          const apiKey = await apiKeyService.getApiKeyById(keyId)
-          if (apiKey) {
-            apiKeyName = apiKey.name || keyId
-          }
-        } catch (e) {
-          // 忽略错误，使用keyId作为名称
-        }
-
-        // 计算费用
-        const usage = {
-          input_tokens: parseInt(data.totalInputTokens || data.inputTokens) || 0,
-          output_tokens: parseInt(data.totalOutputTokens || data.outputTokens) || 0,
-          cache_creation_input_tokens:
-            parseInt(data.totalCacheCreateTokens || data.cacheCreateTokens) || 0,
-          cache_read_input_tokens: parseInt(data.totalCacheReadTokens || data.cacheReadTokens) || 0
-        }
-
-        const CostCalculator = require('../utils/costCalculator')
-        const costResult = CostCalculator.calculateCost(usage, modelName)
-
+      records.forEach((record) => {
         allRecords.push({
-          timestamp: timestamp.replace(':', ' ') + ':00:00',
-          apiKey: apiKeyName,
-          apiKeyId: keyId,
-          account: data.accountId || data.account || 'N/A',
-          model: modelName,
-          inputTokens: usage.input_tokens,
-          outputTokens: usage.output_tokens,
-          cacheCreateTokens: usage.cache_creation_input_tokens,
-          cacheReadTokens: usage.cache_read_input_tokens,
-          totalTokens:
-            usage.input_tokens +
-            usage.output_tokens +
-            usage.cache_creation_input_tokens +
-            usage.cache_read_input_tokens,
-          cost: costResult.formatted.total,
-          costValue: costResult.costs.total,
-          requests: parseInt(data.requests || data.totalRequests) || 0
+          timestamp: record.timestamp,
+          apiKey: key.name || key.id,
+          apiKeyId: key.id,
+          account: record.accountId || 'N/A',
+          model: record.model,
+          inputTokens: record.inputTokens,
+          outputTokens: record.outputTokens,
+          cacheCreateTokens: record.cacheCreateTokens || 0,
+          cacheReadTokens: record.cacheReadTokens || 0,
+          totalTokens: record.totalTokens,
+          cost: record.cost ? `$${record.cost.toFixed(6)}` : '$0.000000',
+          costValue: record.cost || 0,
+          requests: 1
         })
-      }
-
-      // 前进到下一个小时
-      currentTime.setHours(currentTime.getHours() + 1)
+      })
     }
 
     // 按时间倒序排序
     allRecords.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
 
-    // 分页
-    const paginatedRecords = allRecords.slice(offset, offset + pageSize)
+    // 取前 limit 条
+    const limitedRecords = allRecords.slice(0, parseInt(limit))
 
     return res.json({
       success: true,
       data: {
-        records: paginatedRecords,
-        total: allRecords.length,
-        page: pageNum,
-        pageSize: pageSize,
-        totalPages: Math.ceil(allRecords.length / pageSize)
+        records: limitedRecords,
+        total: limitedRecords.length
       }
     })
   } catch (error) {

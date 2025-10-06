@@ -1718,9 +1718,9 @@
             <i class="fas fa-brain mr-2 text-indigo-600" />
             Claude 模型
           </h5>
-          <div class="overflow-x-auto">
+          <div class="max-h-96 overflow-x-auto overflow-y-auto">
             <table class="min-w-full">
-              <thead class="bg-gray-50 dark:bg-gray-700">
+              <thead class="sticky top-0 bg-gray-50 dark:bg-gray-700">
                 <tr>
                   <th
                     class="px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 sm:px-4 sm:text-sm"
@@ -1751,7 +1751,7 @@
               </thead>
               <tbody class="divide-y divide-gray-200 dark:divide-gray-600">
                 <tr
-                  v-for="model in modelPricing.claude.slice(0, 10)"
+                  v-for="model in modelPricing.claude"
                   :key="model.name"
                   class="hover:bg-gray-50 dark:hover:bg-gray-700"
                 >
@@ -1794,9 +1794,9 @@
             <i class="fas fa-robot mr-2 text-gray-700 dark:text-gray-300" />
             OpenAI 模型
           </h5>
-          <div class="overflow-x-auto">
+          <div class="max-h-96 overflow-x-auto overflow-y-auto">
             <table class="min-w-full">
-              <thead class="bg-gray-50 dark:bg-gray-700">
+              <thead class="sticky top-0 bg-gray-50 dark:bg-gray-700">
                 <tr>
                   <th
                     class="px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 sm:px-4 sm:text-sm"
@@ -1817,7 +1817,7 @@
               </thead>
               <tbody class="divide-y divide-gray-200 dark:divide-gray-600">
                 <tr
-                  v-for="model in modelPricing.openai.slice(0, 10)"
+                  v-for="model in modelPricing.openai"
                   :key="model.name"
                   class="hover:bg-gray-50 dark:hover:bg-gray-700"
                 >
@@ -1850,9 +1850,9 @@
             <i class="fas fa-star mr-2 text-yellow-600" />
             Gemini 模型
           </h5>
-          <div class="overflow-x-auto">
+          <div class="max-h-96 overflow-x-auto overflow-y-auto">
             <table class="min-w-full">
-              <thead class="bg-gray-50 dark:bg-gray-700">
+              <thead class="sticky top-0 bg-gray-50 dark:bg-gray-700">
                 <tr>
                   <th
                     class="px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 sm:px-4 sm:text-sm"
@@ -1873,7 +1873,7 @@
               </thead>
               <tbody class="divide-y divide-gray-200 dark:divide-gray-600">
                 <tr
-                  v-for="model in modelPricing.gemini.slice(0, 10)"
+                  v-for="model in modelPricing.gemini"
                   :key="model.name"
                   class="hover:bg-gray-50 dark:hover:bg-gray-700"
                 >
@@ -1951,7 +1951,7 @@
 
 <script setup>
 import { computed, ref, onMounted } from 'vue'
-import axios from 'axios'
+import { apiClient } from '@/config/api'
 
 // 当前系统选择
 const activeTutorialSystem = ref('windows')
@@ -2121,10 +2121,10 @@ const pricingLastUpdated = ref(null)
 const loadModelPricing = async () => {
   loadingPricing.value = true
   try {
-    const response = await axios.get('/admin/model-pricing')
-    if (response.data.success) {
-      modelPricing.value = response.data.data
-      pricingLastUpdated.value = response.data.lastUpdated
+    const response = await apiClient.get('/admin/model-pricing')
+    if (response.success) {
+      modelPricing.value = response.data
+      pricingLastUpdated.value = response.lastUpdated
     }
   } catch (error) {
     console.error('Failed to load model pricing:', error)
