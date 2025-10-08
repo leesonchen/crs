@@ -1709,39 +1709,211 @@
       </div>
 
       <!-- 价格表格 -->
-      <div v-else-if="modelPricing" class="space-y-6">
-        <!-- Claude 模型 -->
-        <div v-if="modelPricing.claude && modelPricing.claude.length > 0" class="card p-4 sm:p-6">
-          <h5
-            class="mb-3 flex items-center text-base font-semibold text-gray-800 dark:text-gray-200 sm:mb-4 sm:text-lg"
+      <div v-else-if="modelPricing" class="space-y-4">
+        <!-- 筛选控制栏 -->
+        <div class="card p-4">
+          <!-- 移动端筛选按钮 -->
+          <button
+            class="mb-3 flex w-full items-center justify-between rounded-lg bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50 sm:hidden"
+            @click="showFilters = !showFilters"
           >
-            <i class="fas fa-brain mr-2 text-indigo-600" />
-            Claude 模型
-          </h5>
-          <div class="max-h-96 overflow-x-auto overflow-y-auto">
+            <span>
+              <i class="fas fa-filter mr-2" />
+              筛选选项
+            </span>
+            <i :class="showFilters ? 'fas fa-chevron-up' : 'fas fa-chevron-down'" />
+          </button>
+
+          <!-- 筛选表单 -->
+          <div :class="['space-y-3 sm:space-y-0', showFilters ? 'block' : 'hidden sm:block']">
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <!-- 关键词搜索 -->
+              <div>
+                <label
+                  class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300 sm:text-sm"
+                >
+                  搜索模型
+                </label>
+                <div class="relative">
+                  <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    v-model="searchQuery"
+                    class="w-full rounded-lg border border-gray-300 bg-white py-2 pl-10 pr-3 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 dark:focus:border-blue-400"
+                    placeholder="输入模型名称..."
+                    type="text"
+                  />
+                </div>
+              </div>
+
+              <!-- 平台选择 -->
+              <div>
+                <label
+                  class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300 sm:text-sm"
+                >
+                  平台筛选
+                </label>
+                <select
+                  v-model="selectedPlatform"
+                  class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:focus:border-blue-400"
+                >
+                  <option
+                    v-for="option in platformOptions"
+                    :key="option.value"
+                    :value="option.value"
+                  >
+                    {{ option.label }}
+                  </option>
+                </select>
+              </div>
+
+              <!-- 最小价格 -->
+              <div>
+                <label
+                  class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300 sm:text-sm"
+                >
+                  最小价格 ($)
+                </label>
+                <input
+                  v-model="minPrice"
+                  class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 dark:focus:border-blue-400"
+                  min="0"
+                  placeholder="0.00"
+                  step="0.01"
+                  type="number"
+                />
+              </div>
+
+              <!-- 最大价格 -->
+              <div>
+                <label
+                  class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300 sm:text-sm"
+                >
+                  最大价格 ($)
+                </label>
+                <input
+                  v-model="maxPrice"
+                  class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 dark:focus:border-blue-400"
+                  min="0"
+                  placeholder="100.00"
+                  step="0.01"
+                  type="number"
+                />
+              </div>
+            </div>
+
+            <!-- 操作按钮 -->
+            <div class="mt-3 flex items-center justify-between">
+              <div class="text-xs text-gray-600 dark:text-gray-400 sm:text-sm">
+                找到
+                <span class="font-semibold text-blue-600 dark:text-blue-400">{{
+                  filteredAndSortedModels.length
+                }}</span>
+                个模型
+              </div>
+              <button
+                class="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 sm:text-sm"
+                @click="resetFilters"
+              >
+                <i class="fas fa-redo mr-1" />
+                重置筛选
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 统一的模型价格表 -->
+        <div class="card p-4 sm:p-6">
+          <div class="max-h-[600px] overflow-x-auto overflow-y-auto">
             <table class="min-w-full">
               <thead class="sticky top-0 bg-gray-50 dark:bg-gray-700">
                 <tr>
+                  <!-- 平台 -->
                   <th
-                    class="px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 sm:px-4 sm:text-sm"
+                    class="cursor-pointer px-3 py-2 text-left text-xs font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-600 sm:px-4 sm:text-sm"
+                    @click="toggleSort('platform')"
                   >
-                    模型名称
+                    <div class="flex items-center gap-1">
+                      平台
+                      <i
+                        :class="[
+                          'fas',
+                          sortField === 'platform'
+                            ? sortOrder === 'asc'
+                              ? 'fa-sort-up'
+                              : 'fa-sort-down'
+                            : 'fa-sort',
+                          'text-xs opacity-50'
+                        ]"
+                      />
+                    </div>
                   </th>
+                  <!-- 模型名称 -->
                   <th
-                    class="px-3 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300 sm:px-4 sm:text-sm"
+                    class="cursor-pointer px-3 py-2 text-left text-xs font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-600 sm:px-4 sm:text-sm"
+                    @click="toggleSort('name')"
                   >
-                    输入
+                    <div class="flex items-center gap-1">
+                      模型名称
+                      <i
+                        :class="[
+                          'fas',
+                          sortField === 'name'
+                            ? sortOrder === 'asc'
+                              ? 'fa-sort-up'
+                              : 'fa-sort-down'
+                            : 'fa-sort',
+                          'text-xs opacity-50'
+                        ]"
+                      />
+                    </div>
                   </th>
+                  <!-- 输入价格 -->
                   <th
-                    class="px-3 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300 sm:px-4 sm:text-sm"
+                    class="cursor-pointer px-3 py-2 text-right text-xs font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-600 sm:px-4 sm:text-sm"
+                    @click="toggleSort('inputPrice')"
                   >
-                    输出
+                    <div class="flex items-center justify-end gap-1">
+                      输入
+                      <i
+                        :class="[
+                          'fas',
+                          sortField === 'inputPrice'
+                            ? sortOrder === 'asc'
+                              ? 'fa-sort-up'
+                              : 'fa-sort-down'
+                            : 'fa-sort',
+                          'text-xs opacity-50'
+                        ]"
+                      />
+                    </div>
                   </th>
+                  <!-- 输出价格 -->
+                  <th
+                    class="cursor-pointer px-3 py-2 text-right text-xs font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-600 sm:px-4 sm:text-sm"
+                    @click="toggleSort('outputPrice')"
+                  >
+                    <div class="flex items-center justify-end gap-1">
+                      输出
+                      <i
+                        :class="[
+                          'fas',
+                          sortField === 'outputPrice'
+                            ? sortOrder === 'asc'
+                              ? 'fa-sort-up'
+                              : 'fa-sort-down'
+                            : 'fa-sort',
+                          'text-xs opacity-50'
+                        ]"
+                      />
+                    </div>
+                  </th>
+                  <!-- 缓存创建 (仅 Claude) -->
                   <th
                     class="hidden px-3 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300 sm:table-cell sm:px-4 sm:text-sm"
                   >
                     缓存创建
                   </th>
+                  <!-- 缓存读取 (仅 Claude) -->
                   <th
                     class="hidden px-3 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300 sm:table-cell sm:px-4 sm:text-sm"
                   >
@@ -1751,146 +1923,71 @@
               </thead>
               <tbody class="divide-y divide-gray-200 dark:divide-gray-600">
                 <tr
-                  v-for="model in modelPricing.claude"
-                  :key="model.name"
+                  v-for="model in filteredAndSortedModels"
+                  :key="`${model.platform}-${model.name}`"
                   class="hover:bg-gray-50 dark:hover:bg-gray-700"
                 >
+                  <!-- 平台 -->
+                  <td class="px-3 py-2 text-xs sm:px-4 sm:text-sm">
+                    <span
+                      :class="[
+                        'inline-block rounded px-2 py-0.5 text-xs font-medium',
+                        model.platform === 'Claude'
+                          ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
+                          : model.platform === 'OpenAI'
+                            ? 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                            : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300'
+                      ]"
+                    >
+                      {{ model.platform }}
+                    </span>
+                  </td>
+                  <!-- 模型名称 -->
                   <td class="px-3 py-2 text-xs text-gray-900 dark:text-gray-100 sm:px-4 sm:text-sm">
                     <span class="block max-w-[150px] truncate sm:max-w-none" :title="model.name">
                       {{ model.name }}
                     </span>
                   </td>
+                  <!-- 输入价格 -->
                   <td
                     class="px-3 py-2 text-right text-xs text-gray-600 dark:text-gray-400 sm:px-4 sm:text-sm"
                   >
                     ${{ model.inputPrice.toFixed(2) }}
                   </td>
+                  <!-- 输出价格 -->
                   <td
                     class="px-3 py-2 text-right text-xs text-gray-600 dark:text-gray-400 sm:px-4 sm:text-sm"
                   >
                     ${{ model.outputPrice.toFixed(2) }}
                   </td>
+                  <!-- 缓存创建 (仅 Claude) -->
                   <td
                     class="hidden px-3 py-2 text-right text-xs text-gray-600 dark:text-gray-400 sm:table-cell sm:px-4 sm:text-sm"
                   >
-                    ${{ model.cacheCreatePrice.toFixed(2) }}
+                    {{
+                      model.cacheCreatePrice !== undefined
+                        ? `$${model.cacheCreatePrice.toFixed(2)}`
+                        : '-'
+                    }}
                   </td>
+                  <!-- 缓存读取 (仅 Claude) -->
                   <td
                     class="hidden px-3 py-2 text-right text-xs text-gray-600 dark:text-gray-400 sm:table-cell sm:px-4 sm:text-sm"
                   >
-                    ${{ model.cacheReadPrice.toFixed(2) }}
+                    {{
+                      model.cacheReadPrice !== undefined
+                        ? `$${model.cacheReadPrice.toFixed(2)}`
+                        : '-'
+                    }}
                   </td>
                 </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- OpenAI 模型 -->
-        <div v-if="modelPricing.openai && modelPricing.openai.length > 0" class="card p-4 sm:p-6">
-          <h5
-            class="mb-3 flex items-center text-base font-semibold text-gray-800 dark:text-gray-200 sm:mb-4 sm:text-lg"
-          >
-            <i class="fas fa-robot mr-2 text-gray-700 dark:text-gray-300" />
-            OpenAI 模型
-          </h5>
-          <div class="max-h-96 overflow-x-auto overflow-y-auto">
-            <table class="min-w-full">
-              <thead class="sticky top-0 bg-gray-50 dark:bg-gray-700">
-                <tr>
-                  <th
-                    class="px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 sm:px-4 sm:text-sm"
-                  >
-                    模型名称
-                  </th>
-                  <th
-                    class="px-3 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300 sm:px-4 sm:text-sm"
-                  >
-                    输入
-                  </th>
-                  <th
-                    class="px-3 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300 sm:px-4 sm:text-sm"
-                  >
-                    输出
-                  </th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-gray-200 dark:divide-gray-600">
-                <tr
-                  v-for="model in modelPricing.openai"
-                  :key="model.name"
-                  class="hover:bg-gray-50 dark:hover:bg-gray-700"
-                >
-                  <td class="px-3 py-2 text-xs text-gray-900 dark:text-gray-100 sm:px-4 sm:text-sm">
-                    <span class="block max-w-[150px] truncate sm:max-w-none" :title="model.name">
-                      {{ model.name }}
-                    </span>
-                  </td>
-                  <td
-                    class="px-3 py-2 text-right text-xs text-gray-600 dark:text-gray-400 sm:px-4 sm:text-sm"
-                  >
-                    ${{ model.inputPrice.toFixed(2) }}
-                  </td>
-                  <td
-                    class="px-3 py-2 text-right text-xs text-gray-600 dark:text-gray-400 sm:px-4 sm:text-sm"
-                  >
-                    ${{ model.outputPrice.toFixed(2) }}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- Gemini 模型 -->
-        <div v-if="modelPricing.gemini && modelPricing.gemini.length > 0" class="card p-4 sm:p-6">
-          <h5
-            class="mb-3 flex items-center text-base font-semibold text-gray-800 dark:text-gray-200 sm:mb-4 sm:text-lg"
-          >
-            <i class="fas fa-star mr-2 text-yellow-600" />
-            Gemini 模型
-          </h5>
-          <div class="max-h-96 overflow-x-auto overflow-y-auto">
-            <table class="min-w-full">
-              <thead class="sticky top-0 bg-gray-50 dark:bg-gray-700">
-                <tr>
-                  <th
-                    class="px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 sm:px-4 sm:text-sm"
-                  >
-                    模型名称
-                  </th>
-                  <th
-                    class="px-3 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300 sm:px-4 sm:text-sm"
-                  >
-                    输入
-                  </th>
-                  <th
-                    class="px-3 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300 sm:px-4 sm:text-sm"
-                  >
-                    输出
-                  </th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-gray-200 dark:divide-gray-600">
-                <tr
-                  v-for="model in modelPricing.gemini"
-                  :key="model.name"
-                  class="hover:bg-gray-50 dark:hover:bg-gray-700"
-                >
-                  <td class="px-3 py-2 text-xs text-gray-900 dark:text-gray-100 sm:px-4 sm:text-sm">
-                    <span class="block max-w-[150px] truncate sm:max-w-none" :title="model.name">
-                      {{ model.name }}
-                    </span>
-                  </td>
-                  <td
-                    class="px-3 py-2 text-right text-xs text-gray-600 dark:text-gray-400 sm:px-4 sm:text-sm"
-                  >
-                    ${{ model.inputPrice.toFixed(2) }}
-                  </td>
-                  <td
-                    class="px-3 py-2 text-right text-xs text-gray-600 dark:text-gray-400 sm:px-4 sm:text-sm"
-                  >
-                    ${{ model.outputPrice.toFixed(2) }}
+                <!-- 空状态 -->
+                <tr v-if="filteredAndSortedModels.length === 0">
+                  <td class="px-4 py-8 text-center" colspan="6">
+                    <i class="fas fa-search mb-2 text-2xl text-gray-400" />
+                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                      没有找到符合条件的模型,请调整筛选条件
+                    </p>
                   </td>
                 </tr>
               </tbody>
@@ -2117,6 +2214,15 @@ const modelPricing = ref(null)
 const loadingPricing = ref(false)
 const pricingLastUpdated = ref(null)
 
+// 筛选和排序状态
+const searchQuery = ref('')
+const selectedPlatform = ref('all')
+const minPrice = ref('')
+const maxPrice = ref('')
+const sortField = ref('name')
+const sortOrder = ref('asc')
+const showFilters = ref(false)
+
 // 加载模型价格数据
 const loadModelPricing = async () => {
   loadingPricing.value = true
@@ -2146,6 +2252,130 @@ const formatDate = (dateString) => {
     minute: '2-digit'
   })
 }
+
+// 合并所有平台模型数据
+const allModels = computed(() => {
+  if (!modelPricing.value) return []
+
+  const models = []
+
+  if (modelPricing.value.claude) {
+    models.push(
+      ...modelPricing.value.claude.map((m) => ({
+        ...m,
+        platform: 'Claude'
+      }))
+    )
+  }
+
+  if (modelPricing.value.openai) {
+    models.push(
+      ...modelPricing.value.openai.map((m) => ({
+        ...m,
+        platform: 'OpenAI'
+      }))
+    )
+  }
+
+  if (modelPricing.value.gemini) {
+    models.push(
+      ...modelPricing.value.gemini.map((m) => ({
+        ...m,
+        platform: 'Gemini'
+      }))
+    )
+  }
+
+  return models
+})
+
+// 筛选和排序后的模型列表
+const filteredAndSortedModels = computed(() => {
+  let models = [...allModels.value]
+
+  // 平台筛选
+  if (selectedPlatform.value !== 'all') {
+    models = models.filter((m) => m.platform === selectedPlatform.value)
+  }
+
+  // 关键词搜索
+  if (searchQuery.value.trim()) {
+    const query = searchQuery.value.toLowerCase().trim()
+    models = models.filter((m) => m.name.toLowerCase().includes(query))
+  }
+
+  // 价格区间筛选
+  const minVal = parseFloat(minPrice.value)
+  const maxVal = parseFloat(maxPrice.value)
+
+  if (!isNaN(minVal)) {
+    models = models.filter((m) => m.inputPrice >= minVal || m.outputPrice >= minVal)
+  }
+
+  if (!isNaN(maxVal)) {
+    models = models.filter((m) => m.inputPrice <= maxVal || m.outputPrice <= maxVal)
+  }
+
+  // 排序
+  models.sort((a, b) => {
+    let aVal, bVal
+
+    switch (sortField.value) {
+      case 'name':
+        aVal = a.name.toLowerCase()
+        bVal = b.name.toLowerCase()
+        break
+      case 'inputPrice':
+        aVal = a.inputPrice
+        bVal = b.inputPrice
+        break
+      case 'outputPrice':
+        aVal = a.outputPrice
+        bVal = b.outputPrice
+        break
+      case 'platform':
+        aVal = a.platform
+        bVal = b.platform
+        break
+      default:
+        return 0
+    }
+
+    if (aVal < bVal) return sortOrder.value === 'asc' ? -1 : 1
+    if (aVal > bVal) return sortOrder.value === 'asc' ? 1 : -1
+    return 0
+  })
+
+  return models
+})
+
+// 切换排序
+const toggleSort = (field) => {
+  if (sortField.value === field) {
+    sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
+  } else {
+    sortField.value = field
+    sortOrder.value = 'asc'
+  }
+}
+
+// 重置筛选
+const resetFilters = () => {
+  searchQuery.value = ''
+  selectedPlatform.value = 'all'
+  minPrice.value = ''
+  maxPrice.value = ''
+  sortField.value = 'name'
+  sortOrder.value = 'asc'
+}
+
+// 平台列表
+const platformOptions = [
+  { value: 'all', label: '全部平台' },
+  { value: 'Claude', label: 'Claude' },
+  { value: 'OpenAI', label: 'OpenAI' },
+  { value: 'Gemini', label: 'Gemini' }
+]
 
 // 组件挂载时加载价格数据
 onMounted(() => {
