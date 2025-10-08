@@ -21,11 +21,10 @@
 
 <div align="center">
 
-| 平台 | 类型 | 介绍 |
-|:---:|:---:|:---|
+|               平台                |      类型       | 介绍                                                                   |
+| :-------------------------------: | :-------------: | :--------------------------------------------------------------------- |
 | **[pincc.ai](https://pincc.ai/)** | 🏆 **官方运营** | 项目官方直营的Claude拼车服务<br>提供200刀 Claude Code Max 套餐共享服务 |
-| **[ctok.ai](https://ctok.ai/)** | 🤝 合作伙伴 | 社区认可的Claude拼车服务 |
-
+|  **[ctok.ai](https://ctok.ai/)**  |   🤝 合作伙伴   | 社区认可的Claude拼车服务                                               |
 
 </div>
 
@@ -38,7 +37,6 @@
 🚨 **服务条款风险**: 使用本项目可能违反Anthropic的服务条款。请在使用前仔细阅读Anthropic的用户协议，使用本项目的一切风险由用户自行承担。
 
 📖 **免责声明**: 本项目仅供技术学习和研究使用，作者不对因使用本项目导致的账户封禁、服务中断或其他损失承担任何责任。
-
 
 ## 🤔 这个项目适合你吗？
 
@@ -287,11 +285,13 @@ npm run service:status
 ### Docker compose
 
 #### 第一步：下载构建docker-compose.yml文件的脚本并执行
+
 ```bash
 curl -fsSL https://pincc.ai/crs-compose.sh -o crs-compose.sh && chmod +x crs-compose.sh && ./crs-compose.sh
 ```
 
 #### 第二步：启动
+
 ```bash
 docker-compose up -d
 ```
@@ -437,7 +437,7 @@ env_key = "CRS_OAI_KEY"
 
 ```json
 {
-    "OPENAI_API_KEY": null  
+  "OPENAI_API_KEY": null
 }
 ```
 
@@ -448,6 +448,36 @@ export CRS_OAI_KEY="后台创建的API密钥"
 ```
 
 > ⚠️ 在通过 Nginx 反向代理 CRS 服务并使用 Codex CLI 时，需要在 http 块中添加 underscores_in_headers on;。因为 Nginx 默认会移除带下划线的请求头（如 session_id），一旦该头被丢弃，多账号环境下的粘性会话功能将失效。
+
+**配置桥接设置（重要）：**
+
+系统支持双向桥接转换：**OpenAI ↔ Claude**，可根据需要配置不同方向的格式转换。
+
+**Codex CLI 访问 Claude（OpenAI → Claude）：**
+
+1. 登录管理后台：`http://你的服务器:3000/web`
+2. 进入「系统设置」→「桥接设置」标签
+3. 在「OpenAI → Claude」方向中：
+   - 启用桥接功能开关
+   - 配置模型映射（示例）：
+     - `gpt-5` → `claude-sonnet-4-20250514`
+     - `gpt-5-mini` → `claude-3-5-haiku-20241022`
+   - 设置默认模型（如 `claude-3-5-sonnet-20241022`）
+4. 保存配置
+
+**Claude Code 访问 OpenAI（Claude → OpenAI）：**
+
+如果需要让 Claude Code 通过 CRS 访问 OpenAI 账户：
+
+1. 在「Claude → OpenAI」方向中：
+   - 启用桥接功能开关
+   - 配置模型映射（示例）：
+     - `claude-sonnet-4-20250514` → `gpt-5`
+     - `claude-3-5-haiku-20241022` → `gpt-5-mini`
+   - 设置默认模型（如 `gpt-5`）
+2. 保存配置
+
+这样，当 Codex CLI 请求 `gpt-5` 模型时，系统会自动转换为 Claude API 调用并使用映射的 Claude 模型。
 
 **Codex Playwright MCP（可选）：**
 
@@ -475,9 +505,10 @@ claude-opus-4-20250514     # Claude Opus 4
 ```
 
 配置步骤：
+
 - 供应商类型选择"Anthropic"
 - API地址填入：`http://你的服务器:3000/claude/`
-- API Key填入：后台创建的API密钥（cr_开头）
+- API Key填入：后台创建的API密钥（cr\_开头）
 
 **2. Gemini账号接入：**
 
@@ -490,9 +521,10 @@ gemini-2.5-pro             # Gemini 2.5 Pro
 ```
 
 配置步骤：
+
 - 供应商类型选择"Gemini"
 - API地址填入：`http://你的服务器:3000/gemini/`
-- API Key填入：后台创建的API密钥（cr_开头）
+- API Key填入：后台创建的API密钥（cr\_开头）
 
 **3. Codex接入：**
 
@@ -505,9 +537,10 @@ gpt-5                      # Codex使用固定模型ID
 ```
 
 配置步骤：
+
 - 供应商类型选择"Openai-Response"
 - API地址填入：`http://你的服务器:3000/openai/`
-- API Key填入：后台创建的API密钥（cr_开头）
+- API Key填入：后台创建的API密钥（cr\_开头）
 - **重要**：Codex只支持Openai-Response标准
 
 #### 其他第三方工具接入
@@ -517,7 +550,7 @@ gpt-5                      # Codex使用固定模型ID
 - 所有账号类型都使用相同的API密钥（在后台统一创建）
 - 根据不同的路由前缀自动识别账号类型
 - `/claude/` - 使用Claude账号池
-- `/gemini/` - 使用Gemini账号池  
+- `/gemini/` - 使用Gemini账号池
 - `/openai/` - 使用Codex账号（只支持Openai-Response格式）
 - 支持所有标准API端点（messages、models等）
 
@@ -610,7 +643,6 @@ npm run service:status
    - 系统会在日志中记录所有请求的User-Agent
    - 客户端验证失败时会返回403错误并记录详细信息
    - 通过日志可以查看实际的User-Agent格式，方便配置自定义客户端
-
 
 ### 日志示例
 

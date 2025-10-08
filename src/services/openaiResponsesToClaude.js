@@ -5,6 +5,98 @@ class OpenAIResponsesToClaudeConverter {
     this._resetStreamState()
   }
 
+  /**
+   * 将 OpenAI Responses 请求格式转换为 Claude 格式
+   * @param {Object} openaiRequest - OpenAI Responses 格式的请求
+   * @returns {Object} Claude 格式的请求
+   */
+  convertRequest(openaiRequest) {
+    const claudeRequest = {
+      model: openaiRequest.model,
+      max_tokens: openaiRequest.max_tokens || openaiRequest.max_output_tokens || 4096,
+      stream: Boolean(openaiRequest.stream)
+    }
+
+    // 处理 instructions → system
+    if (openaiRequest.instructions) {
+      claudeRequest.system = openaiRequest.instructions
+    }
+
+    // 处理 input → messages
+    if (openaiRequest.input && Array.isArray(openaiRequest.input)) {
+      claudeRequest.messages = this._convertInputToMessages(openaiRequest.input)
+    } else if (openaiRequest.messages && Array.isArray(openaiRequest.messages)) {
+      // 兼容传统格式
+      claudeRequest.messages = openaiRequest.messages
+    } else {
+      claudeRequest.messages = []
+    }
+
+    // 处理其他可选参数
+    if (openaiRequest.temperature !== undefined) {
+      claudeRequest.temperature = openaiRequest.temperature
+    }
+    if (openaiRequest.top_p !== undefined) {
+      claudeRequest.top_p = openaiRequest.top_p
+    }
+
+    logger.debug('📝 Converted OpenAI Responses request to Claude format:', {
+      model: claudeRequest.model,
+      hasSystem: !!claudeRequest.system,
+      messageCount: claudeRequest.messages.length,
+      stream: claudeRequest.stream
+    })
+
+    return claudeRequest
+  }
+
+  /**
+   * 转换 OpenAI Responses 的 input 数组为 Claude 的 messages
+   * @private
+   */
+  _convertInputToMessages(input) {
+    const messages = []
+
+    for (const item of input) {
+      if (item.type === 'message') {
+        const message = {
+          role: item.role || 'user',
+          content: []
+        }
+
+        // 转换 content
+        if (Array.isArray(item.content)) {
+          for (const contentBlock of item.content) {
+            if (contentBlock.type === 'text') {
+              message.content.push({
+                type: 'text',
+                text: contentBlock.text || ''
+              })
+            } else if (contentBlock.type === 'image') {
+              // 处理图片（如果需要）
+              message.content.push(contentBlock)
+            }
+          }
+        } else if (typeof item.content === 'string') {
+          message.content = item.content
+        }
+
+        // 如果 content 只有一个文本块，可以简化为字符串
+        if (
+          Array.isArray(message.content) &&
+          message.content.length === 1 &&
+          message.content[0].type === 'text'
+        ) {
+          message.content = message.content[0].text
+        }
+
+        messages.push(message)
+      }
+    }
+
+    return messages
+  }
+
   convertNonStream(responseData) {
     const resp = responseData?.response || responseData || {}
     this.finalResponse = resp

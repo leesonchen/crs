@@ -50,8 +50,7 @@ class OpenAIResponsesAccountService {
       dailyQuota = 0, // 每日额度限制（美元），0表示不限制
       quotaResetTime = '00:00', // 额度重置时间（HH:mm格式）
       rateLimitDuration = 60, // 限流时间（分钟）
-      allowClaudeBridge = false, // 是否允许 Claude 桥接调度
-      claudeModelMapping = null // Claude 模型映射配置
+      modelMapping = null // 模型映射配置（用于同平台模型降级）
     } = options
 
     // 验证必填字段
@@ -91,14 +90,12 @@ class OpenAIResponsesAccountService {
       lastResetDate: redis.getDateStringInTimezone(),
       quotaResetTime,
       quotaStoppedAt: '',
-      // Claude 桥接相关
-      allowClaudeBridge:
-        allowClaudeBridge === true || allowClaudeBridge === 'true' ? 'true' : 'false',
-      claudeModelMapping:
-        claudeModelMapping && typeof claudeModelMapping === 'object'
-          ? JSON.stringify(claudeModelMapping)
-          : claudeModelMapping && typeof claudeModelMapping === 'string'
-            ? claudeModelMapping
+      // 模型映射
+      modelMapping:
+        modelMapping && typeof modelMapping === 'object'
+          ? JSON.stringify(modelMapping)
+          : modelMapping && typeof modelMapping === 'string'
+            ? modelMapping
             : ''
     }
 
@@ -135,18 +132,14 @@ class OpenAIResponsesAccountService {
       }
     }
 
-    // 解析 claudeModelMapping 字段（用于 Claude 桥接）
-    if (accountData.claudeModelMapping) {
+    // 解析 modelMapping 字段（用于模型降级）
+    if (accountData.modelMapping) {
       try {
-        accountData.claudeModelMapping = JSON.parse(accountData.claudeModelMapping)
+        accountData.modelMapping = JSON.parse(accountData.modelMapping)
       } catch (e) {
-        accountData.claudeModelMapping = null
+        accountData.modelMapping = null
       }
     }
-
-    // 解析 allowClaudeBridge 布尔字段
-    accountData.allowClaudeBridge =
-      accountData.allowClaudeBridge === 'true' || accountData.allowClaudeBridge === true
 
     return accountData
   }
@@ -168,22 +161,15 @@ class OpenAIResponsesAccountService {
       updates.proxy = updates.proxy ? JSON.stringify(updates.proxy) : ''
     }
 
-    // 处理 Claude 桥接相关字段
-    if (updates.allowClaudeBridge !== undefined) {
-      updates.allowClaudeBridge =
-        updates.allowClaudeBridge === true || updates.allowClaudeBridge === 'true'
-          ? 'true'
-          : 'false'
-    }
-
-    if (updates.claudeModelMapping !== undefined) {
-      if (typeof updates.claudeModelMapping === 'object' && updates.claudeModelMapping !== null) {
-        updates.claudeModelMapping = JSON.stringify(updates.claudeModelMapping)
-      } else if (typeof updates.claudeModelMapping === 'string') {
+    // 处理模型映射
+    if (updates.modelMapping !== undefined) {
+      if (typeof updates.modelMapping === 'object' && updates.modelMapping !== null) {
+        updates.modelMapping = JSON.stringify(updates.modelMapping)
+      } else if (typeof updates.modelMapping === 'string') {
         // 如果已经是字符串，保持不变
-        updates.claudeModelMapping = updates.claudeModelMapping
+        updates.modelMapping = updates.modelMapping
       } else {
-        updates.claudeModelMapping = ''
+        updates.modelMapping = ''
       }
     }
 
@@ -296,12 +282,12 @@ class OpenAIResponsesAccountService {
                   minutesRemaining: 0
                 }
 
-            // 解析 claudeModelMapping 字段（用于 Claude 桥接）
-            if (accountData.claudeModelMapping) {
+            // 解析 modelMapping 字段（用于模型降级）
+            if (accountData.modelMapping) {
               try {
-                accountData.claudeModelMapping = JSON.parse(accountData.claudeModelMapping)
+                accountData.modelMapping = JSON.parse(accountData.modelMapping)
               } catch (e) {
-                accountData.claudeModelMapping = null
+                accountData.modelMapping = null
               }
             }
 
@@ -309,9 +295,6 @@ class OpenAIResponsesAccountService {
             accountData.schedulable = accountData.schedulable !== 'false'
             // 转换 isActive 字段为布尔值
             accountData.isActive = accountData.isActive === 'true'
-            // 转换 allowClaudeBridge 字段为布尔值
-            accountData.allowClaudeBridge =
-              accountData.allowClaudeBridge === 'true' || accountData.allowClaudeBridge === true
 
             accounts.push(accountData)
           }

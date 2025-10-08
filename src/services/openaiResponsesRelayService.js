@@ -1,11 +1,25 @@
 const axios = require('axios')
 const ProxyHelper = require('../utils/proxyHelper')
 const logger = require('../utils/logger')
-const openaiResponsesAccountService = require('./openaiResponsesAccountService')
 const apiKeyService = require('./apiKeyService')
 const unifiedOpenAIScheduler = require('./unifiedOpenAIScheduler')
 const config = require('../../config/config')
 const crypto = require('crypto')
+
+// 账户服务映射（根据 accountType 动态加载）
+function getAccountService(accountType) {
+  if (accountType === 'openai') {
+    return require('./openaiAccountService')
+  } else if (accountType === 'openai-responses') {
+    return require('./openaiResponsesAccountService')
+  } else if (accountType === 'claude-official') {
+    return require('./claudeAccountService')
+  } else if (accountType === 'claude-console') {
+    return require('./claudeConsoleAccountService')
+  }
+  // 默认使用 openai-responses
+  return require('./openaiResponsesAccountService')
+}
 
 // 抽取缓存写入 token，兼容多种字段命名
 function extractCacheCreationTokens(usageData) {
@@ -38,10 +52,12 @@ class OpenAIResponsesRelayService {
     this.defaultTimeout = config.requestTimeout || 600000
   }
 
-  // 处理请求转发
+  // 处理请求转发（重构后：只负责转发，账户由调用方提供）
   async handleRequest(req, res, account, apiKeyData) {
     let abortController = null
     let handleClientDisconnect = null
+    let accountType = 'openai-responses' // 默认值，在函数作用域中定义
+
     // 获取会话哈希（如果有的话）
     const sessionId = req.headers['session_id'] || req.body?.session_id
     const sessionHash = sessionId
@@ -49,22 +65,25 @@ class OpenAIResponsesRelayService {
       : null
 
     try {
-      // 获取完整的账户信息（包含解密的 API Key）
-      // 如果传入的 account 已经包含 apiKey 和 baseApi，则直接使用（用于桥接场景）
-      let fullAccount
-      let accountType = 'openai-responses' // 默认类型
-      if (account.apiKey && account.baseApi) {
-        fullAccount = account
-        // 桥接模式：从 account 对象中检测实际类型
-        accountType = account.platform || account.accountType || 'openai-responses'
-        logger.debug(`🔗 Using pre-configured account for bridge mode, type: ${accountType}`)
-      } else {
-        fullAccount = await openaiResponsesAccountService.getAccount(account.id)
-        if (!fullAccount) {
-          throw new Error('Account not found')
-        }
-        accountType = 'openai-responses'
+      // 重构后：直接使用传入的标准化账户对象
+      // Bridge Service 已经完成了账户查询、解密和标准化
+      const fullAccount = account
+      accountType = account.accountType || 'openai-responses'
+
+      // 验证账户对象必需字段
+      if (!fullAccount.apiKey) {
+        throw new Error('Invalid account: missing apiKey')
       }
+      if (!fullAccount.baseApi) {
+        throw new Error('Invalid account: missing baseApi')
+      }
+
+      logger.debug(`🔗 Using standardized account, type: ${accountType}`, {
+        accountId: fullAccount.id,
+        accountName: fullAccount.name,
+        platform: fullAccount.platform || 'unknown',
+        hasProxy: !!fullAccount.proxy
+      })
 
       // 创建 AbortController 用于取消请求
       abortController = new AbortController()
@@ -99,31 +118,25 @@ class OpenAIResponsesRelayService {
       }
       logger.info(`🎯 Forwarding to: ${targetUrl}`)
 
-      // 构建请求头
+      // 构建请求头（重构后：简化逻辑，只处理基本认证）
       const headers = {
         ...this._filterRequestHeaders(req.headers),
         Authorization: `Bearer ${fullAccount.apiKey}`,
         'Content-Type': 'application/json'
       }
 
-      // 处理 User-Agent
+      // User-Agent 处理
       if (fullAccount.userAgent) {
-        // 使用自定义 User-Agent
         headers['User-Agent'] = fullAccount.userAgent
-        logger.debug(`📱 Using custom User-Agent: ${fullAccount.userAgent}`)
       } else if (req.headers['user-agent']) {
-        // 透传原始 User-Agent
         headers['User-Agent'] = req.headers['user-agent']
-        logger.debug(`📱 Forwarding original User-Agent: ${req.headers['user-agent']}`)
       }
 
-      // ChatGPT Codex API 特殊处理：添加必需的 chatgpt-account-id 和 host headers
+      // ChatGPT Codex API 特殊 headers（由 Bridge Service 准备的 chatgptAccountId）
       if (accountType === 'openai' && fullAccount.chatgptAccountId) {
         headers['chatgpt-account-id'] = fullAccount.chatgptAccountId
         headers['host'] = 'chatgpt.com'
-        logger.debug(
-          `🔑 Added ChatGPT Codex API headers: chatgpt-account-id=${fullAccount.chatgptAccountId}`
-        )
+        logger.debug(`🔑 Codex API headers: chatgpt-account-id=${fullAccount.chatgptAccountId}`)
       }
 
       // 配置请求选项
@@ -254,7 +267,7 @@ class OpenAIResponsesRelayService {
               '建议：使用 OpenAI-Responses (API Key) 账户代替 OAuth 账户'
           }
 
-          await this._handle502Error(account, response, isStream, sessionHash, accountType)
+          await this._handle502Error(account, response, req.body?.stream, sessionHash, accountType)
 
           const errorResponse = {
             type: 'error',
@@ -328,10 +341,13 @@ class OpenAIResponsesRelayService {
         return res.status(response.status).json(errorData)
       }
 
-      // 更新最后使用时间
-      await openaiResponsesAccountService.updateAccount(account.id, {
-        lastUsedAt: new Date().toISOString()
-      })
+      // 更新最后使用时间（根据 accountType 动态选择 service）
+      const accountService = getAccountService(accountType)
+      if (accountService.updateAccount) {
+        await accountService.updateAccount(account.id, {
+          lastUsedAt: new Date().toISOString()
+        })
+      }
 
       // 处理流式响应（支持转换器）
       if (req.body?.stream && response.data && typeof response.data.pipe === 'function') {
@@ -342,12 +358,21 @@ class OpenAIResponsesRelayService {
           apiKeyData,
           req.body?.model,
           handleClientDisconnect,
-          req
+          req,
+          accountType
         )
       }
 
       // 处理非流式响应
-      return this._handleNormalResponse(response, res, account, apiKeyData, req.body?.model, req)
+      return this._handleNormalResponse(
+        response,
+        res,
+        account,
+        apiKeyData,
+        req.body?.model,
+        req,
+        accountType
+      )
     } catch (error) {
       // 清理 AbortController
       if (abortController && !abortController.signal.aborted) {
@@ -386,12 +411,15 @@ class OpenAIResponsesRelayService {
       }
       logger.error('OpenAI-Responses relay error:', errorInfo)
 
-      // 检查是否是网络错误
+      // 检查是否是网络错误（根据 accountType 动态选择 service）
       if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
-        await openaiResponsesAccountService.updateAccount(account.id, {
-          status: 'error',
-          errorMessage: `Connection error: ${error.code}`
-        })
+        const accountService = getAccountService(accountType)
+        if (accountService.updateAccount) {
+          await accountService.updateAccount(account.id, {
+            status: 'error',
+            errorMessage: `Connection error: ${error.code}`
+          })
+        }
       }
 
       // 如果已经发送了响应头，直接结束
@@ -498,7 +526,8 @@ class OpenAIResponsesRelayService {
     apiKeyData,
     requestedModel,
     handleClientDisconnect,
-    req
+    req,
+    accountType = 'openai-responses'
   ) {
     const forceNonStream = Boolean(req._bridgeForceNonStream)
 
@@ -682,8 +711,11 @@ class OpenAIResponsesRelayService {
             `📊 Recorded usage - Input: ${totalInputTokens}(actual:${actualInputTokens}+cached:${cacheReadTokens}), CacheCreate: ${cacheCreateTokens}, Output: ${outputTokens}, Total: ${totalTokens}, Model: ${modelToRecord}`
           )
 
-          // 更新账户的 token 使用统计
-          await openaiResponsesAccountService.updateAccountUsage(account.id, totalTokens)
+          // 更新账户的 token 使用统计（根据 accountType 动态选择 service）
+          const accountService = getAccountService(accountType)
+          if (accountService.updateAccountUsage) {
+            await accountService.updateAccountUsage(account.id, totalTokens)
+          }
 
           // 更新账户使用额度（如果设置了额度限制）
           if (parseFloat(account.dailyQuota) > 0) {
@@ -698,7 +730,9 @@ class OpenAIResponsesRelayService {
               },
               modelToRecord
             )
-            await openaiResponsesAccountService.updateUsageQuota(account.id, costInfo.costs.total)
+            if (accountService.updateUsageQuota) {
+              await accountService.updateUsageQuota(account.id, costInfo.costs.total)
+            }
           }
         } catch (error) {
           logger.error('Failed to record usage:', error)
@@ -811,7 +845,15 @@ class OpenAIResponsesRelayService {
   }
 
   // 处理非流式响应
-  async _handleNormalResponse(response, res, account, apiKeyData, requestedModel, req) {
+  async _handleNormalResponse(
+    response,
+    res,
+    account,
+    apiKeyData,
+    requestedModel,
+    req,
+    accountType = 'openai-responses'
+  ) {
     const responseData = response.data
 
     // 提取 usage 数据和实际 model
@@ -850,8 +892,11 @@ class OpenAIResponsesRelayService {
           `📊 Recorded non-stream usage - Input: ${totalInputTokens}(actual:${actualInputTokens}+cached:${cacheReadTokens}), CacheCreate: ${cacheCreateTokens}, Output: ${outputTokens}, Total: ${totalTokens}, Model: ${actualModel}`
         )
 
-        // 更新账户的 token 使用统计
-        await openaiResponsesAccountService.updateAccountUsage(account.id, totalTokens)
+        // 更新账户的 token 使用统计（根据 accountType 动态选择 service）
+        const accountService = getAccountService(accountType)
+        if (accountService.updateAccountUsage) {
+          await accountService.updateAccountUsage(account.id, totalTokens)
+        }
 
         // 更新账户使用额度（如果设置了额度限制）
         if (parseFloat(account.dailyQuota) > 0) {
@@ -866,7 +911,9 @@ class OpenAIResponsesRelayService {
             },
             actualModel
           )
-          await openaiResponsesAccountService.updateUsageQuota(account.id, costInfo.costs.total)
+          if (accountService.updateUsageQuota) {
+            await accountService.updateUsageQuota(account.id, costInfo.costs.total)
+          }
         }
       } catch (error) {
         logger.error('Failed to record usage:', error)
@@ -1002,8 +1049,8 @@ class OpenAIResponsesRelayService {
   async _handle502Error(
     account,
     response,
-    isStream = false,
-    sessionHash = null,
+    _isStream = false,
+    _sessionHash = null,
     accountType = 'openai-responses'
   ) {
     logger.warn(

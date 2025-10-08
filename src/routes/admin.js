@@ -6997,16 +6997,14 @@ router.post('/openai-accounts', authenticateAdmin, async (req, res) => {
       groupId,
       rateLimitDuration,
       priority,
-      allowClaudeBridge,
-      claudeModelMapping,
+      modelMapping,
       needsImmediateRefresh, // 是否需要立即刷新
       requireRefreshSuccess // 是否必须刷新成功才能创建
     } = req.body
 
-    const normalizedAllowClaudeBridge = parseBooleanFlag(allowClaudeBridge, false)
-    let normalizedClaudeModelMapping
+    let normalizedModelMapping
     try {
-      normalizedClaudeModelMapping = parseClaudeModelMappingPayload(claudeModelMapping)
+      normalizedModelMapping = parseClaudeModelMappingPayload(modelMapping)
     } catch (error) {
       return res.status(400).json({
         success: false,
@@ -7034,8 +7032,7 @@ router.post('/openai-accounts', authenticateAdmin, async (req, res) => {
       proxy: proxy || null,
       isActive: true,
       schedulable: true,
-      allowClaudeBridge: normalizedAllowClaudeBridge,
-      claudeModelMapping: normalizedClaudeModelMapping
+      modelMapping: normalizedModelMapping
     }
 
     // 如果需要立即刷新且必须成功（OpenAI 手动模式）
@@ -7277,15 +7274,10 @@ router.put('/openai-accounts/:id', authenticateAdmin, async (req, res) => {
     }
 
     // 准备更新数据
-    let normalizedAllowClaudeBridge
-    if (updates.allowClaudeBridge !== undefined) {
-      normalizedAllowClaudeBridge = parseBooleanFlag(updates.allowClaudeBridge, false)
-    }
-
-    let normalizedClaudeModelMapping
-    if (updates.claudeModelMapping !== undefined) {
+    let normalizedModelMapping
+    if (updates.modelMapping !== undefined) {
       try {
-        normalizedClaudeModelMapping = parseClaudeModelMappingPayload(updates.claudeModelMapping)
+        normalizedModelMapping = parseClaudeModelMappingPayload(updates.modelMapping)
       } catch (error) {
         return res.status(400).json({
           success: false,
@@ -7296,12 +7288,8 @@ router.put('/openai-accounts/:id', authenticateAdmin, async (req, res) => {
 
     const updateData = { ...updates }
 
-    if (updates.allowClaudeBridge !== undefined) {
-      updateData.allowClaudeBridge = normalizedAllowClaudeBridge
-    }
-
-    if (updates.claudeModelMapping !== undefined) {
-      updateData.claudeModelMapping = normalizedClaudeModelMapping
+    if (updates.modelMapping !== undefined) {
+      updateData.modelMapping = normalizedModelMapping
     }
 
     // 处理敏感数据加密
@@ -8318,7 +8306,7 @@ router.get('/model-pricing', authenticateAdmin, async (req, res) => {
       other: []
     }
 
-    const lastUpdated = pricingService.lastUpdated
+    const { lastUpdated } = pricingService
 
     // 遍历所有模型并分类
     for (const [modelName, pricing] of Object.entries(allPricing)) {
@@ -8384,7 +8372,9 @@ router.get('/usage-details', authenticateAdmin, async (req, res) => {
       let apiKeyName = apiKeyId
       try {
         const apiKey = await apiKeyService.getApiKeyById(apiKeyId)
-        if (apiKey) apiKeyName = apiKey.name || apiKeyId
+        if (apiKey) {
+          apiKeyName = apiKey.name || apiKeyId
+        }
       } catch (e) {
         // 忽略错误
       }
@@ -8459,6 +8449,219 @@ router.get('/usage-details', authenticateAdmin, async (req, res) => {
     logger.error('❌ Failed to get usage details:', error)
     return res.status(500).json({
       error: 'Failed to get usage details',
+      message: error.message
+    })
+  }
+})
+
+// 🔗 桥接配置管理
+
+// 获取桥接配置
+router.get('/bridge/config', authenticateAdmin, async (req, res) => {
+  try {
+    // 从 Redis 读取配置
+    const configStr = await redis.get('system:bridge_config')
+    let bridgeConfig
+
+    if (configStr) {
+      bridgeConfig = JSON.parse(configStr)
+
+      // 向后兼容：如果是旧格式，转换为新格式
+      if (bridgeConfig.enabled !== undefined && !bridgeConfig.openaiToClaude) {
+        bridgeConfig = {
+          openaiToClaude: {
+            enabled: bridgeConfig.enabled,
+            defaultModel: bridgeConfig.defaultModel,
+            modelMapping: bridgeConfig.modelMapping || {}
+          },
+          claudeToOpenai: {
+            enabled: false,
+            defaultModel: 'gpt-5',
+            modelMapping: {}
+          },
+          createdAt: bridgeConfig.createdAt,
+          updatedAt: bridgeConfig.updatedAt
+        }
+      }
+    } else {
+      // 返回默认配置（双向）
+      bridgeConfig = {
+        openaiToClaude: {
+          enabled: false,
+          defaultModel: 'claude-3-5-sonnet-20241022',
+          modelMapping: {
+            'gpt-5': 'claude-sonnet-4-20250514',
+            'gpt-5-plus': 'claude-opus-4-20250514',
+            'gpt-5-mini': 'claude-3-5-haiku-20241022'
+          }
+        },
+        claudeToOpenai: {
+          enabled: false,
+          defaultModel: 'gpt-5',
+          modelMapping: {
+            'claude-sonnet-4-20250514': 'gpt-5',
+            'claude-opus-4-20250514': 'gpt-5-plus',
+            'claude-3-5-haiku-20241022': 'gpt-5-mini'
+          }
+        },
+        createdAt: null,
+        updatedAt: null
+      }
+    }
+
+    res.json({
+      success: true,
+      config: bridgeConfig
+    })
+  } catch (error) {
+    logger.error('❌ Failed to get bridge config:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get bridge configuration',
+      message: error.message
+    })
+  }
+})
+
+// 更新桥接配置
+router.put('/bridge/config', authenticateAdmin, async (req, res) => {
+  try {
+    const { openaiToClaude, claudeToOpenai } = req.body
+
+    // 辅助函数：验证单个方向的配置
+    const validateDirectionConfig = (
+      directionConfig,
+      directionName,
+      sourceFormat,
+      targetFormat
+    ) => {
+      if (!directionConfig || typeof directionConfig !== 'object') {
+        return `${directionName} configuration is required and must be an object`
+      }
+
+      if (typeof directionConfig.enabled !== 'boolean') {
+        return `${directionName}.enabled must be a boolean`
+      }
+
+      if (!directionConfig.defaultModel || typeof directionConfig.defaultModel !== 'string') {
+        return `${directionName}.defaultModel is required and must be a string`
+      }
+
+      if (directionConfig.modelMapping && typeof directionConfig.modelMapping !== 'object') {
+        return `${directionName}.modelMapping must be an object`
+      }
+
+      // 验证模型映射键值格式
+      if (directionConfig.modelMapping) {
+        for (const [sourceModel, targetModel] of Object.entries(directionConfig.modelMapping)) {
+          if (!sourceModel || typeof sourceModel !== 'string') {
+            return `${directionName}: Source model names must be non-empty strings`
+          }
+
+          if (!targetModel || typeof targetModel !== 'string') {
+            return `${directionName}: Target model names must be non-empty strings`
+          }
+
+          // 验证源模型格式
+          const sourcePattern =
+            sourceFormat === 'openai' ? /^gpt-[a-z0-9-]+$/i : /^claude-[a-z0-9\.-]+$/i
+          if (!sourcePattern.test(sourceModel)) {
+            return `${directionName}: Invalid ${sourceFormat} model name format: ${sourceModel}`
+          }
+
+          // 验证目标模型格式
+          const targetPattern =
+            targetFormat === 'claude' ? /^claude-[a-z0-9\.-]+$/i : /^gpt-[a-z0-9-]+$/i
+          if (!targetPattern.test(targetModel)) {
+            return `${directionName}: Invalid ${targetFormat} model name format: ${targetModel}`
+          }
+        }
+      }
+
+      return null // 验证通过
+    }
+
+    // 验证 OpenAI → Claude 配置
+    const openaiError = validateDirectionConfig(
+      openaiToClaude,
+      'openaiToClaude',
+      'openai',
+      'claude'
+    )
+    if (openaiError) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid configuration',
+        message: openaiError
+      })
+    }
+
+    // 验证 Claude → OpenAI 配置
+    const claudeError = validateDirectionConfig(
+      claudeToOpenai,
+      'claudeToOpenai',
+      'claude',
+      'openai'
+    )
+    if (claudeError) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid configuration',
+        message: claudeError
+      })
+    }
+
+    // 读取现有配置（保留 createdAt）
+    const existingConfigStr = await redis.get('system:bridge_config')
+    let existingConfig = null
+    if (existingConfigStr) {
+      existingConfig = JSON.parse(existingConfigStr)
+    }
+
+    // 构建新配置
+    const newConfig = {
+      openaiToClaude: {
+        enabled: openaiToClaude.enabled,
+        defaultModel: openaiToClaude.defaultModel,
+        modelMapping: openaiToClaude.modelMapping || {}
+      },
+      claudeToOpenai: {
+        enabled: claudeToOpenai.enabled,
+        defaultModel: claudeToOpenai.defaultModel,
+        modelMapping: claudeToOpenai.modelMapping || {}
+      },
+      createdAt: existingConfig?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      updatedBy: req.admin?.username || 'system'
+    }
+
+    // 保存到 Redis
+    await redis.set('system:bridge_config', JSON.stringify(newConfig))
+
+    logger.info('✅ Bridge configuration updated', {
+      admin: req.admin?.username,
+      openaiToClaude: {
+        enabled: newConfig.openaiToClaude.enabled,
+        defaultModel: newConfig.openaiToClaude.defaultModel,
+        mappingCount: Object.keys(newConfig.openaiToClaude.modelMapping).length
+      },
+      claudeToOpenai: {
+        enabled: newConfig.claudeToOpenai.enabled,
+        defaultModel: newConfig.claudeToOpenai.defaultModel,
+        mappingCount: Object.keys(newConfig.claudeToOpenai.modelMapping).length
+      }
+    })
+
+    res.json({
+      success: true,
+      message: 'Bridge configuration updated successfully',
+      config: newConfig
+    })
+  } catch (error) {
+    logger.error('❌ Failed to update bridge config:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update bridge configuration',
       message: error.message
     })
   }

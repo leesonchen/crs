@@ -610,77 +610,88 @@ class UnifiedClaudeScheduler {
       }
     }
 
-    // 🌉 如果没有可用的 Claude 账户，尝试使用支持桥接的 OpenAI 账户
+    // 🌉 如果没有可用的 Claude 账户，检查系统是否启用了 OpenAI → Claude 桥接
     if (availableAccounts.length === 0) {
-      logger.info('🌉 No Claude accounts available, checking for OpenAI bridge-enabled accounts...')
+      logger.info('🌉 No Claude accounts available, checking for OpenAI bridge configuration...')
 
-      // 导入 OpenAI 服务（延迟加载避免循环依赖）
-      const openaiAccountService = require('./openaiAccountService')
-      const openaiResponsesAccountService = require('./openaiResponsesAccountService')
+      // 检查系统级桥接配置
+      const redis = require('../models/redis')
+      const client = redis.getClientSafe()
+      const bridgeConfigStr = await client.get('system:bridge_config')
 
-      // 获取支持桥接的 OpenAI 账户
-      const openaiAccounts = await openaiAccountService.getAllAccounts()
-      for (const account of openaiAccounts) {
-        // 检查是否启用桥接
-        const allowBridge =
-          account.allowClaudeBridge === true || account.allowClaudeBridge === 'true'
+      let openaiToClaudeEnabled = false
+      if (bridgeConfigStr) {
+        try {
+          const bridgeConfig = JSON.parse(bridgeConfigStr)
+          openaiToClaudeEnabled = bridgeConfig.openaiToClaude?.enabled === true
+        } catch (err) {
+          logger.warn('⚠️ Failed to parse bridge config:', err.message)
+        }
+      }
 
-        if (
-          allowBridge &&
-          (account.isActive === true || account.isActive === 'true') &&
-          account.status !== 'error' &&
-          account.status !== 'unauthorized' &&
-          account.accountType === 'shared' &&
-          this._isSchedulable(account.schedulable)
-        ) {
-          // 检查限流状态（openaiAccountService.isRateLimited接受account对象）
-          const isRateLimited = openaiAccountService.isRateLimited(account)
-          if (!isRateLimited) {
+      if (!openaiToClaudeEnabled) {
+        logger.info('🌉 OpenAI → Claude bridge is disabled at system level')
+      } else {
+        logger.info('✅ OpenAI → Claude bridge is enabled, loading OpenAI accounts...')
+
+        // 导入 OpenAI 服务（延迟加载避免循环依赖）
+        const openaiAccountService = require('./openaiAccountService')
+        const openaiResponsesAccountService = require('./openaiResponsesAccountService')
+
+        // 获取 OpenAI 账户
+        const openaiAccounts = await openaiAccountService.getAllAccounts()
+        for (const account of openaiAccounts) {
+          if (
+            (account.isActive === true || account.isActive === 'true') &&
+            account.status !== 'error' &&
+            account.status !== 'unauthorized' &&
+            account.accountType === 'shared' &&
+            this._isSchedulable(account.schedulable)
+          ) {
+            // 检查限流状态（openaiAccountService.isRateLimited接受account对象）
+            const isRateLimited = openaiAccountService.isRateLimited(account)
+            if (!isRateLimited) {
+              availableAccounts.push({
+                ...account,
+                accountId: account.id,
+                accountType: 'openai',
+                priority: parseInt(account.priority) || 50,
+                lastUsedAt: account.lastUsedAt || '0'
+              })
+              logger.info(
+                `✅ Added OpenAI bridge account to pool: ${account.name} (priority: ${account.priority || 50})`
+              )
+            }
+          }
+        }
+
+        // 获取 OpenAI-Responses 账户
+        const responsesAccounts = await openaiResponsesAccountService.getAllAccounts()
+        for (const account of responsesAccounts) {
+          if (
+            (account.isActive === true || account.isActive === 'true') &&
+            account.accountType === 'shared' &&
+            this._isSchedulable(account.schedulable)
+          ) {
+            // 检查限流状态
+            const isRateLimited = await openaiResponsesAccountService.checkAndClearRateLimit(
+              account.id
+            )
+            if (isRateLimited) {
+              continue
+            }
+
             availableAccounts.push({
               ...account,
               accountId: account.id,
-              accountType: 'openai',
+              accountType: 'openai-responses',
               priority: parseInt(account.priority) || 50,
               lastUsedAt: account.lastUsedAt || '0'
             })
             logger.info(
-              `✅ Added OpenAI bridge account to pool: ${account.name} (priority: ${account.priority || 50})`
+              `✅ Added OpenAI-Responses bridge account to pool: ${account.name} (priority: ${account.priority || 50})`
             )
           }
-        }
-      }
-
-      // 获取支持桥接的 OpenAI-Responses 账户
-      const responsesAccounts = await openaiResponsesAccountService.getAllAccounts()
-      for (const account of responsesAccounts) {
-        // 检查是否启用桥接
-        const allowBridge =
-          account.allowClaudeBridge === true || account.allowClaudeBridge === 'true'
-
-        if (
-          allowBridge &&
-          (account.isActive === true || account.isActive === 'true') &&
-          account.accountType === 'shared' &&
-          this._isSchedulable(account.schedulable)
-        ) {
-          // 检查限流状态
-          const isRateLimited = await openaiResponsesAccountService.checkAndClearRateLimit(
-            account.id
-          )
-          if (isRateLimited) {
-            continue
-          }
-
-          availableAccounts.push({
-            ...account,
-            accountId: account.id,
-            accountType: 'openai-responses',
-            priority: parseInt(account.priority) || 50,
-            lastUsedAt: account.lastUsedAt || '0'
-          })
-          logger.info(
-            `✅ Added OpenAI-Responses bridge account to pool: ${account.name} (priority: ${account.priority || 50})`
-          )
         }
       }
     }
@@ -868,12 +879,6 @@ class UnifiedClaudeScheduler {
           logger.info(`🚫 OpenAI account ${accountId} is not schedulable`)
           return false
         }
-        // 检查是否桥接启用
-        const allowBridge =
-          account.allowClaudeBridge === true || account.allowClaudeBridge === 'true'
-        if (!allowBridge) {
-          return false
-        }
         // 检查是否限流（openaiAccountService.isRateLimited接受account对象）
         const isRateLimited = openaiAccountService.isRateLimited(account)
         return !isRateLimited
@@ -890,12 +895,6 @@ class UnifiedClaudeScheduler {
         // 检查是否可调度
         if (!this._isSchedulable(account.schedulable)) {
           logger.info(`🚫 OpenAI-Responses account ${accountId} is not schedulable`)
-          return false
-        }
-        // 检查是否桥接启用
-        const allowBridge =
-          account.allowClaudeBridge === true || account.allowClaudeBridge === 'true'
-        if (!allowBridge) {
           return false
         }
         // 检查是否限流

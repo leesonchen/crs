@@ -19,11 +19,106 @@ Claude Relay Service 是一个功能完整的 AI API 中转服务，支持 Claud
 
 ### 主要服务组件
 
-- **claudeRelayService.js**: 核心代理服务，处理请求转发和流式响应
+- **bridgeService.js**: 桥接服务，负责不同AI API格式之间的转换和账户标准化（2025-10新增）
+- **claudeRelayService.js**: Claude中继服务，处理Claude API请求转发和流式响应
+- **openaiRelayService.js**: OpenAI中继服务，专注于纯转发功能（2025-10重构）
 - **claudeAccountService.js**: Claude账户管理，OAuth token刷新和账户选择
 - **geminiAccountService.js**: Gemini账户管理，Google OAuth token刷新和账户选择
 - **apiKeyService.js**: API Key管理，验证、限流和使用统计
 - **oauthHelper.js**: OAuth工具，PKCE流程实现和代理支持
+
+### 桥接配置（双向 API 格式转换）
+
+**功能说明**: 支持不同 AI API 格式之间的双向转换，实现跨平台访问能力。
+
+**支持的桥接方向**:
+
+- **OpenAI → Claude**: Codex CLI 通过 OpenAI Responses 格式访问 Claude 账户
+- **Claude → OpenAI**: Claude Code 通过 Claude 格式访问 OpenAI 账户
+
+**三层职责架构**:
+
+1. **系统级（Layer 1）**: 控制跨平台格式转换
+   - 存储位置: Redis `system:bridge_config`
+   - 职责: 定义虚拟模型到目标平台模型的映射（如 gpt-5 → claude-sonnet-4）
+   - 配置方式: Web 管理界面 → 系统设置 → 桥接设置
+
+2. **调度器级（Layer 2）**: 账户选择和路由
+   - 职责: 根据系统级配置选择合适的目标账户
+   - 实现: `unifiedOpenAIScheduler.js` 自动处理
+
+3. **账户级（Layer 3）**: 同平台模型能力适配
+   - 字段名: `modelMapping` (账户配置)
+   - 职责: 描述账户实际支持的模型能力（如账户仅支持 gpt-4o，但请求 gpt-5）
+   - 说明: 仅用于同平台适配，不控制跨平台桥接
+
+**核心特性**:
+
+- **双向映射**: 支持 OpenAI ↔ Claude 双向格式转换
+- **Web 管理界面**: 在系统设置页面的"桥接设置"标签中进行配置
+- **Redis 存储**: 配置持久化存储在 `system:bridge_config` 键
+- **API 端点**:
+  - `GET /admin/bridge/config` - 获取当前桥接配置
+  - `PUT /admin/bridge/config` - 更新桥接配置（包含验证）
+
+**配置结构**:
+
+```javascript
+{
+  "openaiToClaude": {
+    "enabled": true,
+    "defaultModel": "claude-3-5-sonnet-20241022",
+    "modelMapping": {
+      "gpt-5": "claude-sonnet-4-20250514",
+      "gpt-5-mini": "claude-3-5-haiku-20241022"
+    }
+  },
+  "claudeToOpenai": {
+    "enabled": true,
+    "defaultModel": "gpt-5",
+    "modelMapping": {
+      "claude-sonnet-4-20250514": "gpt-5",
+      "claude-3-5-haiku-20241022": "gpt-5-mini"
+    }
+  }
+}
+```
+
+**配置项说明**:
+
+- `enabled` (boolean): 是否启用该方向的桥接功能
+- `defaultModel` (string): 默认目标模型，当请求模型未映射时使用
+- `modelMapping` (object): 源模型到目标模型的映射
+  - OpenAI → Claude: 键为 OpenAI 格式模型，值为 Claude 格式模型
+  - Claude → OpenAI: 键为 Claude 格式模型，值为 OpenAI 格式模型
+
+**模型名称格式验证**:
+
+- OpenAI 模型: 必须匹配 `/^gpt-[a-z0-9-]+$/i` 格式
+- Claude 模型: 必须匹配 `/^claude-[a-z0-9.-]+$/i` 格式
+
+**使用方法**:
+
+1. 登录管理后台 → 系统设置 → 桥接设置
+2. 选择配置方向（OpenAI → Claude 或 Claude → OpenAI）
+3. 启用对应方向的桥接功能开关
+4. 配置该方向的默认模型
+5. 添加/删除模型映射关系
+6. 保存配置
+
+**典型使用场景**:
+
+- **Codex CLI 访问 Claude**: 启用 `openaiToClaude`，配置 gpt-5 → claude-sonnet-4 映射
+- **Claude Code 访问 OpenAI**: 启用 `claudeToOpenai`，配置 claude 模型 → gpt 模型映射
+- **双向支持**: 同时启用两个方向，实现完整的跨平台访问
+
+**相关文件**:
+
+- **核心服务**: `src/services/bridgeService.js` - 桥接转换逻辑和三层映射实现
+- **后端路由**: `src/routes/admin.js` (lines 8471-8625) - 桥接配置 API
+- **调度器**: `src/services/unifiedOpenAIScheduler.js` - 账户选择和路由
+- **前端 Store**: `web/admin-spa/src/stores/bridge.js` - 桥接配置状态管理
+- **前端视图**: `web/admin-spa/src/views/SettingsView.vue` (桥接设置选项卡)
 
 ### 认证和代理流程
 
@@ -273,4 +368,5 @@ Do what has been asked; nothing more, nothing less.
 NEVER create files unless they're absolutely necessary for achieving your goal.
 ALWAYS prefer editing an existing file to creating a new one.
 NEVER proactively create documentation files (\*.md) or README files. Only create documentation files if explicitly requested by the User.
+
 - 如果修改了后端代码，需要重新启动服务，直接运行 crs restart , 否则如无修改可以直接假定服务已启动。连接后端API，需要使用的key是：cr_f656ba569babc360a61823224ba69c4528a68a4f5db9ee48b5819e9ce1c995b9

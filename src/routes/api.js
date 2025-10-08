@@ -1,5 +1,4 @@
 const express = require('express')
-const axios = require('axios')
 const claudeRelayService = require('../services/claudeRelayService')
 const claudeConsoleRelayService = require('../services/claudeConsoleRelayService')
 const bedrockRelayService = require('../services/bedrockRelayService')
@@ -13,95 +12,40 @@ const logger = require('../utils/logger')
 const redis = require('../models/redis')
 const { getEffectiveModel, parseVendorPrefixedModel } = require('../utils/modelHelper')
 const sessionHelper = require('../utils/sessionHelper')
-const ProxyHelper = require('../utils/proxyHelper')
-const config = require('../../config/config')
-const { CODEX_CLI_INSTRUCTIONS, INCOMPATIBLE_FIELDS } = require('../../config/codexInstructions')
+const bridgeService = require('../services/bridgeService') // 新增：Bridge Service
+const OpenAIResponsesToClaudeConverter = require('../services/openaiResponsesToClaude') // 新增：响应转换器
 
 const router = express.Router()
 
-// 🔧 辅助函数：准备 OpenAI 桥接配置
+// 🔧 辅助函数：准备 OpenAI 桥接配置（重构后使用 Bridge Service）
 async function prepareOpenAIBridge(req, accountId, accountType) {
-  const config = require('../../config/config')
-  const ClaudeToOpenAIResponsesConverter = require('../services/claudeToOpenAIResponses')
-  const OpenAIResponsesToClaudeConverter = require('../services/openaiResponsesToClaude')
+  // 1. 使用 Bridge Service 进行桥接（格式转换 + 账户标准化）
+  const bridgeResult = await bridgeService.bridgeClaudeToOpenAI(req.body, accountId, accountType)
 
-  // 获取账户服务
-  const accountService =
-    accountType === 'openai'
-      ? require('../services/openaiAccountService')
-      : require('../services/openaiResponsesAccountService')
-  const fullAccount = await accountService.getAccount(accountId)
-
-  // 构建模型映射
-  const accountMapping =
-    fullAccount.claudeModelMapping && typeof fullAccount.claudeModelMapping === 'object'
-      ? fullAccount.claudeModelMapping
-      : {}
-  const globalMapping = config.claudeBridgeDefaults?.modelMapping || {}
-  const modelMapping = { ...globalMapping, ...accountMapping }
-  const defaultModel = config.claudeBridgeDefaults?.defaultModel || 'gpt-5'
-
-  // 记录映射
-  const claudeModel = req.body.model
-  const mappedModel = modelMapping[claudeModel] || defaultModel
-  const mappingSource = modelMapping[claudeModel]
-    ? Object.keys(accountMapping).includes(claudeModel)
-      ? 'account'
-      : 'global'
-    : 'default'
-  logger.info(`🔄 Model mapping: ${claudeModel} → ${mappedModel} (source: ${mappingSource})`)
-
-  // 创建转换器
-  const toOpenAI = new ClaudeToOpenAIResponsesConverter({ modelMapping, defaultModel })
-  const toClaude = new OpenAIResponsesToClaudeConverter()
-
-  // 转换请求 - 统一使用转换器（OpenAI OAuth 和 API Key 都使用 Responses 格式）
-  const openaiRequest = toOpenAI.convertRequest(req.body)
-
-  // OpenAI OAuth 特殊处理：添加 Codex CLI 必需字段
-  if (accountType === 'openai') {
-    // ChatGPT Codex API 要求 store: false
-    openaiRequest.store = false
-
-    // 添��� Codex CLI instructions（如果还没有）
-    if (
-      !openaiRequest.instructions ||
-      !openaiRequest.instructions.startsWith('You are a coding agent')
-    ) {
-      INCOMPATIBLE_FIELDS.forEach((field) => delete openaiRequest[field])
-      openaiRequest.instructions = CODEX_CLI_INSTRUCTIONS
-      logger.debug('📝 Added Codex CLI instructions to OpenAI OAuth bridge request')
-    }
-  }
-
-  // 设置账户配置
-  if (accountType === 'openai') {
-    if (!fullAccount.baseApi) {
-      fullAccount.baseApi = 'https://chatgpt.com/backend-api/codex'
-    }
-    if (fullAccount.accessToken && !fullAccount.apiKey) {
-      const { decrypt } = accountService
-      fullAccount.apiKey = decrypt(fullAccount.accessToken)
-    }
-    // 确保 OpenAI OAuth 账户包含 ChatGPT Codex API 所需的账户标识
-    // chatgptUserId 或 accountId 字段是 Codex API 的必需 header
-    fullAccount.chatgptAccountId = fullAccount.accountId || fullAccount.chatgptUserId || accountId
-    logger.debug(`🔑 OpenAI OAuth account ID for Codex API: ${fullAccount.chatgptAccountId}`)
-    // 标记账户类型，以便 relay service 能够正确识别并添加 Codex 特殊头
-    fullAccount.accountType = 'openai'
-  }
-
-  // 设置上游路径
+  // 2. 设置上游路径
   req.headers['x-crs-upstream-path'] = accountType === 'openai' ? '/responses' : '/v1/responses'
 
-  // 设置桥接转换器
+  // 3. 设置响应转换器（将 OpenAI 响应转回 Claude 格式）
+  const toClaude = new OpenAIResponsesToClaudeConverter()
   req._bridgeConverter = toClaude
   req._bridgeStreamTransform = (chunkStr) => toClaude.convertStreamChunk(chunkStr)
   req._bridgeStreamFinalize = () => toClaude.finalizeStream()
   req._bridgeNonStreamConvert = (responseData) =>
     toClaude.convertNonStream({ response: responseData })
 
-  return { fullAccount, openaiRequest }
+  logger.info(
+    `✅ Bridge prepared: ${bridgeResult.bridgeInfo.source} → ${bridgeResult.bridgeInfo.target}`,
+    {
+      accountId: bridgeResult.account.id,
+      accountName: bridgeResult.account.name,
+      platform: bridgeResult.account.platform,
+      originalModel: bridgeResult.bridgeInfo.modelMapping.original,
+      mappedModel: bridgeResult.bridgeInfo.modelMapping.mapped,
+      duration: `${bridgeResult.bridgeInfo.duration}ms`
+    }
+  )
+
+  return { fullAccount: bridgeResult.account, openaiRequest: bridgeResult.request }
 }
 
 // 🔧 共享的消息处理函数

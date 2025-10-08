@@ -11,10 +11,52 @@ const openaiResponsesRelayService = require('../services/openaiResponsesRelaySer
 const apiKeyService = require('../services/apiKeyService')
 const crypto = require('crypto')
 const ProxyHelper = require('../utils/proxyHelper')
+const bridgeService = require('../services/bridgeService')
+const ClaudeToOpenAIResponsesConverter = require('../services/claudeToOpenAIResponses')
 
 // 创建代理 Agent（使用统一的代理工具）
 function createProxyAgent(proxy) {
   return ProxyHelper.createProxyAgent(proxy)
+}
+
+/**
+ * 准备 OpenAI → Claude 桥接配置
+ * @param {Object} req - Express 请求对象
+ * @param {String} accountId - Claude 账户 ID
+ * @param {String} accountType - 账户类型 ('claude-official' | 'claude-console')
+ * @returns {Promise<{fullAccount, claudeRequest}>}
+ */
+async function prepareClaudeBridge(req, accountId, accountType) {
+  // 1. 使用 Bridge Service 进行桥接（OpenAI Responses → Claude）
+  const bridgeResult = await bridgeService.bridgeOpenAIToClaude(req.body, accountId, accountType)
+
+  // 2. 设置响应转换器（Claude → OpenAI Responses）
+  const toOpenAI = new ClaudeToOpenAIResponsesConverter({
+    modelMapping: bridgeResult.account.openaiModelMapping || {},
+    defaultModel: 'gpt-5'
+  })
+
+  req._bridgeConverter = toOpenAI
+  req._bridgeStreamTransform = (chunkStr) => toOpenAI.convertStreamChunk(chunkStr)
+  req._bridgeStreamFinalize = () => toOpenAI.finalizeStream()
+  req._bridgeNonStreamConvert = (responseData) => toOpenAI.convertNonStream(responseData)
+
+  logger.info(
+    `✅ Bridge prepared: ${bridgeResult.bridgeInfo.source} → ${bridgeResult.bridgeInfo.target}`,
+    {
+      accountId: bridgeResult.account.id,
+      accountName: bridgeResult.account.name,
+      platform: bridgeResult.account.platform,
+      originalModel: bridgeResult.bridgeInfo.modelMapping.original,
+      mappedModel: bridgeResult.bridgeInfo.modelMapping.mapped,
+      duration: `${bridgeResult.bridgeInfo.duration}ms`
+    }
+  )
+
+  return {
+    fullAccount: bridgeResult.account,
+    claudeRequest: bridgeResult.request
+  }
 }
 
 // 检查 API Key 是否具备 OpenAI 权限
@@ -274,6 +316,64 @@ const handleResponses = async (req, res) => {
       logger.info(`🔀 Using OpenAI-Responses relay service for account: ${account.name}`)
       return await openaiResponsesRelayService.handleRequest(req, res, account, apiKeyData)
     }
+
+    // 🌉 Claude 桥接处理
+    if (accountType === 'claude-official' || accountType === 'claude-console') {
+      logger.info(
+        `🌉 Using Claude bridge for OpenAI Responses request - Account: ${accountId}, Type: ${accountType}`
+      )
+
+      try {
+        // 准备桥接配置
+        const { fullAccount: claudeAccount, claudeRequest } = await prepareClaudeBridge(
+          req,
+          accountId,
+          accountType
+        )
+
+        // 覆写请求体为 Claude 格式
+        req.body = claudeRequest
+
+        // 设置 Claude API 端点路径
+        req.headers['x-crs-upstream-path'] = '/v1/messages'
+
+        // 标准化账户对象（确保有 baseApi 和 apiKey）
+        const standardAccount = {
+          ...claudeAccount,
+          accountType, // 保留原始类型
+          baseApi:
+            claudeAccount.baseApi ||
+            (accountType === 'claude-official'
+              ? 'https://api.anthropic.com'
+              : 'https://api.claude.ai'),
+          apiKey: claudeAccount.apiKey || claudeAccount.sessionKey
+        }
+
+        // 🔑 关键: 使用 openaiResponsesRelayService，它会:
+        // 1. 通过 getAccountService(accountType) 动态加载 Claude account service
+        // 2. 使用 req._bridgeStreamTransform / _bridgeNonStreamConvert 转换响应
+        logger.info(`📡 Forwarding to ${accountType} via unified relay service`)
+        return await openaiResponsesRelayService.handleRequest(
+          req,
+          res,
+          standardAccount,
+          apiKeyData
+        )
+      } catch (bridgeError) {
+        logger.error('❌ Claude bridge failed:', bridgeError)
+
+        // 回退错误处理
+        if (!res.headersSent) {
+          return res.status(500).json({
+            error: {
+              type: 'bridge_error',
+              message: `Claude bridge failed: ${bridgeError.message}`
+            }
+          })
+        }
+      }
+    }
+
     // 基于白名单构造上游所需的请求头，确保键为小写且值受控
     const incoming = req.headers || {}
 

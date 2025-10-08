@@ -36,6 +36,18 @@
             <i class="fas fa-bell mr-2"></i>
             通知设置
           </button>
+          <button
+            :class="[
+              'border-b-2 pb-2 text-sm font-medium transition-colors',
+              activeSection === 'bridge'
+                ? 'border-blue-500 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+            ]"
+            @click="activeSection = 'bridge'"
+          >
+            <i class="fas fa-link mr-2"></i>
+            桥接设置
+          </button>
         </nav>
       </div>
 
@@ -629,6 +641,511 @@
             </button>
           </div>
         </div>
+
+        <!-- 桥接设置部分 -->
+        <div v-show="activeSection === 'bridge'">
+          <!-- 说明卡片 -->
+          <div class="mb-6 rounded-lg bg-blue-50 p-4 dark:bg-blue-900/20">
+            <div class="flex items-start gap-3">
+              <i class="fas fa-info-circle mt-0.5 text-blue-600 dark:text-blue-400"></i>
+              <div class="text-sm text-blue-700 dark:text-blue-300">
+                <p class="mb-2 font-semibold">关于 Codex CLI → Claude 桥接</p>
+                <p class="mb-1">
+                  启用桥接后，系统将把 Codex CLI 使用的 OpenAI Responses 格式自动转换为 Claude API
+                  格式。
+                </p>
+                <p>
+                  通过模型映射，您可以将 gpt-5、gpt-5-plus 等虚拟模型名称映射到实际的 Claude 模型。
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- 桌面端表格视图 -->
+          <div class="table-container hidden sm:block">
+            <table class="min-w-full">
+              <tbody class="divide-y divide-gray-200/50 dark:divide-gray-600/50">
+                <!-- 启用/禁用桥接 -->
+                <tr class="table-row">
+                  <td class="w-48 whitespace-nowrap px-6 py-4">
+                    <div class="flex items-center">
+                      <div
+                        class="mr-3 flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-green-500 to-emerald-600"
+                      >
+                        <i class="fas fa-toggle-on text-xs text-white" />
+                      </div>
+                      <div>
+                        <div class="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                          启用桥接
+                        </div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400">主开关</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="px-6 py-4">
+                    <div class="flex items-center">
+                      <label class="inline-flex cursor-pointer items-center">
+                        <input
+                          v-model="bridgeConfig.enabled"
+                          class="peer sr-only"
+                          type="checkbox"
+                        />
+                        <div
+                          class="peer relative h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:border-gray-600 dark:bg-gray-700 dark:peer-focus:ring-blue-800"
+                        ></div>
+                        <span class="ml-3 text-sm font-medium text-gray-900 dark:text-gray-300">{{
+                          bridgeConfig.enabled ? '已启用' : '已禁用'
+                        }}</span>
+                      </label>
+                    </div>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      关闭后将不进行 OpenAI Responses ↔ Claude 格式转换
+                    </p>
+                  </td>
+                </tr>
+
+                <!-- 默认模型 -->
+                <tr class="table-row">
+                  <td class="w-48 whitespace-nowrap px-6 py-4">
+                    <div class="flex items-center">
+                      <div
+                        class="mr-3 flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-blue-600"
+                      >
+                        <i class="fas fa-star text-xs text-white" />
+                      </div>
+                      <div>
+                        <div class="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                          默认模型
+                        </div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400">未映射时使用</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="px-6 py-4">
+                    <input
+                      v-model="bridgeConfig.defaultModel"
+                      class="form-input w-full max-w-md dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                      placeholder="gpt-5"
+                      type="text"
+                    />
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      当请求的模型名称未在下方映射时，将使用此默认值
+                    </p>
+                  </td>
+                </tr>
+
+                <!-- 模型映射表格 -->
+                <tr>
+                  <td class="px-6 py-6" colspan="2">
+                    <div class="space-y-4">
+                      <div class="flex items-center justify-between">
+                        <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">
+                          <i class="fas fa-exchange-alt mr-2 text-gray-500"></i>
+                          模型映射
+                        </h3>
+                        <button
+                          class="btn btn-success px-4 py-2"
+                          @click="showAddMappingDialog = true"
+                        >
+                          <i class="fas fa-plus mr-2" />
+                          添加映射
+                        </button>
+                      </div>
+
+                      <!-- 映射列表 -->
+                      <div
+                        v-if="Object.keys(bridgeConfig.modelMapping).length > 0"
+                        class="rounded-lg border border-gray-200 dark:border-gray-700"
+                      >
+                        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                          <thead class="bg-gray-50 dark:bg-gray-800">
+                            <tr>
+                              <th
+                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400"
+                              >
+                                OpenAI 模型
+                              </th>
+                              <th
+                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400"
+                              >
+                                Claude 模型
+                              </th>
+                              <th
+                                class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400"
+                              >
+                                操作
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody
+                            class="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-800"
+                          >
+                            <tr
+                              v-for="(claudeModel, openaiModel) in bridgeConfig.modelMapping"
+                              :key="openaiModel"
+                              class="hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                            >
+                              <td
+                                class="whitespace-nowrap px-6 py-4 text-sm text-gray-900 dark:text-gray-100"
+                              >
+                                <code class="rounded bg-gray-100 px-2 py-1 dark:bg-gray-700">{{
+                                  openaiModel
+                                }}</code>
+                              </td>
+                              <td
+                                class="whitespace-nowrap px-6 py-4 text-sm text-gray-900 dark:text-gray-100"
+                              >
+                                <code class="rounded bg-gray-100 px-2 py-1 dark:bg-gray-700">{{
+                                  claudeModel
+                                }}</code>
+                              </td>
+                              <td class="whitespace-nowrap px-6 py-4 text-right text-sm">
+                                <button
+                                  class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+                                  @click="removeMappingConfirm(openaiModel)"
+                                >
+                                  <i class="fas fa-trash"></i>
+                                </button>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <div
+                        v-else
+                        class="rounded-lg border border-gray-200 bg-gray-50 p-8 text-center dark:border-gray-700 dark:bg-gray-800"
+                      >
+                        <i class="fas fa-inbox mb-2 text-3xl text-gray-400"></i>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">
+                          暂无模型映射，请点击"添加映射"按钮
+                        </p>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+
+                <!-- 操作按钮 -->
+                <tr>
+                  <td class="px-6 py-6" colspan="2">
+                    <div class="flex items-center justify-between">
+                      <div class="flex gap-3">
+                        <button
+                          class="btn btn-primary px-6 py-3"
+                          :class="{ 'cursor-not-allowed opacity-50': bridgeSaving }"
+                          :disabled="bridgeSaving"
+                          @click="saveBridgeConfig"
+                        >
+                          <div v-if="bridgeSaving" class="loading-spinner mr-2"></div>
+                          <i v-else class="fas fa-save mr-2" />
+                          {{ bridgeSaving ? '保存中...' : '保存设置' }}
+                        </button>
+
+                        <button
+                          class="btn bg-gray-100 px-6 py-3 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                          :disabled="bridgeSaving"
+                          @click="resetBridgeConfig"
+                        >
+                          <i class="fas fa-undo mr-2" />
+                          重置为默认
+                        </button>
+                      </div>
+
+                      <div
+                        v-if="bridgeConfig.updatedAt"
+                        class="text-sm text-gray-500 dark:text-gray-400"
+                      >
+                        <i class="fas fa-clock mr-1" />
+                        最后更新：{{ formatDateTime(bridgeConfig.updatedAt) }}
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- 移动端卡片视图 -->
+          <div class="space-y-4 sm:hidden">
+            <!-- 启用桥接卡片 -->
+            <div class="glass-card p-4">
+              <div class="mb-3 flex items-center gap-3">
+                <div
+                  class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 text-white shadow-md"
+                >
+                  <i class="fas fa-toggle-on"></i>
+                </div>
+                <div>
+                  <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">启用桥接</h3>
+                  <p class="text-sm text-gray-500 dark:text-gray-400">控制桥接功能开关</p>
+                </div>
+              </div>
+              <label class="inline-flex cursor-pointer items-center">
+                <input v-model="bridgeConfig.enabled" class="peer sr-only" type="checkbox" />
+                <div
+                  class="peer relative h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:border-gray-600 dark:bg-gray-700 dark:peer-focus:ring-blue-800"
+                ></div>
+                <span class="ml-3 text-sm font-medium text-gray-900 dark:text-gray-300">{{
+                  bridgeConfig.enabled ? '已启用' : '已禁用'
+                }}</span>
+              </label>
+            </div>
+
+            <!-- 默认模型卡片 -->
+            <div class="glass-card p-4">
+              <div class="mb-3 flex items-center gap-3">
+                <div
+                  class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-md"
+                >
+                  <i class="fas fa-star"></i>
+                </div>
+                <div>
+                  <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">默认模型</h3>
+                  <p class="text-sm text-gray-500 dark:text-gray-400">未映射时使用的默认值</p>
+                </div>
+              </div>
+              <input
+                v-model="bridgeConfig.defaultModel"
+                class="form-input w-full dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                placeholder="gpt-5"
+                type="text"
+              />
+            </div>
+
+            <!-- 模型映射卡片 -->
+            <div class="glass-card p-4">
+              <div class="mb-3 flex items-center justify-between">
+                <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">
+                  <i class="fas fa-exchange-alt mr-2"></i>
+                  模型映射
+                </h3>
+                <button
+                  class="rounded-lg bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-700"
+                  @click="showAddMappingDialog = true"
+                >
+                  <i class="fas fa-plus mr-1"></i>
+                  添加
+                </button>
+              </div>
+              <div v-if="Object.keys(bridgeConfig.modelMapping).length > 0" class="space-y-2">
+                <div
+                  v-for="(claudeModel, openaiModel) in bridgeConfig.modelMapping"
+                  :key="openaiModel"
+                  class="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800"
+                >
+                  <div class="mb-2 flex items-center justify-between">
+                    <span class="text-xs text-gray-500 dark:text-gray-400">OpenAI 模型</span>
+                    <button
+                      class="text-red-600 hover:text-red-900 dark:text-red-400"
+                      @click="removeMappingConfirm(openaiModel)"
+                    >
+                      <i class="fas fa-trash text-sm"></i>
+                    </button>
+                  </div>
+                  <code
+                    class="block rounded bg-gray-100 px-2 py-1 text-sm text-gray-900 dark:bg-gray-700 dark:text-gray-100"
+                    >{{ openaiModel }}</code
+                  >
+                  <div class="my-2 text-center">
+                    <i class="fas fa-arrow-down text-gray-400"></i>
+                  </div>
+                  <span class="mb-1 block text-xs text-gray-500 dark:text-gray-400"
+                    >Claude 模型</span
+                  >
+                  <code
+                    class="block rounded bg-gray-100 px-2 py-1 text-sm text-gray-900 dark:bg-gray-700 dark:text-gray-100"
+                    >{{ claudeModel }}</code
+                  >
+                </div>
+              </div>
+              <div v-else class="rounded-lg bg-gray-50 p-6 text-center dark:bg-gray-800">
+                <i class="fas fa-inbox mb-2 text-2xl text-gray-400"></i>
+                <p class="text-sm text-gray-500 dark:text-gray-400">暂无映射</p>
+              </div>
+            </div>
+
+            <!-- 操作按钮卡片 -->
+            <div class="glass-card p-4">
+              <div class="flex flex-col gap-3">
+                <button
+                  class="btn btn-primary w-full px-6 py-3"
+                  :class="{ 'cursor-not-allowed opacity-50': bridgeSaving }"
+                  :disabled="bridgeSaving"
+                  @click="saveBridgeConfig"
+                >
+                  <div v-if="bridgeSaving" class="loading-spinner mr-2"></div>
+                  <i v-else class="fas fa-save mr-2" />
+                  {{ bridgeSaving ? '保存中...' : '保存设置' }}
+                </button>
+
+                <button
+                  class="btn w-full bg-gray-100 px-6 py-3 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                  :disabled="bridgeSaving"
+                  @click="resetBridgeConfig"
+                >
+                  <i class="fas fa-undo mr-2" />
+                  重置为默认
+                </button>
+
+                <div
+                  v-if="bridgeConfig.updatedAt"
+                  class="text-center text-sm text-gray-500 dark:text-gray-400"
+                >
+                  <i class="fas fa-clock mr-1" />
+                  上次更新: {{ formatDateTime(bridgeConfig.updatedAt) }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 添加模型映射对话框 -->
+  <div
+    v-if="showAddMappingDialog"
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm transition-all duration-300 ease-out"
+    @click="closeAddMappingDialog"
+  >
+    <div
+      class="relative mx-4 w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl transition-all duration-300 ease-out dark:bg-gray-800"
+      @click.stop
+    >
+      <!-- 头部 -->
+      <div
+        class="dark:to-gray-750 relative border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-5 dark:border-gray-700 dark:from-gray-800"
+      >
+        <div class="flex items-center justify-between">
+          <div class="flex items-center space-x-3">
+            <div
+              class="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg"
+            >
+              <i class="fas fa-plus"></i>
+            </div>
+            <div>
+              <h3 class="text-xl font-semibold text-gray-900 dark:text-white">添加模型映射</h3>
+              <p class="mt-0.5 text-sm text-gray-600 dark:text-gray-400">
+                配置 OpenAI 模型到 Claude 模型的映射
+              </p>
+            </div>
+          </div>
+          <button
+            class="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+            @click="closeAddMappingDialog"
+          >
+            <i class="fas fa-times text-lg"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- 内容区域 -->
+      <div class="p-6">
+        <div class="space-y-5">
+          <!-- OpenAI 模型输入 -->
+          <div>
+            <label
+              class="mb-2 flex items-center text-sm font-medium text-gray-700 dark:text-gray-300"
+            >
+              <i class="fas fa-tag mr-2 text-gray-400"></i>
+              OpenAI 模型名称
+              <span class="ml-1 text-xs text-red-500">*</span>
+            </label>
+            <input
+              v-model="newMapping.openaiModel"
+              class="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 font-mono text-sm text-gray-900 shadow-sm transition-all placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-500"
+              placeholder="例如：gpt-5、gpt-5-plus"
+              type="text"
+            />
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              格式：gpt-开头，后接字母数字和连字符
+            </p>
+            <p
+              v-if="mappingError && mappingError.field === 'openai'"
+              class="mt-1 text-xs text-red-600 dark:text-red-400"
+            >
+              <i class="fas fa-exclamation-circle mr-1"></i>
+              {{ mappingError.error }}
+            </p>
+          </div>
+
+          <!-- Claude 模型输入 -->
+          <div>
+            <label
+              class="mb-2 flex items-center text-sm font-medium text-gray-700 dark:text-gray-300"
+            >
+              <i class="fas fa-tag mr-2 text-gray-400"></i>
+              Claude 模型名称
+              <span class="ml-1 text-xs text-red-500">*</span>
+            </label>
+            <input
+              v-model="newMapping.claudeModel"
+              class="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 font-mono text-sm text-gray-900 shadow-sm transition-all placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-500"
+              placeholder="例如：claude-3-5-sonnet-20241022"
+              type="text"
+            />
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              格式：claude-开头，后接字母数字、点和连字符
+            </p>
+            <p
+              v-if="mappingError && mappingError.field === 'claude'"
+              class="mt-1 text-xs text-red-600 dark:text-red-400"
+            >
+              <i class="fas fa-exclamation-circle mr-1"></i>
+              {{ mappingError.error }}
+            </p>
+          </div>
+
+          <!-- 示例说明 -->
+          <div class="rounded-lg bg-blue-50 p-3 dark:bg-blue-900/20">
+            <p class="mb-2 text-sm font-semibold text-blue-700 dark:text-blue-300">
+              <i class="fas fa-lightbulb mr-1"></i>
+              常用映射示例
+            </p>
+            <ul class="space-y-1 text-xs text-blue-600 dark:text-blue-400">
+              <li>
+                <code class="rounded bg-blue-100 px-1 dark:bg-blue-900">gpt-5</code> →
+                <code class="rounded bg-blue-100 px-1 dark:bg-blue-900"
+                  >claude-3-5-sonnet-20241022</code
+                >
+              </li>
+              <li>
+                <code class="rounded bg-blue-100 px-1 dark:bg-blue-900">gpt-5-plus</code> →
+                <code class="rounded bg-blue-100 px-1 dark:bg-blue-900"
+                  >claude-opus-4-20250514</code
+                >
+              </li>
+              <li>
+                <code class="rounded bg-blue-100 px-1 dark:bg-blue-900">gpt-5-mini</code> →
+                <code class="rounded bg-blue-100 px-1 dark:bg-blue-900"
+                  >claude-3-5-haiku-20241022</code
+                >
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- 底部按钮 -->
+      <div
+        class="border-t border-gray-200 bg-gray-50 px-6 py-4 dark:border-gray-700 dark:bg-gray-900/50"
+      >
+        <div class="flex justify-end space-x-3">
+          <button
+            class="group flex items-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:shadow-md dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+            @click="closeAddMappingDialog"
+          >
+            <i class="fas fa-times mr-2 transition-transform group-hover:scale-110"></i>
+            取消
+          </button>
+          <button
+            class="group flex items-center rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2.5 text-sm font-medium text-white shadow-md transition-all hover:from-blue-700 hover:to-indigo-700 hover:shadow-lg disabled:cursor-not-allowed disabled:from-gray-400 disabled:to-gray-500"
+            :disabled="!newMapping.openaiModel || !newMapping.claudeModel"
+            @click="addMapping"
+          >
+            <i class="fas fa-plus mr-2 transition-transform group-hover:scale-110"></i>
+            添加映射
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -1215,6 +1732,7 @@ import { ref, onMounted, onBeforeUnmount, watch, computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { showToast } from '@/utils/toast'
 import { useSettingsStore } from '@/stores/settings'
+import { useBridgeStore } from '@/stores/bridge'
 import { apiClient } from '@/config/api'
 
 // 定义组件名称，用于keep-alive排除
@@ -1225,6 +1743,10 @@ defineOptions({
 // 使用settings store
 const settingsStore = useSettingsStore()
 const { loading, saving, oemSettings } = storeToRefs(settingsStore)
+
+// 使用bridge store
+const bridgeStore = useBridgeStore()
+const { saving: bridgeSaving, bridgeConfig } = storeToRefs(bridgeStore)
 
 // 组件refs
 const iconFileInput = ref()
@@ -1303,11 +1825,21 @@ const platformForm = ref({
   ignoreTLS: false
 })
 
+// 桥接设置相关状态
+const showAddMappingDialog = ref(false)
+const newMapping = ref({
+  openaiModel: '',
+  claudeModel: ''
+})
+const mappingError = ref(null)
+
 // 监听activeSection变化，加载对应配置
 const sectionWatcher = watch(activeSection, async (newSection) => {
   if (!isMounted.value) return
   if (newSection === 'webhook') {
     await loadWebhookConfig()
+  } else if (newSection === 'bridge') {
+    await loadBridgeConfig()
   }
 })
 
@@ -2019,6 +2551,104 @@ const handleIconError = () => {
 
 // 格式化日期时间
 const formatDateTime = settingsStore.formatDateTime
+
+// ===== 桥接设置相关方法 =====
+
+// 加载桥接配置
+const loadBridgeConfig = async () => {
+  if (!isMounted.value) return
+  try {
+    await bridgeStore.loadBridgeConfig()
+  } catch (error) {
+    if (!isMounted.value) return
+    // Store已经处理了toast，这里只需要处理未捕获的错误
+    console.error('Failed to load bridge config:', error)
+  }
+}
+
+// 保存桥接配置
+const saveBridgeConfig = async () => {
+  if (!isMounted.value) return
+  try {
+    const result = await bridgeStore.saveBridgeConfig(bridgeConfig.value)
+    if (result.success && isMounted.value) {
+      showToast('桥接配置已保存', 'success')
+    }
+  } catch (error) {
+    if (!isMounted.value) return
+    console.error('Failed to save bridge config:', error)
+  }
+}
+
+// 重置桥接配置
+const resetBridgeConfig = () => {
+  if (!confirm('确定要重置为默认设置吗？\n\n这将清除所有自定义的模型映射。')) return
+  bridgeStore.resetToDefaults()
+  showToast('已重置为默认设置', 'info')
+}
+
+// 添加模型映射
+const addMapping = () => {
+  if (!isMounted.value) return
+
+  // 清除之前的错误
+  mappingError.value = null
+
+  // 验证映射
+  const validation = bridgeStore.validateModelMapping(
+    newMapping.value.openaiModel,
+    newMapping.value.claudeModel
+  )
+
+  if (!validation.isValid) {
+    mappingError.value = validation
+    return
+  }
+
+  // 添加映射
+  const result = bridgeStore.addModelMapping(
+    newMapping.value.openaiModel,
+    newMapping.value.claudeModel
+  )
+
+  if (!result.isValid) {
+    mappingError.value = result
+    return
+  }
+
+  // 成功添加
+  showToast('模型映射已添加', 'success')
+  closeAddMappingDialog()
+}
+
+// 删除模型映射（带确认）
+const removeMappingConfirm = (openaiModel) => {
+  if (!confirm(`确定要删除映射 "${openaiModel}" 吗？`)) return
+
+  const result = bridgeStore.removeModelMapping(openaiModel)
+  if (result) {
+    showToast('模型映射已删除', 'success')
+  } else {
+    showToast('删除失败：映射不存在', 'error')
+  }
+}
+
+// 关闭添加映射对话框
+const closeAddMappingDialog = () => {
+  if (!isMounted.value) return
+
+  showAddMappingDialog.value = false
+
+  // 使用 setTimeout 确保 DOM 更新完成后再重置状态
+  setTimeout(() => {
+    if (!isMounted.value) return
+    newMapping.value = {
+      openaiModel: '',
+      claudeModel: ''
+    }
+    mappingError.value = null
+  }, 0)
+}
 </script>
 
 <style scoped>

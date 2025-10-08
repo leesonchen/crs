@@ -109,6 +109,7 @@ src/services/
 #### 2.3.2 AI服务集成
 ```
 src/services/
+├── bridgeService.js             # 桥接服务（NEW - 格式转换和账户标准化）
 ├── claudeAccountService.js      # Claude账户管理
 ├── claudeRelayService.js        # Claude中继服务
 ├── claudeConsoleAccountService.js # Console账户管理
@@ -119,7 +120,8 @@ src/services/
 ├── ccrRelayService.js           # CCR中继服务
 ├── geminiAccountService.js      # Gemini账户管理
 ├── geminiRelayService.js        # Gemini中继服务
-└── openaiAccountService.js      # OpenAI账户管理
+├── openaiAccountService.js      # OpenAI账户管理
+└── openaiRelayService.js        # OpenAI中继服务（重构，专注转发）
 ```
 
 #### 2.3.3 统一调度器

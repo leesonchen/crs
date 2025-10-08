@@ -15,9 +15,9 @@ const httpDebugLogger = winston.createLogger({
   level: 'info',
   format: winston.format.combine(
     winston.format.timestamp(),
-    winston.format.printf(({ timestamp, level, message }) => {
-      return `[${timestamp}] ${level.toUpperCase()}: ${message}`
-    })
+    winston.format.printf(
+      ({ timestamp, level, message }) => `[${timestamp}] ${level.toUpperCase()}: ${message}`
+    )
   ),
   transports: [
     new DailyRotateFile({
@@ -35,9 +35,9 @@ const conversationLogger = winston.createLogger({
   level: 'info',
   format: winston.format.combine(
     winston.format.timestamp(),
-    winston.format.printf(({ timestamp, level, message }) => {
-      return `[${timestamp}] ${level.toUpperCase()}: ${message}`
-    })
+    winston.format.printf(
+      ({ timestamp, level, message }) => `[${timestamp}] ${level.toUpperCase()}: ${message}`
+    )
   ),
   transports: [
     new DailyRotateFile({
@@ -81,9 +81,8 @@ function stringifySafe(obj) {
 
 // Express middleware to capture full request/response for debugging
 function debugInterceptor(req, res, next) {
-  const requestId = req.requestId || `dbg_${Date.now().toString(36)}_${Math.random()
-    .toString(36)
-    .slice(2, 8)}`
+  const requestId =
+    req.requestId || `dbg_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
 
   const reqLine = `${req.method} ${req.originalUrl}`
   const reqHeaders = sanitizeHeaders(req.headers)
@@ -97,17 +96,13 @@ function debugInterceptor(req, res, next) {
 
   // Log parsed body (available because we mount this after body parsers)
   if (req.body !== undefined) {
-    httpDebugLogger.info(
-      `RequestBody(${requestId}):\n${stringifySafe(req.body)}`
-    )
+    httpDebugLogger.info(`RequestBody(${requestId}):\n${stringifySafe(req.body)}`)
     conversationLogger.info(
       `===== CONVERSATION ${requestId} =====\n` +
         `REQUEST(${requestId}):\n${stringifySafe(req.body)}`
     )
   } else if (req.rawBody !== undefined) {
-    httpDebugLogger.info(
-      `RequestRawBody(${requestId}):\n${stringifySafe(req.rawBody)}`
-    )
+    httpDebugLogger.info(`RequestRawBody(${requestId}):\n${stringifySafe(req.rawBody)}`)
     conversationLogger.info(
       `===== CONVERSATION ${requestId} =====\n` +
         `REQUEST(raw:${requestId}):\n${stringifySafe(req.rawBody)}`
@@ -126,7 +121,9 @@ function debugInterceptor(req, res, next) {
   // Helper to record a chunk
   function recordChunk(chunk) {
     try {
-      if (!chunk) return
+      if (!chunk) {
+        return
+      }
       if (Buffer.isBuffer(chunk)) {
         responseChunks.push(chunk)
       } else if (typeof chunk === 'string') {
@@ -158,7 +155,9 @@ function debugInterceptor(req, res, next) {
 
   res.end = function (chunk, encoding, cb) {
     try {
-      if (chunk && !isSSE) recordChunk(chunk)
+      if (chunk && !isSSE) {
+        recordChunk(chunk)
+      }
 
       const resHeaders = sanitizeHeaders(res.getHeaders ? res.getHeaders() : {})
       let bodyText = ''
@@ -178,9 +177,7 @@ function debugInterceptor(req, res, next) {
           `Body:\n${bodyText}`
       )
 
-      conversationLogger.info(
-        `RESPONSE(${requestId}):\n${bodyText}`
-      )
+      conversationLogger.info(`RESPONSE(${requestId}):\n${bodyText}`)
 
       conversationLogger.info(`===== END CONVERSATION ${requestId} =====`)
       httpDebugLogger.info(`===== END REQUEST ${requestId} =====`)
@@ -207,5 +204,3 @@ function debugInterceptor(req, res, next) {
 }
 
 module.exports = { debugInterceptor }
-
-

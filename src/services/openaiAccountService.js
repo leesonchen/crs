@@ -122,14 +122,7 @@ if (process.env.NODE_ENV !== 'test') {
   }
 }
 
-function normalizeAllowClaudeBridgeFlag(value) {
-  if (value === true || value === 'true' || value === 1 || value === '1') {
-    return 'true'
-  }
-  return 'false'
-}
-
-function serializeClaudeModelMapping(value) {
+function serializeModelMapping(value) {
   if (value === null || value === undefined) {
     return ''
   }
@@ -142,7 +135,7 @@ function serializeClaudeModelMapping(value) {
     try {
       return JSON.stringify(value)
     } catch (error) {
-      logger.warn('Failed to serialize claudeModelMapping for OpenAI account', {
+      logger.warn('Failed to serialize modelMapping for OpenAI account', {
         error: error.message
       })
     }
@@ -151,7 +144,7 @@ function serializeClaudeModelMapping(value) {
   return ''
 }
 
-function parseClaudeModelMapping(rawMapping) {
+function parseModelMapping(rawMapping) {
   if (!rawMapping) {
     return {}
   }
@@ -172,7 +165,7 @@ function parseClaudeModelMapping(rawMapping) {
         return parsed
       }
     } catch (error) {
-      logger.warn('Failed to parse claudeModelMapping for OpenAI account', {
+      logger.warn('Failed to parse modelMapping for OpenAI account', {
         rawLength: rawMapping.length,
         error: error.message
       })
@@ -630,8 +623,7 @@ async function createAccount(accountData) {
     lastRefresh: now,
     createdAt: now,
     updatedAt: now,
-    allowClaudeBridge: normalizeAllowClaudeBridgeFlag(accountData.allowClaudeBridge),
-    claudeModelMapping: serializeClaudeModelMapping(accountData.claudeModelMapping)
+    modelMapping: serializeModelMapping(accountData.modelMapping)
   }
 
   // 代理配置
@@ -683,10 +675,7 @@ async function getAccount(accountId) {
     }
   }
 
-  accountData.allowClaudeBridge =
-    accountData.allowClaudeBridge === 'true' || accountData.allowClaudeBridge === true
-
-  accountData.claudeModelMapping = parseClaudeModelMapping(accountData.claudeModelMapping)
+  accountData.modelMapping = parseModelMapping(accountData.modelMapping)
 
   // 解析代理配置
   if (accountData.proxy && typeof accountData.proxy === 'string') {
@@ -730,12 +719,8 @@ async function updateAccount(accountId, updates) {
     updates.email = encrypt(updates.email)
   }
 
-  if (updates.allowClaudeBridge !== undefined) {
-    updates.allowClaudeBridge = normalizeAllowClaudeBridgeFlag(updates.allowClaudeBridge)
-  }
-
-  if (updates.claudeModelMapping !== undefined) {
-    updates.claudeModelMapping = serializeClaudeModelMapping(updates.claudeModelMapping)
+  if (updates.modelMapping !== undefined) {
+    updates.modelMapping = serializeModelMapping(updates.modelMapping)
   }
 
   // 处理代理配置
@@ -827,10 +812,7 @@ async function getAllAccounts() {
       // 时间戳改由 codexUsage.updatedAt 暴露
       delete accountData.codexUsageUpdatedAt
 
-      const allowClaudeBridge =
-        accountData.allowClaudeBridge === 'true' || accountData.allowClaudeBridge === true
-
-      const claudeModelMapping = parseClaudeModelMapping(accountData.claudeModelMapping)
+      const modelMapping = parseModelMapping(accountData.modelMapping)
 
       // 获取限流状态信息
       const rateLimitInfo = await getAccountRateLimitInfo(accountData.id)
@@ -875,8 +857,7 @@ async function getAllAccounts() {
               rateLimitResetAt: null,
               minutesRemaining: 0
             },
-        allowClaudeBridge,
-        claudeModelMapping,
+        modelMapping,
         codexUsage
       })
     }

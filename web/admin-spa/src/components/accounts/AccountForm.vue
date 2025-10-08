@@ -1542,27 +1542,7 @@
               </div>
 
               <!-- OpenAI / OpenAI-Responses：Claude 桥接开关 -->
-              <div
-                v-if="form.platform === 'openai' || form.platform === 'openai-responses'"
-                class="mt-4 rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50"
-              >
-                <label class="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                  >允许被 Claude 桥接调度</label
-                >
-                <div class="flex items-center gap-3">
-                  <label class="relative inline-flex cursor-pointer items-center">
-                    <input v-model="form.allowClaudeBridge" class="peer sr-only" type="checkbox" />
-                    <div
-                      class="peer h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all peer-checked:bg-green-500 peer-checked:after:translate-x-full dark:border-gray-600 dark:bg-gray-700"
-                    ></div>
-                  </label>
-                  <span class="text-xs text-gray-600 dark:text-gray-400">
-                    启用后，此 OpenAI 账户可在 Claude→OpenAI 桥接下参与调度。
-                  </span>
-                </div>
-              </div>
-
-              <div v-else>
+              <div v-if="form.platform !== 'openai' && form.platform !== 'openai-responses'">
                 <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
                   >Refresh Token (可选)</label
                 >
@@ -2111,23 +2091,6 @@
             v-if="form.platform === 'openai' || form.platform === 'openai-responses'"
             class="space-y-4"
           >
-            <div class="rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
-              <label class="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                >允许被 Claude 桥接调度</label
-              >
-              <div class="flex items-center gap-3">
-                <label class="relative inline-flex cursor-pointer items-center">
-                  <input v-model="form.allowClaudeBridge" class="peer sr-only" type="checkbox" />
-                  <div
-                    class="peer h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all peer-checked:bg-green-500 peer-checked:after:translate-x-full dark:border-gray-600 dark:bg-gray-700"
-                  ></div>
-                </label>
-                <span class="text-xs text-gray-600 dark:text-gray-400">
-                  启用后，此 OpenAI 账户可在 Claude→OpenAI 桥接下参与调度。
-                </span>
-              </div>
-            </div>
-
             <div>
               <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
                 >模型映射表 (可选)</label
@@ -2135,7 +2098,7 @@
               <div class="mb-3 rounded-lg bg-blue-50 p-3 dark:bg-blue-900/30">
                 <p class="text-xs text-blue-700 dark:text-blue-300">
                   <i class="fas fa-info-circle mr-1" />
-                  设置 Claude 模型与 OpenAI 模型的映射关系。留空表示不重写模型，直接透传。
+                  描述账户实际支持的模型能力。用于同平台模型适配（如请求高级模型但账户仅支持基础模型）。留空表示不进行模型适配。
                 </p>
               </div>
 
@@ -2945,12 +2908,7 @@ const form = ref({
   // Azure OpenAI 特定字段
   azureEndpoint: props.account?.azureEndpoint || '',
   apiVersion: props.account?.apiVersion || '',
-  deploymentName: props.account?.deploymentName || '',
-  // OpenAI / OpenAI-Responses：Claude 桥接
-  allowClaudeBridge:
-    props.account?.platform === 'openai' || props.account?.platform === 'openai-responses'
-      ? !!props.account?.allowClaudeBridge
-      : false
+  deploymentName: props.account?.deploymentName || ''
 })
 
 // 模型映射表数据
@@ -2958,13 +2916,13 @@ const modelMappings = ref([])
 
 // 初始化模型映射表
 const initModelMappings = () => {
-  // OpenAI / OpenAI-Responses 使用账户级 Claude 映射
+  // OpenAI / OpenAI-Responses 使用账户级模型映射
   if (
     props.account &&
     (props.account.platform === 'openai' || props.account.platform === 'openai-responses') &&
-    props.account.claudeModelMapping
+    props.account.modelMapping
   ) {
-    const mm = props.account.claudeModelMapping
+    const mm = props.account.modelMapping
     if (typeof mm === 'object' && !Array.isArray(mm)) {
       modelMappings.value = Object.entries(mm).map(([from, to]) => ({ from, to }))
       return
@@ -3552,11 +3510,10 @@ const createAccount = async () => {
       data.needsImmediateRefresh = true
       data.requireRefreshSuccess = true // 必须刷新成功才能创建账户
       data.priority = form.value.priority || 50
-      // Claude 桥接相关
-      data.allowClaudeBridge = !!form.value.allowClaudeBridge
+      // 模型映射配置
       const mapping = convertMappingsToObject()
       if (mapping) {
-        data.claudeModelMapping = mapping
+        data.modelMapping = mapping
       }
     } else if (form.value.platform === 'claude-console' || form.value.platform === 'ccr') {
       // Claude Console 和 CCR 账户特定数据（CCR 使用 Claude Console 的后端逻辑）
@@ -3579,11 +3536,10 @@ const createAccount = async () => {
       data.rateLimitDuration = 60 // 默认值60，不从用户输入获取
       data.dailyQuota = form.value.dailyQuota || 0
       data.quotaResetTime = form.value.quotaResetTime || '00:00'
-      // Claude 桥接相关
-      data.allowClaudeBridge = !!form.value.allowClaudeBridge
+      // 模型映射配置
       const mapping = convertMappingsToObject()
       if (mapping) {
-        data.claudeModelMapping = mapping
+        data.modelMapping = mapping
       }
     } else if (form.value.platform === 'bedrock') {
       // Bedrock 账户特定数据 - 构造 awsCredentials 对象
@@ -3801,13 +3757,12 @@ const updateAccount = async () => {
     // OpenAI 账号优先级更新
     if (props.account.platform === 'openai') {
       data.priority = form.value.priority || 50
-      // Claude 桥接相关（编辑）
-      data.allowClaudeBridge = !!form.value.allowClaudeBridge
+      // 模型映射配置（编辑）
       const mapping = convertMappingsToObject()
       if (mapping) {
-        data.claudeModelMapping = mapping
+        data.modelMapping = mapping
       } else {
-        data.claudeModelMapping = null
+        data.modelMapping = null
       }
     }
 
@@ -3843,13 +3798,12 @@ const updateAccount = async () => {
       // 编辑时不上传 rateLimitDuration，保持原值
       data.dailyQuota = form.value.dailyQuota || 0
       data.quotaResetTime = form.value.quotaResetTime || '00:00'
-      // Claude 桥接相关（编辑）
-      data.allowClaudeBridge = !!form.value.allowClaudeBridge
+      // 模型映射配置（编辑）
       const mapping = convertMappingsToObject()
       if (mapping) {
-        data.claudeModelMapping = mapping
+        data.modelMapping = mapping
       } else {
-        data.claudeModelMapping = null
+        data.modelMapping = null
       }
     }
 
@@ -4315,12 +4269,7 @@ watch(
         // 额度管理字段
         dailyQuota: newAccount.dailyQuota || 0,
         dailyUsage: newAccount.dailyUsage || 0,
-        quotaResetTime: newAccount.quotaResetTime || '00:00',
-        // OpenAI / OpenAI-Responses：Claude 桥接
-        allowClaudeBridge:
-          newAccount.platform === 'openai' || newAccount.platform === 'openai-responses'
-            ? !!newAccount.allowClaudeBridge
-            : false
+        quotaResetTime: newAccount.quotaResetTime || '00:00'
       }
 
       // 如果是Claude Console账户，加载实时使用情况
