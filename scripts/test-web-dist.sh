@@ -101,6 +101,8 @@ EOF
     
     # 提交
     rm -fr web/admin-spa/node_modules node_modules
+    echo "按enter键继续，按Ctrl+C退出..."
+    read
     git add -A
     git commit -m "test: frontend build test $(date +%Y%m%d%H%M%S)"
     
