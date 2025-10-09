@@ -217,7 +217,7 @@ main() {
             test_build_and_push
             ;;
         push)
-            build_and_push
+            push
             ;;            
         fetch)
             test_fetch_from_web_dist
