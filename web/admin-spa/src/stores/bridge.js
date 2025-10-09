@@ -22,7 +22,11 @@ export const useBridgeStore = defineStore('bridge', () => {
     try {
       const response = await apiClient.get('/admin/bridge/config')
       if (response.success && response.config) {
-        bridgeConfig.value = response.config
+        // 确保 modelMapping 始终是一个对象，防止 undefined/null 导致的错误
+        bridgeConfig.value = {
+          ...response.config,
+          modelMapping: response.config.modelMapping || {}
+        }
       }
     } catch (error) {
       console.error('Failed to load bridge config:', error)
@@ -46,7 +50,11 @@ export const useBridgeStore = defineStore('bridge', () => {
     try {
       const response = await apiClient.put('/admin/bridge/config', config)
       if (response.success) {
-        bridgeConfig.value = response.config
+        // 确保 modelMapping 始终是一个对象，防止 undefined/null 导致的错误
+        bridgeConfig.value = {
+          ...response.config,
+          modelMapping: response.config.modelMapping || {}
+        }
         showToast('桥接配置已保存', 'success')
         return { success: true, config: response.config }
       } else {

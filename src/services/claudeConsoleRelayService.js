@@ -286,18 +286,50 @@ class ClaudeConsoleRelayService {
       // 创建代理agent
       const proxyAgent = claudeConsoleAccountService._createProxyAgent(account.proxy)
 
-      // 发送流式请求
-      await this._makeClaudeConsoleStreamRequest(
-        modifiedRequestBody,
-        account,
-        proxyAgent,
-        clientHeaders,
-        responseStream,
-        accountId,
-        usageCallback,
-        streamTransformer,
-        options
-      )
+      // 检查是否需要强制使用非流式模式
+      if (account.forceNonStreaming) {
+        logger.info(
+          `🔄 Account ${account.name} has forceNonStreaming enabled, using non-streaming API`
+        )
+
+        // 调用非流式 API - 强制移除 stream 参数确保返回 JSON
+        const nonStreamRequestBody = {
+          ...modifiedRequestBody,
+          stream: false // 强制使用非流式模式，确保返回 JSON
+        }
+
+        const nonStreamResult = await this.relayRequest(
+          nonStreamRequestBody, // 使用修改后的请求体
+          apiKeyData,
+          null, // clientRequest - not needed for non-streaming
+          null, // clientResponse - not needed for non-streaming
+          clientHeaders,
+          accountId,
+          options
+        )
+
+        // 将非流式响应转换为 SSE 流格式
+        await this._convertNonStreamToSSE(
+          nonStreamResult,
+          responseStream,
+          usageCallback,
+          accountId,
+          streamTransformer
+        )
+      } else {
+        // 发送流式请求
+        await this._makeClaudeConsoleStreamRequest(
+          modifiedRequestBody,
+          account,
+          proxyAgent,
+          clientHeaders,
+          responseStream,
+          accountId,
+          usageCallback,
+          streamTransformer,
+          options
+        )
+      }
 
       // 更新最后使用时间
       await this._updateLastUsedTime(accountId)
@@ -465,6 +497,11 @@ class ClaudeConsoleRelayService {
               const chunkStr = chunk.toString()
               buffer += chunkStr
 
+              // DEBUG: 记录接收到的原始chunk数据
+              logger.debug(
+                `🌊 [Stream Chunk] Received ${chunk.length} bytes from anyrouter: ${chunkStr.substring(0, 200)}${chunkStr.length > 200 ? '...' : ''}`
+              )
+
               // 处理完整的SSE行
               const lines = buffer.split('\n')
               buffer = lines.pop() || ''
@@ -473,11 +510,21 @@ class ClaudeConsoleRelayService {
               if (lines.length > 0 && !responseStream.destroyed) {
                 const linesToForward = lines.join('\n') + (lines.length > 0 ? '\n' : '')
 
+                // DEBUG: 记录即将转发的数据
+                logger.debug(
+                  `🌊 [Stream Forward] Sending ${linesToForward.length} bytes, ${lines.length} lines to client`
+                )
+
                 // 应用流转换器如果有
                 if (streamTransformer) {
                   const transformed = streamTransformer(linesToForward)
                   if (transformed) {
+                    logger.debug(
+                      `🌊 [Stream Transform] Transformed data: ${transformed.length} bytes`
+                    )
                     responseStream.write(transformed)
+                  } else {
+                    logger.debug(`🌊 [Stream Transform] Transformer returned empty/null`)
                   }
                 } else {
                   responseStream.write(linesToForward)
@@ -684,6 +731,221 @@ class ClaudeConsoleRelayService {
     })
 
     return filteredHeaders
+  }
+
+  // 🔄 将非流式响应转换为 SSE 流格式
+  async _convertNonStreamToSSE(
+    nonStreamResult,
+    responseStream,
+    usageCallback,
+    accountId,
+    streamTransformer = null
+  ) {
+    try {
+      // 解析非流式响应
+      const responseData =
+        typeof nonStreamResult.body === 'string'
+          ? JSON.parse(nonStreamResult.body)
+          : nonStreamResult.body
+
+      logger.debug(
+        `🔄 Converting non-stream response to SSE: ${JSON.stringify(responseData).substring(0, 200)}`
+      )
+
+      // 设置 SSE 响应头
+      if (!responseStream.headersSent) {
+        responseStream.writeHead(200, {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive',
+          'X-Accel-Buffering': 'no'
+        })
+      }
+
+      // 发送 message_start 事件
+      const messageStartEvent = {
+        type: 'message_start',
+        message: {
+          id: responseData.id,
+          type: responseData.type,
+          role: responseData.role,
+          model: responseData.model,
+          usage: responseData.usage || {}
+        }
+      }
+
+      const messageStartSSE = `event: message_start\ndata: ${JSON.stringify(messageStartEvent)}\n\n`
+      if (streamTransformer) {
+        const transformed = streamTransformer(messageStartSSE)
+        if (transformed) {
+          responseStream.write(transformed)
+        }
+      } else {
+        responseStream.write(messageStartSSE)
+      }
+
+      // 发送 content_block_start 事件
+      if (responseData.content && responseData.content.length > 0) {
+        const contentBlockStartEvent = {
+          type: 'content_block_start',
+          index: 0,
+          content_block: {
+            type: 'text',
+            text: ''
+          }
+        }
+
+        const contentBlockStartSSE = `event: content_block_start\ndata: ${JSON.stringify(contentBlockStartEvent)}\n\n`
+        if (streamTransformer) {
+          const transformed = streamTransformer(contentBlockStartSSE)
+          if (transformed) {
+            responseStream.write(transformed)
+          }
+        } else {
+          responseStream.write(contentBlockStartSSE)
+        }
+
+        // 发送内容块 delta 事件
+        const textContent = responseData.content.find((block) => block.type === 'text')
+        if (textContent && textContent.text) {
+          // 将文本分成小块发送，模拟流式传输
+          const text = textContent.text
+          const chunkSize = 50 // 每次发送 50 个字符
+          for (let i = 0; i < text.length; i += chunkSize) {
+            const chunk = text.substring(i, Math.min(i + chunkSize, text.length))
+            const contentBlockDeltaEvent = {
+              type: 'content_block_delta',
+              index: 0,
+              delta: {
+                type: 'text_delta',
+                text: chunk
+              }
+            }
+
+            const contentBlockDeltaSSE = `event: content_block_delta\ndata: ${JSON.stringify(contentBlockDeltaEvent)}\n\n`
+            if (streamTransformer) {
+              const transformed = streamTransformer(contentBlockDeltaSSE)
+              if (transformed) {
+                responseStream.write(transformed)
+              }
+            } else {
+              responseStream.write(contentBlockDeltaSSE)
+            }
+          }
+        }
+
+        // 发送 content_block_stop 事件
+        const contentBlockStopEvent = {
+          type: 'content_block_stop',
+          index: 0
+        }
+
+        const contentBlockStopSSE = `event: content_block_stop\ndata: ${JSON.stringify(contentBlockStopEvent)}\n\n`
+        if (streamTransformer) {
+          const transformed = streamTransformer(contentBlockStopSSE)
+          if (transformed) {
+            responseStream.write(transformed)
+          }
+        } else {
+          responseStream.write(contentBlockStopSSE)
+        }
+      }
+
+      // 发送 message_delta 事件（包含 output tokens）
+      const messageDeltaEvent = {
+        type: 'message_delta',
+        delta: {
+          stop_reason: responseData.stop_reason || 'end_turn',
+          stop_sequence: responseData.stop_sequence || null
+        },
+        usage: {
+          output_tokens: responseData.usage?.output_tokens || 0
+        }
+      }
+
+      const messageDeltaSSE = `event: message_delta\ndata: ${JSON.stringify(messageDeltaEvent)}\n\n`
+      if (streamTransformer) {
+        const transformed = streamTransformer(messageDeltaSSE)
+        if (transformed) {
+          responseStream.write(transformed)
+        }
+      } else {
+        responseStream.write(messageDeltaSSE)
+      }
+
+      // 发送 message_stop 事件
+      const messageStopSSE = `event: message_stop\ndata: ${JSON.stringify({ type: 'message_stop' })}\n\n`
+      if (streamTransformer) {
+        const transformed = streamTransformer(messageStopSSE)
+        if (transformed) {
+          responseStream.write(transformed)
+        }
+      } else {
+        responseStream.write(messageStopSSE)
+      }
+
+      // 结束流
+      if (!responseStream.destroyed) {
+        responseStream.end()
+      }
+
+      // 调用 usage callback 报告使用统计
+      if (usageCallback && responseData.usage) {
+        const usageData = {
+          input_tokens: responseData.usage.input_tokens || 0,
+          output_tokens: responseData.usage.output_tokens || 0,
+          cache_creation_input_tokens: responseData.usage.cache_creation_input_tokens || 0,
+          cache_read_input_tokens: responseData.usage.cache_read_input_tokens || 0,
+          model: responseData.model,
+          accountId
+        }
+
+        // 检查是��有详细的 cache_creation 对象
+        if (
+          responseData.usage.cache_creation &&
+          typeof responseData.usage.cache_creation === 'object'
+        ) {
+          usageData.cache_creation = {
+            ephemeral_5m_input_tokens:
+              responseData.usage.cache_creation.ephemeral_5m_input_tokens || 0,
+            ephemeral_1h_input_tokens:
+              responseData.usage.cache_creation.ephemeral_1h_input_tokens || 0
+          }
+        }
+
+        usageCallback(usageData)
+        logger.info(
+          `📊 [forceNonStreaming] Usage reported - Model: ${usageData.model}, Input: ${usageData.input_tokens}, Output: ${usageData.output_tokens}, Cache Create: ${usageData.cache_creation_input_tokens}, Cache Read: ${usageData.cache_read_input_tokens}`
+        )
+      }
+
+      logger.debug('🔄 Successfully converted non-stream response to SSE format')
+    } catch (error) {
+      logger.error(`❌ Error converting non-stream to SSE:`, error)
+
+      // 发送错误事件
+      if (!responseStream.headersSent) {
+        responseStream.writeHead(500, {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive'
+        })
+      }
+
+      if (!responseStream.destroyed) {
+        responseStream.write('event: error\n')
+        responseStream.write(
+          `data: ${JSON.stringify({
+            error: 'Stream conversion error',
+            message: error.message,
+            timestamp: new Date().toISOString()
+          })}\n\n`
+        )
+        responseStream.end()
+      }
+
+      throw error
+    }
   }
 
   // 🕐 更新最后使用时间
