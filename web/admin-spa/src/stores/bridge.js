@@ -7,10 +7,19 @@ export const useBridgeStore = defineStore('bridge', () => {
   // 状态
   const loading = ref(false)
   const saving = ref(false)
+
+  // 双向桥接配置数据结构
   const bridgeConfig = ref({
-    enabled: true,
-    defaultModel: 'gpt-5',
-    modelMapping: {},
+    openaiToClaude: {
+      enabled: true,
+      defaultModel: 'claude-3-5-sonnet-20241022',
+      modelMapping: {}
+    },
+    claudeToOpenai: {
+      enabled: false,
+      defaultModel: 'gpt-5',
+      modelMapping: {}
+    },
     createdAt: null,
     updatedAt: null,
     updatedBy: null
@@ -22,10 +31,22 @@ export const useBridgeStore = defineStore('bridge', () => {
     try {
       const response = await apiClient.get('/admin/bridge/config')
       if (response.success && response.config) {
-        // 确保 modelMapping 始终是一个对象，防止 undefined/null 导致的错误
+        // 直接使用后端返回的双向数据结构
         bridgeConfig.value = {
-          ...response.config,
-          modelMapping: response.config.modelMapping || {}
+          openaiToClaude: {
+            enabled: response.config.openaiToClaude?.enabled ?? true,
+            defaultModel:
+              response.config.openaiToClaude?.defaultModel ?? 'claude-3-5-sonnet-20241022',
+            modelMapping: response.config.openaiToClaude?.modelMapping ?? {}
+          },
+          claudeToOpenai: {
+            enabled: response.config.claudeToOpenai?.enabled ?? false,
+            defaultModel: response.config.claudeToOpenai?.defaultModel ?? 'gpt-5',
+            modelMapping: response.config.claudeToOpenai?.modelMapping ?? {}
+          },
+          createdAt: response.config.createdAt || null,
+          updatedAt: response.config.updatedAt || null,
+          updatedBy: response.config.updatedBy || null
         }
       }
     } catch (error) {
@@ -50,10 +71,22 @@ export const useBridgeStore = defineStore('bridge', () => {
     try {
       const response = await apiClient.put('/admin/bridge/config', config)
       if (response.success) {
-        // 确保 modelMapping 始终是一个对象，防止 undefined/null 导致的错误
+        // 更新本地状态
         bridgeConfig.value = {
-          ...response.config,
-          modelMapping: response.config.modelMapping || {}
+          openaiToClaude: {
+            enabled: response.config.openaiToClaude?.enabled ?? true,
+            defaultModel:
+              response.config.openaiToClaude?.defaultModel ?? 'claude-3-5-sonnet-20241022',
+            modelMapping: response.config.openaiToClaude?.modelMapping ?? {}
+          },
+          claudeToOpenai: {
+            enabled: response.config.claudeToOpenai?.enabled ?? false,
+            defaultModel: response.config.claudeToOpenai?.defaultModel ?? 'gpt-5',
+            modelMapping: response.config.claudeToOpenai?.modelMapping ?? {}
+          },
+          createdAt: response.config.createdAt || null,
+          updatedAt: response.config.updatedAt || null,
+          updatedBy: response.config.updatedBy || null
         }
         showToast('桥接配置已保存', 'success')
         return { success: true, config: response.config }
@@ -71,172 +104,252 @@ export const useBridgeStore = defineStore('bridge', () => {
     }
   }
 
-  // 验证桥接配置
-  function validateBridgeConfig(config) {
+  // 验证单个方向的配置
+  function validateDirectionConfig(directionConfig, directionName, sourcePattern, targetPattern) {
     // 验证 enabled 字段
-    if (typeof config.enabled !== 'boolean') {
+    if (typeof directionConfig.enabled !== 'boolean') {
       return {
         isValid: false,
-        error: 'enabled 字段必须是布尔值'
+        error: `${directionName}: enabled 字段必须是布尔值`
       }
     }
 
+    // 如果未启用，不需要验证其他字段
+    if (!directionConfig.enabled) {
+      return { isValid: true }
+    }
+
     // 验证 defaultModel 字段
-    if (!config.defaultModel || typeof config.defaultModel !== 'string') {
+    if (!directionConfig.defaultModel || typeof directionConfig.defaultModel !== 'string') {
       return {
         isValid: false,
-        error: '默认模型不能为空'
+        error: `${directionName}: 必须指定默认模型`
+      }
+    }
+
+    // 验证 defaultModel 格式
+    if (!targetPattern.test(directionConfig.defaultModel)) {
+      return {
+        isValid: false,
+        error: `${directionName}: 默认模型格式无效 (${directionConfig.defaultModel})`
       }
     }
 
     // 验证 modelMapping 字段
-    if (config.modelMapping && typeof config.modelMapping !== 'object') {
+    if (directionConfig.modelMapping && typeof directionConfig.modelMapping !== 'object') {
       return {
         isValid: false,
-        error: '模型映射必须是对象格式'
+        error: `${directionName}: 模型映射必须是对象格式`
       }
     }
 
-    // 验证模型映射格式
-    if (config.modelMapping) {
-      for (const [openaiModel, claudeModel] of Object.entries(config.modelMapping)) {
-        // 验证 OpenAI 模型名称格式
-        if (!/^gpt-[a-z0-9-]+$/i.test(openaiModel)) {
+    // 验证每个模型映射的格式
+    if (directionConfig.modelMapping) {
+      for (const [sourceModel, targetModel] of Object.entries(directionConfig.modelMapping)) {
+        // 验证源模型名称格式
+        if (!sourcePattern.test(sourceModel)) {
           return {
             isValid: false,
-            error: `OpenAI 模型名称格式无效: ${openaiModel}`
+            error: `${directionName}: 源模型名称格式无效 (${sourceModel})`
           }
         }
 
-        // 验证 Claude 模型名称格式
-        if (!/^claude-[a-z0-9.-]+$/i.test(claudeModel)) {
+        // 验证目标模型名称格式
+        if (!targetPattern.test(targetModel)) {
           return {
             isValid: false,
-            error: `Claude 模型名称格式无效: ${claudeModel}`
+            error: `${directionName}: 目标模型名称格式无效 (${targetModel})`
           }
         }
       }
     }
 
-    return {
-      isValid: true
-    }
+    return { isValid: true }
   }
 
-  // 验证模型映射格式（单条）
-  function validateModelMapping(openaiModel, claudeModel) {
-    // 验证 OpenAI 模型名称
-    if (!openaiModel || typeof openaiModel !== 'string') {
-      return {
-        isValid: false,
-        field: 'openai',
-        error: 'OpenAI 模型名称不能为空'
+  // 验证桥接配置（双向）
+  function validateBridgeConfig(config) {
+    // 验证 OpenAI → Claude 方向
+    if (config.openaiToClaude) {
+      const result = validateDirectionConfig(
+        config.openaiToClaude,
+        'OpenAI → Claude',
+        /^gpt-[a-z0-9-]+$/i, // OpenAI 模型格式
+        /^claude-[a-z0-9.-]+$/i // Claude 模型格式
+      )
+      if (!result.isValid) {
+        return result
       }
     }
 
-    if (!/^gpt-[a-z0-9-]+$/i.test(openaiModel)) {
-      return {
-        isValid: false,
-        field: 'openai',
-        error: 'OpenAI 模型名称格式无效（例如：gpt-5, gpt-5-plus）'
+    // 验证 Claude → OpenAI 方向
+    if (config.claudeToOpenai) {
+      const result = validateDirectionConfig(
+        config.claudeToOpenai,
+        'Claude → OpenAI',
+        /^claude-[a-z0-9.-]+$/i, // Claude 模型格式
+        /^gpt-[a-z0-9-]+$/i // OpenAI 模型格式
+      )
+      if (!result.isValid) {
+        return result
       }
     }
 
-    // 验证 Claude 模型名称
-    if (!claudeModel || typeof claudeModel !== 'string') {
-      return {
-        isValid: false,
-        field: 'claude',
-        error: 'Claude 模型名称不能为空'
-      }
-    }
-
-    if (!/^claude-[a-z0-9.-]+$/i.test(claudeModel)) {
-      return {
-        isValid: false,
-        field: 'claude',
-        error: 'Claude 模型名称格式无效（例如：claude-3-5-sonnet-20241022）'
-      }
-    }
-
-    return {
-      isValid: true
-    }
+    return { isValid: true }
   }
 
-  // 添加模型映射
-  function addModelMapping(openaiModel, claudeModel) {
+  // 验证单个模型映射（需要指定方向）
+  function validateModelMapping(direction, sourceModel, targetModel) {
+    const isOpenaiToClaude = direction === 'openaiToClaude'
+    const sourcePattern = isOpenaiToClaude ? /^gpt-[a-z0-9-]+$/i : /^claude-[a-z0-9.-]+$/i
+    const targetPattern = isOpenaiToClaude ? /^claude-[a-z0-9.-]+$/i : /^gpt-[a-z0-9-]+$/i
+    const sourceLabel = isOpenaiToClaude ? 'OpenAI' : 'Claude'
+    const targetLabel = isOpenaiToClaude ? 'Claude' : 'OpenAI'
+
+    // 验证源模型名称
+    if (!sourceModel || typeof sourceModel !== 'string') {
+      return {
+        isValid: false,
+        field: 'source',
+        error: `${sourceLabel} 模型名称不能为空`
+      }
+    }
+
+    if (!sourcePattern.test(sourceModel)) {
+      return {
+        isValid: false,
+        field: 'source',
+        error: `${sourceLabel} 模型名称格式无效（例如：${isOpenaiToClaude ? 'gpt-5' : 'claude-3-5-sonnet-20241022'}）`
+      }
+    }
+
+    // 验证目标模型名称
+    if (!targetModel || typeof targetModel !== 'string') {
+      return {
+        isValid: false,
+        field: 'target',
+        error: `${targetLabel} 模型名称不能为空`
+      }
+    }
+
+    if (!targetPattern.test(targetModel)) {
+      return {
+        isValid: false,
+        field: 'target',
+        error: `${targetLabel} 模型名称格式无效（例如：${isOpenaiToClaude ? 'claude-3-5-sonnet-20241022' : 'gpt-5'}）`
+      }
+    }
+
+    return { isValid: true }
+  }
+
+  // 添加模型映射（需要指定方向）
+  function addModelMapping(direction, sourceModel, targetModel) {
+    // 验证方向参数
+    if (direction !== 'openaiToClaude' && direction !== 'claudeToOpenai') {
+      return {
+        isValid: false,
+        error: '无效的方向参数'
+      }
+    }
+
     // 验证格式
-    const validation = validateModelMapping(openaiModel, claudeModel)
+    const validation = validateModelMapping(direction, sourceModel, targetModel)
     if (!validation.isValid) {
       return validation
     }
 
     // 检查是否重复
-    if (bridgeConfig.value.modelMapping[openaiModel]) {
+    if (bridgeConfig.value[direction].modelMapping[sourceModel]) {
+      const sourceLabel = direction === 'openaiToClaude' ? 'OpenAI' : 'Claude'
       return {
         isValid: false,
-        field: 'openai',
-        error: 'OpenAI 模型名称已存在'
+        field: 'source',
+        error: `${sourceLabel} 模型名称已存在`
       }
     }
 
     // 添加映射
-    bridgeConfig.value.modelMapping[openaiModel] = claudeModel
+    bridgeConfig.value[direction].modelMapping[sourceModel] = targetModel
 
-    return {
-      isValid: true
-    }
+    return { isValid: true }
   }
 
-  // 删除模型映射
-  function removeModelMapping(openaiModel) {
-    if (bridgeConfig.value.modelMapping[openaiModel]) {
-      delete bridgeConfig.value.modelMapping[openaiModel]
+  // 删除模型映射（需要指定方向）
+  function removeModelMapping(direction, sourceModel) {
+    // 验证方向参数
+    if (direction !== 'openaiToClaude' && direction !== 'claudeToOpenai') {
+      return false
+    }
+
+    if (bridgeConfig.value[direction].modelMapping[sourceModel]) {
+      delete bridgeConfig.value[direction].modelMapping[sourceModel]
       return true
     }
     return false
   }
 
-  // 更新模型映射
-  function updateModelMapping(oldOpenaiModel, newOpenaiModel, newClaudeModel) {
-    // 如果 OpenAI 模型名称改变，检查新名称是否重复
-    if (oldOpenaiModel !== newOpenaiModel && bridgeConfig.value.modelMapping[newOpenaiModel]) {
+  // 更新模型映射（需要指定方向）
+  function updateModelMapping(direction, oldSourceModel, newSourceModel, newTargetModel) {
+    // 验证方向参数
+    if (direction !== 'openaiToClaude' && direction !== 'claudeToOpenai') {
       return {
         isValid: false,
-        field: 'openai',
-        error: '新的 OpenAI 模型名称已存在'
+        error: '无效的方向参数'
+      }
+    }
+
+    const sourceLabel = direction === 'openaiToClaude' ? 'OpenAI' : 'Claude'
+
+    // 如果源模型名称改变，检查新名称是否重复
+    if (
+      oldSourceModel !== newSourceModel &&
+      bridgeConfig.value[direction].modelMapping[newSourceModel]
+    ) {
+      return {
+        isValid: false,
+        field: 'source',
+        error: `新的 ${sourceLabel} 模型名称已存在`
       }
     }
 
     // 验证格式
-    const validation = validateModelMapping(newOpenaiModel, newClaudeModel)
+    const validation = validateModelMapping(direction, newSourceModel, newTargetModel)
     if (!validation.isValid) {
       return validation
     }
 
     // 删除旧映射
-    if (oldOpenaiModel !== newOpenaiModel) {
-      delete bridgeConfig.value.modelMapping[oldOpenaiModel]
+    if (oldSourceModel !== newSourceModel) {
+      delete bridgeConfig.value[direction].modelMapping[oldSourceModel]
     }
 
     // 添加新映射
-    bridgeConfig.value.modelMapping[newOpenaiModel] = newClaudeModel
+    bridgeConfig.value[direction].modelMapping[newSourceModel] = newTargetModel
 
-    return {
-      isValid: true
-    }
+    return { isValid: true }
   }
 
   // 重置为默认配置
   function resetToDefaults() {
     bridgeConfig.value = {
-      enabled: true,
-      defaultModel: 'gpt-5',
-      modelMapping: {
-        'gpt-5': 'claude-3-5-sonnet-20241022',
-        'gpt-5-plus': 'claude-opus-4-20250514',
-        'gpt-5-mini': 'claude-3-5-haiku-20241022'
+      openaiToClaude: {
+        enabled: true,
+        defaultModel: 'claude-3-5-sonnet-20241022',
+        modelMapping: {
+          'gpt-5': 'claude-sonnet-4-20250514',
+          'gpt-5-plus': 'claude-opus-4-20250514',
+          'gpt-5-mini': 'claude-3-5-haiku-20241022'
+        }
+      },
+      claudeToOpenai: {
+        enabled: false,
+        defaultModel: 'gpt-5',
+        modelMapping: {
+          'claude-sonnet-4-20250514': 'gpt-5',
+          'claude-opus-4-20250514': 'gpt-5-plus',
+          'claude-3-5-haiku-20241022': 'gpt-5-mini'
+        }
       },
       createdAt: null,
       updatedAt: null,
