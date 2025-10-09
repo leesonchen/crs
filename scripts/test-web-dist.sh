@@ -100,6 +100,7 @@ Test Build Date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
 EOF
     
     # 提交
+    rm -fr web/admin-spa/node_modules node_modules
     git add -A
     git commit -m "test: frontend build test $(date +%Y%m%d%H%M%S)"
     
