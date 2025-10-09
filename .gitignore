@@ -248,3 +248,4 @@ web/apiStats/
 web/admin-spa/dist/
 /update_dist.sh
 test_anyrouter.sh
+/web/admin-spa/dist1
