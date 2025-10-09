@@ -26,37 +26,7 @@ print_warning() {
     echo -e "${YELLOW}[WARNING]${NC} $1"
 }
 
-# 测试构建并推送到 web-dist 分支
-test_build_and_push() {
-    print_info "开始测试构建和推送流程..."
-    
-    # 检查是否在项目根目录
-    if [ ! -f "package.json" ] || [ ! -d "web/admin-spa" ]; then
-        print_error "请在项目根目录运行此脚本"
-        return 1
-    fi
-    
-    # 构建前端
-    print_info "构建前端..."
-    cd web/admin-spa
-    
-    # 检查 node_modules
-    if [ ! -d "node_modules" ]; then
-        print_info "安装前端依赖..."
-        npm install
-    fi
-    
-    # 执行构建
-    npm run build
-    
-    if [ ! -d "dist" ]; then
-        print_error "构建失败，dist 目录不存在"
-        cd ../..
-        return 1
-    fi
-    
-    print_success "前端构建成功"
-    cd ../..
+push() {
     
     # 创建临时目录保存构建产物
     TEMP_DIR=$(mktemp -d)
@@ -100,7 +70,7 @@ Test Build Date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
 EOF
     
     # 提交
-    rm -fr web/admin-spa/node_modules node_modules
+    rm -rf web/admin-spa/node_modules node_modules
     echo "按enter键继续，按Ctrl+C退出..."
     read
     git add -A
@@ -115,6 +85,42 @@ EOF
     
     # 清理临时目录
     rm -rf "$TEMP_DIR"
+    
+}
+
+
+# 测试构建并推送到 web-dist 分支
+test_build_and_push() {
+    print_info "开始测试构建和推送流程..."
+    
+    # 检查是否在项目根目录
+    if [ ! -f "package.json" ] || [ ! -d "web/admin-spa" ]; then
+        print_error "请在项目根目录运行此脚本"
+        return 1
+    fi
+    
+    # 构建前端
+    print_info "构建前端..."
+    cd web/admin-spa
+    
+    # 检查 node_modules
+    if [ ! -d "node_modules" ]; then
+        print_info "安装前端依赖..."
+        npm install
+    fi
+    
+    # 执行构建
+    npm run build
+    
+    if [ ! -d "dist" ]; then
+        print_error "构建失败，dist 目录不存在"
+        cd ../..
+        return 1
+    fi
+    
+    print_success "前端构建成功"
+    cd ../..
+    push
     
     print_success "测试完成"
 }
@@ -197,6 +203,7 @@ show_help() {
     echo ""
     echo "命令:"
     echo "  build   - 测试构建并创建本地 web-dist 分支"
+    echo "  push    - 创建本地 web-dist 分支"
     echo "  fetch   - 测试从 web-dist 分支获取文件"
     echo "  all     - 运行所有测试"
     echo "  help    - 显示帮助"
@@ -209,6 +216,9 @@ main() {
         build)
             test_build_and_push
             ;;
+        push)
+            build_and_push
+            ;;            
         fetch)
             test_fetch_from_web_dist
             ;;
