@@ -13,7 +13,6 @@
  */
 
 const logger = require('../utils/logger')
-const config = require('../../config/config')
 const ClaudeToOpenAIResponsesConverter = require('./claudeToOpenAIResponses')
 const OpenAIResponsesToClaudeConverter = require('./openaiResponsesToClaude')
 const OpenAIToClaudeConverter = require('./openaiToClaude')
@@ -68,11 +67,11 @@ class BridgeService {
       })
 
       // 3. Layer 1: 系统级格式转换（Claude → OpenAI）
-      const { systemMapping, defaultModel } = this._getSystemLevelMapping('claude-to-openai')
+      const { systemMapping, defaultModel } = await this._getSystemLevelMapping('claude-to-openai')
 
       // 应用系统级映射
-      let currentModel = claudeRequest.model
-      let layer1Model = systemMapping[currentModel] || defaultModel
+      const currentModel = claudeRequest.model
+      const layer1Model = systemMapping[currentModel] || defaultModel
       logger.info(`📍 Layer 1 (System): ${currentModel} → ${layer1Model}`)
 
       // 4. 转换请求格式
@@ -85,7 +84,7 @@ class BridgeService {
 
       // 5. Layer 3: 账户级模型降级（同平台适配）
       const accountMapping = standardAccount.modelMapping || {}
-      let finalModel = accountMapping[layer1Model] || layer1Model
+      const finalModel = accountMapping[layer1Model] || layer1Model
 
       if (finalModel !== layer1Model) {
         logger.info(
@@ -177,8 +176,8 @@ class BridgeService {
       const { systemMapping, defaultModel } = await this._getSystemLevelMapping('openai-to-claude')
 
       // 应用系统级映射
-      let currentModel = openaiRequest.model
-      let layer1Model = systemMapping[currentModel] || defaultModel
+      const currentModel = openaiRequest.model
+      const layer1Model = systemMapping[currentModel] || defaultModel
       logger.info(`📍 Layer 1 (System): ${currentModel} → ${layer1Model}`)
 
       // 4. 检测请求格式并选择合适的转换器
@@ -197,7 +196,7 @@ class BridgeService {
 
       // 6. Layer 3: 账户级模型降级（同平台适配）
       const accountMapping = standardAccount.modelMapping || {}
-      let finalModel = accountMapping[layer1Model] || layer1Model
+      const finalModel = accountMapping[layer1Model] || layer1Model
 
       if (finalModel !== layer1Model) {
         logger.info(

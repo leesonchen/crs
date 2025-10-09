@@ -299,7 +299,11 @@ class OpenAIResponsesToClaudeConverter {
           id: this.messageId,
           type: 'message',
           role: 'assistant',
-          content: []
+          content: [],
+          usage: {
+            input_tokens: 0,
+            output_tokens: 0
+          }
         }
       })
     ]
@@ -319,7 +323,8 @@ class OpenAIResponsesToClaudeConverter {
         index: 0,
         content_block: {
           id: this.contentBlockId,
-          type: 'text'
+          type: 'text',
+          text: ''
         }
       })
     ]
