@@ -77,6 +77,7 @@ test_build_and_push() {
         print_info "创建新的 web-dist 分支"
         git checkout --orphan web-dist
     fi
+    echo "确认当前环境已经切换到web-dist分支，按任意键继续，按Ctrl+C退出..."
     
     # 清空当前目录（保留 .git）
     git rm -rf . 2>/dev/null || true
