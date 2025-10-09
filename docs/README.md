@@ -152,7 +152,7 @@
 
 ## 🔗 相关链接
 
-- **GitHub**: [leesonchen/crs](https://github.com/leesonchen/crs)
+- **GitHub**: [leesonchen/crs](https://git.leeson.top/leesonchen/crs)
 - **Docker Hub**: [leesonchen/crs](https://hub.docker.com/r/leesonchen/crs)
 - **官方网站**: [pincc.ai](https://pincc.ai/)
 - **演示站点**: [demo.pincc.ai](https://demo.pincc.ai/admin-next/login)
@@ -162,7 +162,7 @@
 
 ## 💡 需要帮助？
 
-- 💬 提交 [GitHub Issue](https://github.com/leesonchen/crs/issues)
+- 💬 提交 [GitHub Issue](https://git.leeson.top/leesonchen/crs/issues)
 - 📧 加入 [Telegram 群组](https://t.me/claude_relay_service)
 - 📖 查阅本文档中心
 - 🌐 访问 [官方网站](https://pincc.ai/)

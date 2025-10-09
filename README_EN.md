@@ -145,7 +145,7 @@ sudo systemctl start redis
 
 ```bash
 # Download project
-git clone https://github.com/leesonchen/crs.git
+git clone https://git.leeson.top/leesonchen/crs.git
 cd crs
 
 # Install dependencies

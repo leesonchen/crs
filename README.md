@@ -6,7 +6,7 @@
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
 [![Redis](https://img.shields.io/badge/Redis-6+-red.svg)](https://redis.io/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://www.docker.com/)
-[![Docker Build](https://github.com/leesonchen/crs/actions/workflows/auto-release-pipeline.yml/badge.svg)](https://github.com/leesonchen/crs/actions/workflows/auto-release-pipeline.yml)
+[![Docker Build](https://git.leeson.top/leesonchen/crs/actions/workflows/auto-release-pipeline.yml/badge.svg)](https://git.leeson.top/leesonchen/crs/actions/workflows/auto-release-pipeline.yml)
 [![Docker Pulls](https://img.shields.io/docker/pulls/leesonchen/crs)](https://hub.docker.com/r/leesonchen/crs)
 
 **🔐 自行搭建Claude API中转服务，支持多账户管理**
@@ -209,7 +209,7 @@ sudo systemctl start redis
 
 ```bash
 # 下载项目
-git clone https://github.com/leesonchen//crs.git
+git clone https://git.leeson.top/leesonchen//crs.git
 cd crs
 
 # 安装依赖
