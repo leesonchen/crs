@@ -809,7 +809,7 @@ class ClaudeConsoleRelayService {
         const textContent = responseData.content.find((block) => block.type === 'text')
         if (textContent && textContent.text) {
           // 将文本分成小块发送，模拟流式传输
-          const text = textContent.text
+          const { text } = textContent
           const chunkSize = 50 // 每次发送 50 个字符
           for (let i = 0; i < text.length; i += chunkSize) {
             const chunk = text.substring(i, Math.min(i + chunkSize, text.length))
