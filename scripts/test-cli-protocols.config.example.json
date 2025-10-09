@@ -1,0 +1,43 @@
+{
+  "baseUrl": "http://localhost:3000",
+  "timeoutMs": 15000,
+  "scenarios": {
+    "claudeDirect": [
+      {
+        "name": "official-sonnet",
+        "apiKey": "cr_XXXXXXXXXXXXXXXXXXXX",
+        "model": "claude-sonnet-4-20250514",
+        "prompt": "Say hello from Claude direct test.",
+        "system": "You are Claude Code CLI diagnostic agent.",
+        "beta": false
+      }
+    ],
+    "claudeBridge": [
+      {
+        "name": "bridge-openai",
+        "apiKey": "cr_BRIDGE_KEY",
+        "model": "claude-3-5-haiku-20241022",
+        "prompt": "Say hello from Claude bridge test.",
+        "system": "You are Claude CLI bridging via OpenAI."
+      }
+    ],
+    "codexOpenAI": [
+      {
+        "name": "responses-account",
+        "apiKey": "cr_CODEX_KEY",
+        "model": "gpt-5",
+        "prompt": "Say hello from Codex test.",
+        "system": "You are Codex CLI diagnostic agent."
+      }
+    ],
+    "codexClaude": [
+      {
+        "name": "codex-to-claude",
+        "apiKey": "cr_OPENAI_COMPAT",
+        "model": "claude-sonnet-4-20250514",
+        "prompt": "Say hello from Codex to Claude bridge test.",
+        "system": "You are testing the OpenAI-compatible Claude endpoint."
+      }
+    ]
+  }
+}
