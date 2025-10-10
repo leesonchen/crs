@@ -1,13 +1,15 @@
-# Claude Relay Service - 技术架构设计文档 (TAD)
+# Claude Relay Service - 技术架构设计文档
 
 ## 1. 系统架构概述
 
-Claude Relay Service 采用分布式微服务架构，核心设计原则包括：
+Claude Relay Service 采用**分层微服务架构**，专注于**双方向桥接模式**和**统一调度器**设计，核心设计原则包括：
 
-- **高可用性**: 多账户轮换、故障转移、负载均衡
-- **高性能**: 缓存优化、异步处理、流式响应
-- **可扩展性**: 模块化设计、插件化架构
+- **高可用性**: 多账户轮换、故障转移、负载均衡、桥接容错
+- **高性能**: 缓存优化、异步处理、流式响应、智能路由
+- **可扩展性**: 模块化设计、插件化架构、动态扩展
 - **可维护性**: 清晰的分层、完善的日志、监控告警
+- **桥接能力**: Claude ↔ OpenAI 双向API格式转换
+- **统一调度**: 跨平台账户智能选择和负载均衡
 
 ### 1.1 整体架构图
 
@@ -107,21 +109,66 @@ src/services/
 ```
 
 #### 2.3.2 AI服务集成
+
+**桥接服务架构**:
 ```
 src/services/
-├── bridgeService.js             # 桥接服务（NEW - 格式转换和账户标准化）
-├── claudeAccountService.js      # Claude账户管理
-├── claudeRelayService.js        # Claude中继服务
-├── claudeConsoleAccountService.js # Console账户管理
-├── claudeConsoleRelayService.js   # Console中继服务
-├── bedrockAccountService.js     # Bedrock账户管理
-├── bedrockRelayService.js       # Bedrock中继服务
-├── ccrAccountService.js         # CCR账户管理
-├── ccrRelayService.js           # CCR中继服务
-├── geminiAccountService.js      # Gemini账户管理
-├── geminiRelayService.js        # Gemini中继服务
-├── openaiAccountService.js      # OpenAI账户管理
-└── openaiRelayService.js        # OpenAI中继服务（重构，专注转发）
+├── bridgeService.js                    # 桥接服务核心（格式转换和账户标准化）
+├── claudeToOpenAIResponses.js          # Claude → OpenAI 转换器
+├── openaiResponsesToClaude.js         # OpenAI → Claude 转换器
+├── claudeAccountService.js              # Claude账户管理
+├── claudeRelayService.js                # Claude中继服务
+├── claudeConsoleAccountService.js       # Console账户管理
+├── claudeConsoleRelayService.js         # Console中继服务
+├── bedrockAccountService.js             # Bedrock账户管理
+├── bedrockRelayService.js               # Bedrock中继服务
+├── ccrAccountService.js                 # CCR账户管理
+├── ccrRelayService.js                   # CCR中继服务
+├── geminiAccountService.js              # Gemini账户管理
+├── geminiRelayService.js                # Gemini中继服务
+├── openaiAccountService.js              # OpenAI账户管理
+└── openaiResponsesRelayService.js       # OpenAI Responses中继服务（重构，专注转发）
+```
+
+**桥接服务核心功能**:
+```javascript
+// bridgeService.js 核心方法
+class BridgeService {
+  // 账户标准化处理
+  async normalizeBridgeAccount(account) {
+    return {
+      ...account,
+      apiKey: this.decrypt(account.accessToken), // OAuth → API Key
+      baseApi: account.baseApi || 'https://api.openai.com',
+      platform: this.detectPlatform(account),
+      accountType: 'openai' // 统一账户类型
+    }
+  }
+
+  // 三层模型映射解析
+  async resolveModelMapping(sourceModel, account) {
+    // 1. 系统级配置
+    const systemConfig = await redis.get('system:bridge_config')
+
+    // 2. 账户级映射
+    const accountMapping = account.modelMapping
+
+    // 3. 全局默认映射
+    const defaultMapping = config.claudeBridgeDefaults.modelMapping
+
+    // 按优先级合并映射规则
+    return this.mergeMappings(systemConfig, accountMapping, defaultMapping)
+  }
+
+  // 桥接模式检测和激活
+  async shouldEnableBridge(requestModel, platform) {
+    const nativeAccounts = await this.getAvailableAccounts(platform)
+    if (nativeAccounts.length > 0) return false
+
+    const bridgeAccounts = await this.getBridgeAccounts(platform)
+    return bridgeAccounts.length > 0
+  }
+}
 ```
 
 #### 2.3.3 统一调度器

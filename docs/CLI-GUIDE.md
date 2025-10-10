@@ -1,34 +1,26 @@
 # CLI Integration Guide
 
-本文档详细介绍 Claude Code CLI 和 Codex CLI 与 Claude Relay Service 的集成方法、调用格式、桥接模式配置以及常见问题解决。
+综合指南 - Claude Code CLI 和 Codex CLI 与 Claude Relay Service 的完整集成方法、桥接模式配置和故障排除。
 
 ## 目录
 
 - [概述](#概述)
 - [Claude Code CLI](#claude-code-cli)
 - [Codex CLI](#codex-cli)
-- [桥接模式（Bridge Mode）](#桥接模式bridge-mode)
-- [调用示例对比](#调用示例对比)
+- [桥接模式](#桥接模式)
+- [快速参考](#快速参考)
+- [版本历史](#版本历史)
 - [故障排查](#故障排查)
 
 ---
 
 ## 概述
 
-Claude Relay Service 同时兼容 Anthropic 的 **Claude Code CLI** 与 OpenAI 风格的 **Codex CLI**。为方便运维，本指南按照“协议格式 → 交互矩阵 → 排错与工具”逐层拆解，帮助你快速确认每一条调用链是否工作正常。
+Claude Relay Service 同时兼容 Anthropic 的 **Claude Code CLI** 与 OpenAI 风格的 **Codex CLI**，提供双向桥接功能：
 
-- **Claude Code CLI** 使用 Anthropic 原生的 `messages` 协议，与 `/api/v1/messages` 通道直接通信，也可通过桥接模式转发到 OpenAI Responses。
-- **Codex CLI** 采用 OpenAI Responses 的 `input` 协议，可直接访问 `/openai/responses`，亦可通过 OpenAI 兼容层访问 Claude `/openai/claude/v1/chat/completions`。
-- **桥接模式** 则负责在两个协议之间转换，实现“Claude CLI → OpenAI Responses”与“Codex CLI → Claude”两个方向的互通。
-
-后文给出了详细示例与自动化脚本，协助你验证四种常见组合：
-
-1. Claude CLI → Claude 服务
-2. Claude CLI → OpenAI Responses（Claude→OpenAI 桥接）
-3. Codex CLI → OpenAI Responses
-4. Codex CLI → Claude 服务（OpenAI→Claude 桥接）
-
-> 📌 **术语约定**：文档中若提到 *Claude CLI 请求*，指 Anthropic `messages` 协议；提到 *Codex CLI 请求*，指 OpenAI Responses 协议。
+- **Claude Code CLI** 使用 Anthropic 原生的 `messages` 协议，与 `/api/v1/messages` 通道直接通信，也可通过桥接模式转发到 OpenAI Responses
+- **Codex CLI** 采用 OpenAI Responses 的 `input` 协议，可直接访问 `/openai/responses`，亦可通过 OpenAI 兼容层访问 Claude
+- **桥接模式** 实现两个方向的互通：Claude CLI → OpenAI Responses 与 Codex CLI → Claude
 
 ---
 
@@ -83,19 +75,6 @@ User-Agent: claude-cli/2.0.1 (external, cli)
 }
 ```
 
-#### 关键字段说明
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `model` | string | Claude 官方模型 ID，例如 `claude-3-5-haiku-20241022`、`claude-sonnet-4-20250514` |
-| `messages` | array | 对话消息数组，元素包含 `role` 与 `content` |
-| `messages[].role` | enum | `system` / `user` / `assistant` |
-| `messages[].content` | array | 内容块列表；详见下方“支持的内容类型” |
-| `stream` | boolean | 是否开启 SSE 流式输出 |
-| `max_tokens` | number | （可选）最大生成 token 数；留空由服务决定 |
-
-常见做法：在会话开始时附加一个 `system` 块来设置语气，随后 `user` 与 `assistant` 交替出现。
-
 #### 支持的内容类型
 
 | 类型 | 描述 | 示例 |
@@ -110,14 +89,6 @@ User-Agent: claude-cli/2.0.1 (external, cli)
 
 Claude Code CLI 支持 SSE（Server-Sent Events）流式响应：
 
-```json
-{
-  "model": "claude-sonnet-4-5-20250929",
-  "messages": [...],
-  "stream": true
-}
-```
-
 **响应格式**:
 ```
 event: message_start
@@ -128,45 +99,6 @@ data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"Hello"}
 
 event: message_stop
 data: {"type":"message_stop"}
-```
-
-事件通常以 `message_start → content_block_start → content_block_delta (×n) → content_block_stop → message_delta → message_stop` 收束。客户端在收到 `message_stop` 后应关闭连接并整合前面的增量数据。
-
-### 非流式响应示例
-
-```jsonc
-{
-  "id": "msg_01H0XYZ",
-  "type": "message",
-  "role": "assistant",
-  "model": "claude-sonnet-4-20250514",
-  "stop_reason": "end_turn",
-  "content": [
-    {
-      "type": "text",
-      "text": "Hello from Claude CLI protocol."
-    }
-  ],
-  "usage": {
-    "input_tokens": 120,
-    "output_tokens": 32,
-    "cache_creation_input_tokens": 0,
-    "cache_read_input_tokens": 0
-  }
-}
-```
-
-> `usage` 字段用于记录真实 token 用量。官方 Claude 账户和桥接模式都会尽量填充该字段，便于后续账务与速率统计。
-
-### 日志示例
-
-**成功调用**:
-```
-🔗 🔓 API key validated successfully
-🔗 🚀 Processing stream request for key: local
-🎯 Using sticky session account: xxx (claude-console)
-📡 Processing streaming Claude Console API request
-🟢 POST /api/v1/messages - 200 (2163ms)
 ```
 
 ---
@@ -218,48 +150,6 @@ User-Agent: Mozilla/5.0 ... CherryStudio/1.5.11 ...
 | `input[].content` | array | 内容块列表，常用 `input_text` / `output_text` |
 | `stream` | boolean | 是否请求 SSE 流 |
 
-**内容块类型**：
-
-| `type` | 方向 | 描述 |
-|--------|------|------|
-| `input_text` | user/system | Codex CLI 发送给服务的数据块 |
-| `output_text` | assistant | 服务返回 Codex CLI 的文本（流式时逐块发送） |
-| `refusal` | assistant | 拒绝响应（可选） |
-| `tool_call` / `tool_output` | assistant / tool | 带工具调用的场景（尚为 Beta） |
-
-#### 非流式响应示例
-
-```jsonc
-{
-  "id": "resp_01J...",
-  "model": "gpt-5",
-  "output": [
-    {
-      "id": "msg_01T...",
-      "role": "assistant",
-      "content": [
-        {
-          "type": "output_text",
-          "text": "Hello from Codex protocol."
-        }
-      ]
-    }
-  ],
-  "usage": {
-    "input_tokens": 110,
-    "output_tokens": 25,
-    "total_tokens": 135
-  }
-}
-```
-
-### OpenAI Codex API 格式
-
-**关键差异**:
-- 字段名: `input` (而非 `messages`)
-- 内容类型: `input_text` / `output_text` (而非 `text`)
-- 模型名: `gpt-5` (抽象名称，由 API 决定具体版本)
-
 ### 支持的账户类型
 
 | 账户类型 | 说明 | baseApi 示例 |
@@ -267,20 +157,9 @@ User-Agent: Mozilla/5.0 ... CherryStudio/1.5.11 ...
 | `openai` | OpenAI OAuth 账户 | `https://chatgpt.com/backend-api/codex` |
 | `openai-responses` | OpenAI API Key 账户 | `https://api.codemirror.codes/v1` |
 
-### 日志示例
-
-**成功调用**:
-```
-🎯 Selected account: codemirror转发codex (openai-responses)
-🔀 Using OpenAI-Responses relay service
-🎯 Forwarding to: https://api.codemirror.codes/v1/responses
-📊 Successfully captured usage data from OpenAI-Responses
-🟢 POST /openai/responses - 200 (2708ms)
-```
-
 ---
 
-## 桥接模式（Bridge Mode）
+## 桥接模式
 
 桥接模式允许 Claude Code CLI 通过 OpenAI 账户进行请求转发，实现 Claude API → OpenAI API 的协议转换。
 
@@ -319,7 +198,6 @@ Upstream API
 **字段说明**:
 - `allowClaudeBridge`: 是否允许作为 Claude 桥接账户
 - `claudeModelMapping`: Claude 模型到 OpenAI 模型的映射，映射值为 OpenAI Responses 模型名
-- 留空则使用全局默认映射；你可以在 Admin → 账户管理 → 编辑 OpenAI 账户 中通过开关及映射表界面完成配置。
 
 #### 2. 全局配置
 
@@ -344,52 +222,6 @@ defaultModel: 'gpt-5'
 
 // ❌ 不推荐：使用具体版本名（可能不被上游支持）
 defaultModel: 'gpt-5-codex-medium'
-```
-
-**原因**: 上游 API 通常支持抽象名称（如 `gpt-5`），由 API 自动选择最佳版本，但不一定支持具体版本名称。
-
-### 桥接转换逻辑
-
-#### 请求转换
-
-**Claude 格式** → **OpenAI 格式**:
-
-| Claude | OpenAI |
-|--------|--------|
-| `messages` | `input` |
-| `{"type": "text", "text": "..."}` | `{"type": "input_text", "text": "..."}` |
-| `model: "claude-xxx"` | `model: "gpt-5"` (映射后) |
-
-#### 内容块转换
-
-```javascript
-// text 块
-Claude: {"type": "text", "text": "Hello"}
-OpenAI: {"type": "input_text", "text": "Hello"}
-
-// thinking 块 (v2.0.1+)
-Claude: {"type": "thinking", "thinking": "分析中..."}
-OpenAI: {"type": "input_text", "text": "[Thinking: 分析中...]"}
-
-// document 块
-Claude: {"type": "document", "title": "Doc", "content": "..."}
-OpenAI: {"type": "input_text", "text": "[Doc]\n..."}
-
-// tool_use 块
-Claude: {"type": "tool_use", "id": "123", "name": "search", "input": {...}}
-OpenAI: {"type": "input_text", "text": "[tool_call name=search id=123] {...}"}
-```
-
-#### 响应转换
-
-**OpenAI 格式** → **Claude 格式**:
-
-```javascript
-// 流式响应
-OpenAI SSE → Claude SSE
-
-// 非流式响应
-OpenAI JSON → Claude JSON
 ```
 
 ### 调度逻辑
@@ -425,119 +257,306 @@ if (availableClaudeAccounts.length === 0) {
 
 ---
 
-## 交互矩阵与自动化验证
+## 快速参考
 
-| 序号 | 客户端协议 | 目标服务 | 入口端点 | 说明 |
-|------|-----------|----------|----------|------|
-| 1 | Claude CLI (`messages`) | Claude 官方 / Claude Console | `/api/v1/messages` | 默认路径，使用 Anthropic 协议 |
-| 2 | Claude CLI (`messages`) | OpenAI Responses | `/claude/openai/v1/messages` | Claude→OpenAI 桥接；要求目标账户启用 `allowClaudeBridge` |
-| 3 | Codex CLI (`responses`) | OpenAI Responses | `/openai/responses` | OpenAI Responses 协议原生路径 |
-| 4 | Codex CLI (`responses`) | Claude 官方 / Claude Console | `/openai/claude/v1/chat/completions` | OpenAI→Claude 桥接，自动转换为 Claude `messages` 协议 |
+### 🚀 快速开始
 
-### 自动化测试脚本
+### Claude Code CLI → Claude Console
+```bash
+export ANTHROPIC_API_KEY="cr_YOUR_API_KEY"
+export ANTHROPIC_BASE_URL="http://localhost:3000"
 
-仓库提供 `scripts/test-cli-protocols.js` 来验证以上四类交互。脚本默认读取 `scripts/test-cli-protocols.config.json`（若不存在，可复制 `.config.example` 并按需填写），示例如下：
+# 使用 Claude Code
+claude "Hello, Claude!"
+```
 
-```jsonc
+### Codex CLI → OpenAI-Responses
+```bash
+# 配置在客户端中设置
+Base URL: http://localhost:3000/openai
+API Key: cr_YOUR_API_KEY
+Model: gpt-5
+```
+
+### 📊 端点对照表
+
+| CLI 工具 | 端点 | 请求格式 | 响应格式 |
+|---------|------|---------|---------|
+| Claude Code CLI | `/api/v1/messages` | Claude API | Claude API |
+| Codex CLI | `/openai/responses` | OpenAI Codex | OpenAI Codex |
+| 桥接模式 | `/api/v1/messages` | Claude API | Claude API |
+
+### 🎯 模型映射快查
+
+### 推荐配置
+
+```json
 {
-  "baseUrl": "http://localhost:3000",
-  "timeoutMs": 15000,
-  "scenarios": {
-    "claudeDirect": [
-      { "name": "official-sonnet", "apiKey": "cr_xxx", "model": "claude-sonnet-4-20250514" }
-    ],
-    "claudeBridge": [
-      { "name": "bridge-openai", "apiKey": "cr_bridge", "model": "claude-3-5-haiku-20241022" }
-    ],
-    "codexOpenAI": [
-      { "name": "responses-account", "apiKey": "cr_codex", "model": "gpt-5" }
-    ],
-    "codexClaude": [
-      { "name": "codex-to-claude", "apiKey": "cr_openai_compat", "model": "claude-sonnet-4-20250514" }
-    ]
+  "claudeModelMapping": {
+    "claude-3-5-haiku-20241022": "gpt-5",
+    "claude-3-5-sonnet-20241022": "gpt-5",
+    "claude-sonnet-4-5-20250929": "gpt-5"
   }
 }
 ```
 
-运行方式：
+### 模型名称规则
 
-```bash
-node scripts/test-cli-protocols.js [path/to/config.json]
+| ✅ 推荐 | ❌ 避免 |
+|--------|--------|
+| `gpt-5` | `gpt-5-codex-medium` |
+| `gpt-4` | `gpt-4-0314` |
+| `gpt-3.5-turbo` | `gpt-3.5-turbo-0125` |
+
+**原因**: 使用抽象名称，让上游 API 选择最佳版本。
+
+### 🔍 内容类型支持
+
+| 类型 | Claude Code v1 | Claude Code v2 | 桥接支持 |
+|------|----------------|----------------|---------|
+| `text` | ✅ | ✅ | ✅ |
+| `tool_use` | ✅ | ✅ | ✅ (转为文本) |
+| `tool_result` | ✅ | ✅ | ✅ (转为文本) |
+| `thinking` | ❌ | ✅ | ✅ (v1.1.156+) |
+| `document` | ❌ | ✅ | ✅ (v1.1.156+) |
+| `image` | ❌ | ✅ | ❌ (未支持) |
+
+### 🔧 账户配置检查清单
+
+### OpenAI-Responses 账户（桥接模式）
+
+```javascript
+{
+  "name": "账户名称",
+  "baseApi": "https://api.example.com/v1",  // ✅ 末尾不带 /v1/responses
+  "apiKey": "sk-xxx",
+  "schedulable": true,                       // ✅ 必须启用
+  "allowClaudeBridge": true,                 // ✅ 启用桥接
+  "isActive": true,                          // ✅ 账户激活
+  "status": "active",                        // ✅ 状态正常
+  "claudeModelMapping": {                    // ⚡ 可选（建议配置）
+    "claude-sonnet-4-5-20250929": "gpt-5"
+  }
+}
 ```
 
-脚本会逐一发送非流式健康检查请求（默认超时 15 秒），对每个场景打印 `status`、`latency` 与响应摘要；若任意请求失败会以非零退出码结束，适用于部署后或 CI 验证。
+### 📝 常用 curl 命令
 
----
-
-## 调用示例对比
-
-### 场景 1: 直接调用 Claude Console
-
+### 测试 Claude 端点
 ```bash
-# Claude Code CLI → Claude Console Account
 curl -X POST http://localhost:3000/api/v1/messages \
   -H "Authorization: Bearer cr_YOUR_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "claude-3-5-haiku-20241022",
-    "messages": [{"role": "user", "content": "Hello"}],
+    "messages": [
+      {"role": "user", "content": "测试消息"}
+    ],
     "stream": false
   }'
 ```
 
-**日志**:
-```
-🎯 Using sticky session account: 拼车转发cc0 (claude-console)
-📡 Processing streaming Claude Console API request
-🟢 POST /api/v1/messages - 200
-```
-
-### 场景 2: 桥接模式调用
-
+### 测试 Codex 端点
 ```bash
-# Claude Code CLI → OpenAI-Responses Account (桥接)
-curl -X POST http://localhost:3000/api/v1/messages \
-  -H "Authorization: Bearer cr_YOUR_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "claude-sonnet-4-5-20250929",
-    "messages": [{"role": "user", "content": "Hello"}],
-    "stream": false
-  }'
-```
-
-**日志**:
-```
-🌉 No Claude accounts available, checking for OpenAI bridge-enabled accounts...
-🌉 Using OpenAI bridge for Claude request
-🔄 Model mapping: claude-sonnet-4-5-20250929 → gpt-5 (source: default)
-🎯 Forwarding to: https://api.codemirror.codes/v1/responses
-✅ Bridge completed
-```
-
-### 场景 3: 直接调用 Codex
-
-```bash
-# Codex CLI → OpenAI-Responses Account
 curl -X POST http://localhost:3000/openai/responses \
   -H "Authorization: Bearer cr_YOUR_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "gpt-5",
     "input": [
-      {"role": "user", "content": [{"type": "input_text", "text": "Hello"}]}
+      {
+        "role": "user",
+        "content": [{"type": "input_text", "text": "测试消息"}]
+      }
     ],
     "stream": true
   }'
 ```
 
-**日志**:
+### 测试桥接模式
+```bash
+# 确保没有可用的 Claude Console 账户，系统会自动启用桥接
+curl -X POST http://localhost:3000/api/v1/messages \
+  -H "Authorization: Bearer cr_YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "claude-sonnet-4-5-20250929",
+    "messages": [{"role": "user", "content": "测试桥接"}],
+    "stream": false
+  }'
 ```
-🎯 Selected account: codemirror转发codex (openai-responses)
-🎯 Forwarding to: https://api.codemirror.codes/v1/responses
-📊 Successfully captured usage data from OpenAI-Responses
-🟢 POST /openai/responses - 200
+
+### 🐛 故障排查速查
+
+### 错误 1: "Non-text content is not supported"
 ```
+✅ 解决: 更新到 v1.1.156+（已支持 thinking/document）
+```
+
+### 错误 2: "No available OpenAI accounts support the requested model"
+```
+✅ 解决: 修改 config.js 中 defaultModel 为 'gpt-5'
+```
+
+### 错误 3: URL 重复 `/v1/v1/responses`
+```
+✅ 解决: 已自动修复（智能 URL 拼接）
+```
+
+### 错误 4: "Mapped account is no longer available"
+```
+✅ 检查:
+  1. schedulable = true
+  2. isActive = true
+  3. status = "active"
+  4. 未处于限流状态
+```
+
+### 🔑 关键配置文件位置
+
+```
+config/
+  └── config.js                          # 全局配置
+      └── claudeBridgeDefaults           # 桥接默认配置
+          └── defaultModel: 'gpt-5'      # ← 重要！
+
+src/services/
+  ├── claudeToOpenAIResponses.js         # Claude → OpenAI 转换器
+  ├── openaiResponsesToClaude.js         # OpenAI → Claude 转换器
+  ├── openaiResponsesRelayService.js     # OpenAI 中继服务
+  └── unifiedClaudeScheduler.js          # 统一调度器（桥接逻辑）
+
+src/routes/
+  ├── api.js                             # Claude API 路由
+  └── openaiRoutes.js                    # OpenAI API 路由
+```
+
+### 📊 日志标识速查
+
+| 标识 | 含义 |
+|------|------|
+| `🌉` | 桥接模式激活 |
+| `🔄` | 模型映射 |
+| `🎯` | 账户选择 |
+| `✅` | 操作成功 |
+| `❌` | 错误发生 |
+| `⚠️` | 警告信息 |
+| `🎬` | 调用中继服务 |
+| `📡` | 处理流式请求 |
+| `📊` | 捕获使用数据 |
+| `🔗` | API Key 验证 |
+
+### 🎨 Web 界面操作
+
+### 启用桥接功能
+
+1. **账户管理** → 选择 OpenAI-Responses 账户
+2. 点击 **编辑**
+3. 启用 **"允许 Claude 桥接"** 开关
+4. （可选）配置 **Claude 模型映射**
+5. 保存
+
+### 查看日志
+
+1. **系统日志** → 实时日志查看
+2. 过滤级别: `info`, `warn`, `error`
+3. 搜索关键词: `bridge`, `mapping`, 账户名称
+
+### 检查账户状态
+
+1. **账户管理** → 账户列表
+2. 查看状态指示器:
+   - 🟢 正常
+   - 🟡 限流
+   - 🔴 错误
+
+### 🚦 服务健康检查
+
+```bash
+# 检查服务状态
+curl http://localhost:3000/health
+
+# 查看实时日志
+tail -f logs/claude-relay-$(date +%Y-%m-%d).log
+
+# 搜索桥接相关日志
+grep "🌉" logs/claude-relay-$(date +%Y-%m-%d).log
+
+# 搜索错误
+grep "❌" logs/claude-relay-$(date +%Y-%m-%d).log
+```
+
+### 📌 版本兼容性
+
+| 组件 | 版本 | 说明 |
+|------|------|------|
+| Claude Relay Service | v1.1.156+ | 支持桥接和新内容类型 |
+| Claude Code CLI | v1.0.110 | 基础功能 |
+| Claude Code CLI | v2.0.1+ | Extended thinking |
+| Codex CLI | All | 完全兼容 |
+| Node.js | 18+ | 推荐版本 |
+
+---
+
+## 版本历史
+
+### 2025-10-05 - v1.1.156+
+
+#### ✨ 新增功能
+
+1. **支持 Claude Code CLI v2.0.1**
+   - 支持 `thinking` 内容类型（extended thinking）
+   - 支持 `document` 内容类型
+   - 兼容 `?beta=true` 参数
+
+2. **桥接模式增强**
+   - 优化模型映射逻辑
+   - 支持账户级和全局级模型映射
+   - 自动内容类型转换
+
+3. **完整文档体系**
+   - CLI Integration Guide（完整集成指南）
+   - CLI Quick Reference（快速参考卡片）
+
+#### 🐛 Bug 修复
+
+1. **修复默认模型配置**
+   - 从 `gpt-5-codex-medium` 改为 `gpt-5`
+   - 提升上游 API 兼容性
+
+2. **修复 URL 拼接问题**
+   - 智能处理 baseApi 和 upstreamPath
+   - 避免路径重复（如 `/v1/v1/responses`）
+
+3. **修复 accountType 识别**
+   - 动态检测账户类型
+   - 正确传递给调度器和限流逻辑
+
+4. **修复非文本内容支持**
+   - 转换器支持 5 种内容类型
+   - 优雅处理 thinking 和 document
+
+#### 🔧 改进优化
+
+1. **代码位置**
+   - `config/config.js:89` - 默认模型配置
+   - `src/services/claudeToOpenAIResponses.js:92-93` - 允许类型列表
+   - `src/services/claudeToOpenAIResponses.js:179-193` - thinking/document 处理
+   - `src/services/claudeToOpenAIResponses.js:273-285` - document 辅助方法
+   - `src/services/openaiResponsesRelayService.js:55-67` - 账户类型检测
+   - `src/services/openaiResponsesRelayService.js:84-96` - 智能 URL 拼接
+
+2. **日志增强**
+   - 添加桥接模式标识 🌉
+   - 模型映射来源标记
+   - 账户选择详细信息
+
+### 历史版本
+
+### v1.1.155 及之前
+- 基础 Claude Code CLI v1.0.110 支持
+- 基础桥接模式实现
+- 只支持 text/tool_use/tool_result 内容类型
 
 ---
 
@@ -649,8 +668,6 @@ if (account.apiKey && account.baseApi) {
 }
 ```
 
----
-
 ## 相关文件
 
 - **桥接转换器**: `src/services/claudeToOpenAIResponses.js`
@@ -660,8 +677,6 @@ if (account.apiKey && account.baseApi) {
 - **主路由**: `src/routes/api.js`
 - **OpenAI 路由**: `src/routes/openaiRoutes.js`
 - **配置文件**: `config/config.js`
-
----
 
 ## 最佳实践
 
@@ -714,22 +729,6 @@ if (block.type === 'unknown_type') {
   continue  // 跳过而非抛出错误
 }
 ```
-
----
-
-## 版本历史
-
-### v1.1.156+
-- ✅ 支持 Claude Code CLI v2.0.1
-- ✅ 添加 `thinking` 和 `document` 内容类型支持
-- ✅ 修复默认模型为 `gpt-5`
-- ✅ 智能 URL 拼接避免路径重复
-- ✅ 动态 accountType 检测
-
-### 未来计划
-- [ ] 支持图片内容（`image` 类型）
-- [ ] 优化桥接转换性能
-- [ ] 添加更多模型映射预设
 
 ---
 

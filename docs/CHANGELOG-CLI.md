@@ -79,4 +79,4 @@
 ---
 
 **维护者**: Claude Relay Service Team
-**文档**: [CLI Integration Guide](./cli-integration-guide.md)
+**文档**: [CLI Integration Guide](./CLI-GUIDE.md)

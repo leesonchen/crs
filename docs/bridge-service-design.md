@@ -437,4 +437,4 @@ async bridgeClaudeToAzure(claudeRequest, accountId, accountType)
 
 - [架构图](./architecture.md) - 系统整体架构
 - [设计文档](./design.md) - 技术架构设计
-- [OpenAI Bridge 计划](./claude-openai-bridge-plan.md) - 原始设计方案
+- [OpenAI Bridge 计划](./CLI-GUIDE.md#桥接模式) - 桥接模式使用指南
