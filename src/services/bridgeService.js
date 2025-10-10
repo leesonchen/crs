@@ -1,15 +1,16 @@
 /**
  * Bridge Service - AI API 格式桥接服务
  *
- * 职责：
- * 1. 不同 AI API 格式之间的转换（Claude ↔ OpenAI ↔ Gemini）
+ * 职责（简化后）：
+ * 1. 按需进行不同 AI API 格式之间的转换（Claude ↔ OpenAI）
  * 2. 账户对象标准化（解密、字段补全、类型标识）
- * 3. 模型映射管理
+ * 3. 双层模型映射：系统级（Layer 1）+ 账户级（Layer 3）
  *
  * 设计原则：
+ * - 按需调用：只在路由层判断需要桥接时才执行
+ * - 双层映射：移除了调度器级（Layer 2）的复杂度
  * - 单一职责：只做格式转换，不涉及网络请求
  * - 显式类型：使用明确的类型标识，避免隐式推断
- * - 可扩展：易于添加新的桥接方向
  */
 
 const logger = require('../utils/logger')
@@ -66,13 +67,13 @@ class BridgeService {
         hasProxy: !!standardAccount.proxy
       })
 
-      // 3. Layer 1: 系统级格式转换（Claude → OpenAI）
+      // 3. 双层模型映射：Layer 1 (系统级) + Layer 3 (账户级)
       const { systemMapping, defaultModel } = await this._getSystemLevelMapping('claude-to-openai')
 
-      // 应用系统级映射
+      // Layer 1: 系统级虚拟模型映射
       const currentModel = claudeRequest.model
-      const layer1Model = systemMapping[currentModel] || defaultModel
-      logger.info(`📍 Layer 1 (System): ${currentModel} → ${layer1Model}`)
+      const systemModel = systemMapping[currentModel] || defaultModel
+      logger.info(`📍 Layer 1 (System): ${currentModel} → ${systemModel}`)
 
       // 4. 转换请求格式
       const converter = this._getConverter('ClaudeToOpenAIResponses', {
@@ -80,15 +81,15 @@ class BridgeService {
         defaultModel
       })
       const openaiRequest = converter.convertRequest(claudeRequest)
-      openaiRequest.model = layer1Model // 使用系统级映射的模型
+      openaiRequest.model = systemModel // 使用系统级映射的模型
 
-      // 5. Layer 3: 账户级模型降级（同平台适配）
+      // Layer 3: 账户级模型能力适配（同平台降级）
       const accountMapping = standardAccount.modelMapping || {}
-      const finalModel = accountMapping[layer1Model] || layer1Model
+      const finalModel = accountMapping[systemModel] || systemModel
 
-      if (finalModel !== layer1Model) {
+      if (finalModel !== systemModel) {
         logger.info(
-          `📍 Layer 3 (Account): ${layer1Model} → ${finalModel} (account capability adaptation)`
+          `📍 Layer 3 (Account): ${systemModel} → ${finalModel} (account capability adaptation)`
         )
         openaiRequest.model = finalModel
       }
@@ -172,13 +173,13 @@ class BridgeService {
       // 2. 标准化账户对象
       const standardAccount = this._standardizeClaudeAccount(rawAccount, accountType)
 
-      // 3. Layer 1: 系统级格式转换（OpenAI → Claude）
+      // 3. 双层模型映射：Layer 1 (系统级) + Layer 3 (账户级)
       const { systemMapping, defaultModel } = await this._getSystemLevelMapping('openai-to-claude')
 
-      // 应用系统级映射
+      // Layer 1: 系统级虚拟模型映射
       const currentModel = openaiRequest.model
-      const layer1Model = systemMapping[currentModel] || defaultModel
-      logger.info(`📍 Layer 1 (System): ${currentModel} → ${layer1Model}`)
+      const systemModel = systemMapping[currentModel] || defaultModel
+      logger.info(`📍 Layer 1 (System): ${currentModel} → ${systemModel}`)
 
       // 4. 检测请求格式并选择合适的转换器
       const isResponsesFormat =
@@ -192,15 +193,15 @@ class BridgeService {
       // 5. 转换请求格式
       const converter = this._getConverter(converterType)
       const claudeRequest = converter.convertRequest(openaiRequest)
-      claudeRequest.model = layer1Model // 使用系统级映射的模型
+      claudeRequest.model = systemModel // 使用系统级映射的模型
 
-      // 6. Layer 3: 账户级模型降级（同平台适配）
+      // Layer 3: 账户级模型能力适配（同平台降级）
       const accountMapping = standardAccount.modelMapping || {}
-      const finalModel = accountMapping[layer1Model] || layer1Model
+      const finalModel = accountMapping[systemModel] || systemModel
 
-      if (finalModel !== layer1Model) {
+      if (finalModel !== systemModel) {
         logger.info(
-          `📍 Layer 3 (Account): ${layer1Model} → ${finalModel} (account capability adaptation)`
+          `📍 Layer 3 (Account): ${systemModel} → ${finalModel} (account capability adaptation)`
         )
         claudeRequest.model = finalModel
       }

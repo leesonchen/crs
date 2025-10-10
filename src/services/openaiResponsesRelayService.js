@@ -1,3 +1,21 @@
+/**
+ * OpenAI Responses 中继服务 - 负责与 OpenAI API 的直接通信和真实使用统计
+ *
+ * 核心职责：
+ * 1. 纯转发功能：构建 HTTP 请求 + 发送到上游 OpenAI API
+ * 2. 真实使用统计：从上游响应中捕获准确的 token 使用量和费用信息
+ * 3. 缓存 Token 处理：正确区分缓存读取、缓存创建和实际输入的差异化计费
+ * 4. 账户状态管理：处理限流、认证失败等账户状态
+ * 5. 流式响应处理：支持 SSE 流式转发和使用数据捕获
+ * 6. 桥接转换支持：为 Claude → OpenAI 桥接提供响应格式转换
+ *
+ * 设计原则：
+ * - 专注转发：只负责与上游 API 的通信，不涉及账户选择和格式转换
+ * - 真实统计：记录上游 API 返回的真实使用数据，特别是在桥接场景下
+ * - 缓存优化：正确处理缓存 token 的计费差异，降低用户成本
+ * - 状态同步：及时更新账户状态以支持调度器的负载均衡
+ * - 容错处理：网络中断、客户端断开等异常情况的处理
+ */
 const axios = require('axios')
 const ProxyHelper = require('../utils/proxyHelper')
 const logger = require('../utils/logger')

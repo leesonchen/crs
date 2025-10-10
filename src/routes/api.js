@@ -17,36 +17,6 @@ const OpenAIResponsesToClaudeConverter = require('../services/openaiResponsesToC
 
 const router = express.Router()
 
-// 🔧 辅助函数：准备 OpenAI 桥接配置（重构后使用 Bridge Service）
-async function prepareOpenAIBridge(req, accountId, accountType) {
-  // 1. 使用 Bridge Service 进行桥接（格式转换 + 账户标准化）
-  const bridgeResult = await bridgeService.bridgeClaudeToOpenAI(req.body, accountId, accountType)
-
-  // 2. 设置上游路径
-  req.headers['x-crs-upstream-path'] = accountType === 'openai' ? '/responses' : '/v1/responses'
-
-  // 3. 设置响应转换器（将 OpenAI 响应转回 Claude 格式）
-  const toClaude = new OpenAIResponsesToClaudeConverter()
-  req._bridgeConverter = toClaude
-  req._bridgeStreamTransform = (chunkStr) => toClaude.convertStreamChunk(chunkStr)
-  req._bridgeStreamFinalize = () => toClaude.finalizeStream()
-  req._bridgeNonStreamConvert = (responseData) =>
-    toClaude.convertNonStream({ response: responseData })
-
-  logger.info(
-    `✅ Bridge prepared: ${bridgeResult.bridgeInfo.source} → ${bridgeResult.bridgeInfo.target}`,
-    {
-      accountId: bridgeResult.account.id,
-      accountName: bridgeResult.account.name,
-      platform: bridgeResult.account.platform,
-      originalModel: bridgeResult.bridgeInfo.modelMapping.original,
-      mappedModel: bridgeResult.bridgeInfo.modelMapping.mapped,
-      duration: `${bridgeResult.bridgeInfo.duration}ms`
-    }
-  )
-
-  return { fullAccount: bridgeResult.account, openaiRequest: bridgeResult.request }
-}
 
 // 🔧 共享的消息处理函数
 async function handleMessagesRequest(req, res) {
@@ -140,6 +110,51 @@ async function handleMessagesRequest(req, res) {
         sessionHash,
         requestedModel
       )
+
+      // 🌉 桥接判断：检查是否需要桥接到其他平台
+      if (accountType === 'openai' || accountType === 'openai-responses') {
+        // OpenAI 桥接：将 Claude 请求转换为 OpenAI 请求
+        logger.info(
+          `🌉 Bridge detected: Claude → OpenAI - Account: ${accountId}, Type: ${accountType}`
+        )
+
+        // 使用 Bridge Service 进行桥接（格式转换 + 账户标准化）
+        const bridgeResult = await bridgeService.bridgeClaudeToOpenAI(req.body, accountId, accountType)
+
+        // 设置上游路径
+        req.headers['x-crs-upstream-path'] = accountType === 'openai' ? '/responses' : '/v1/responses'
+
+        // 设置响应转换器（将 OpenAI 响应转回 Claude 格式）
+        const toClaude = new OpenAIResponsesToClaudeConverter()
+        req._bridgeConverter = toClaude
+        req._bridgeStreamTransform = (chunkStr) => toClaude.convertStreamChunk(chunkStr)
+        req._bridgeStreamFinalize = () => toClaude.finalizeStream()
+        req._bridgeNonStreamConvert = (responseData) =>
+          toClaude.convertNonStream({ response: responseData })
+
+        logger.info(
+          `✅ Bridge prepared: ${bridgeResult.bridgeInfo.source} → ${bridgeResult.bridgeInfo.target}`,
+          {
+            accountId: bridgeResult.account.id,
+            accountName: bridgeResult.account.name,
+            platform: bridgeResult.account.platform,
+            originalModel: bridgeResult.bridgeInfo.modelMapping.original,
+            mappedModel: bridgeResult.bridgeInfo.modelMapping.mapped,
+            duration: `${bridgeResult.bridgeInfo.duration}ms`
+          }
+        )
+
+        // 覆写请求体为桥接后的格式
+        req.body = bridgeResult.request
+
+        // 使用统一的 OpenAI 中继服务处理
+        const relayService = require('../services/openaiResponsesRelayService')
+        logger.info(
+          `📡 Forwarding to OpenAI relay service for account: ${bridgeResult.account.name}`
+        )
+        await relayService.handleRequest(req, res, bridgeResult.account, req.apiKey)
+        return
+      }
 
       // 根据账号类型选择对应的转发服务并调用
       if (accountType === 'claude-official') {
@@ -524,29 +539,6 @@ async function handleMessagesRequest(req, res) {
           },
           accountId
         )
-      } else if (accountType === 'openai' || accountType === 'openai-responses') {
-        // 🌉 OpenAI 桥接：将 Claude 请求转换为 OpenAI 请求
-        logger.info(
-          `🌉 Using OpenAI bridge for Claude request - Account: ${accountId}, Type: ${accountType}`
-        )
-
-        // 🔄 使用统一的 OpenAI bridge 配置准备函数
-        logger.info(`🎬 Using OpenAI bridge mode for account: ${accountId} (type: ${accountType})`)
-        const { fullAccount: bridgeAccount, openaiRequest } = await prepareOpenAIBridge(
-          req,
-          accountId,
-          accountType
-        )
-
-        // 覆写请求体
-        req.body = openaiRequest
-
-        // 🚀 使用统一的 relay service 处理（支持流式和非流式）
-        const relayService = require('../services/openaiResponsesRelayService')
-        logger.info(
-          `📡 Forwarding to relay service for ${accountType} account: ${bridgeAccount.name}`
-        )
-        await relayService.handleRequest(req, res, bridgeAccount, req.apiKey)
       }
 
       // 流式请求完成后 - 如果没有捕获到usage数据，记录警告但不进行估算
@@ -574,6 +566,45 @@ async function handleMessagesRequest(req, res) {
         sessionHash,
         requestedModel
       )
+
+      // 🌉 桥接判断：检查是否需要桥接到其他平台
+      if (accountType === 'openai' || accountType === 'openai-responses') {
+        // OpenAI 桥接：非流式请求
+        logger.info(
+          `🌉 Bridge detected: Claude → OpenAI (non-stream) - Account: ${accountId}, Type: ${accountType}`
+        )
+
+        // 使用 Bridge Service 进行桥接（格式转换 + 账户标准化）
+        const bridgeResult = await bridgeService.bridgeClaudeToOpenAI(req.body, accountId, accountType)
+
+        // 设置上游路径
+        req.headers['x-crs-upstream-path'] = accountType === 'openai' ? '/responses' : '/v1/responses'
+
+        logger.info(
+          `✅ Bridge prepared: ${bridgeResult.bridgeInfo.source} → ${bridgeResult.bridgeInfo.target}`,
+          {
+            accountId: bridgeResult.account.id,
+            accountName: bridgeResult.account.name,
+            platform: bridgeResult.account.platform,
+            originalModel: bridgeResult.bridgeInfo.modelMapping.original,
+            mappedModel: bridgeResult.bridgeInfo.modelMapping.mapped,
+            duration: `${bridgeResult.bridgeInfo.duration}ms`
+          }
+        )
+
+        // 覆写请求体为桥接后的格式
+        req.body = bridgeResult.request
+
+        // 使用统一的 OpenAI 中继服务处理
+        const relayService = require('../services/openaiResponsesRelayService')
+        logger.info(
+          `📡 Forwarding to OpenAI relay service for account: ${bridgeResult.account.name}`
+        )
+        await relayService.handleRequest(req, res, bridgeResult.account, req.apiKey)
+
+        // 桥接请求已在 relay 服务内部完成，直接返回
+        return
+      }
 
       // 根据账号类型选择对应的转发服务
       let response
@@ -651,31 +682,6 @@ async function handleMessagesRequest(req, res) {
           req.headers,
           accountId
         )
-      } else if (accountType === 'openai' || accountType === 'openai-responses') {
-        // 🌉 OpenAI 桥接：非流式请求
-        logger.info(
-          `🌉 Using OpenAI bridge for non-stream Claude request - Account: ${accountId}, Type: ${accountType}`
-        )
-
-        // 🔄 使用统一的 OpenAI bridge 配置准备函数
-        const { fullAccount: bridgeAccount, openaiRequest } = await prepareOpenAIBridge(
-          req,
-          accountId,
-          accountType
-        )
-
-        // 覆写请求体
-        req.body = openaiRequest
-
-        // 🚀 使用统一的 relay service 处理
-        const relayService = require('../services/openaiResponsesRelayService')
-        logger.info(
-          `📡 Forwarding to relay service for ${accountType} account: ${bridgeAccount.name}`
-        )
-        await relayService.handleRequest(req, res, bridgeAccount, req.apiKey)
-
-        // 桥接请求已在 relay 服务内部完成，直接返回
-        return
       }
 
       logger.info('📡 Claude API response received', {

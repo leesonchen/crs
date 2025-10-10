@@ -132,44 +132,70 @@ src/services/
 
 **桥接服务核心功能**:
 ```javascript
-// bridgeService.js 核心方法
+// bridgeService.js 核心方法 (修正后)
 class BridgeService {
-  // 账户标准化处理
-  async normalizeBridgeAccount(account) {
-    return {
-      ...account,
-      apiKey: this.decrypt(account.accessToken), // OAuth → API Key
-      baseApi: account.baseApi || 'https://api.openai.com',
-      platform: this.detectPlatform(account),
-      accountType: 'openai' // 统一账户类型
+  // 按需桥接格式转换
+  async convertRequest(sourceRequest, targetPlatform, selectedAccount) {
+    // 1. 检测是否需要桥接
+    const needsBridge = this.detectBridgeRequirement(sourceRequest.model, selectedAccount.type)
+    if (!needsBridge) {
+      return sourceRequest // 无需桥接，直接返回
     }
+
+    // 2. 双层模型映射 (简化版)
+    const mappedModel = await this.resolveModelMapping(sourceRequest.model, selectedAccount)
+
+    // 3. 格式转换
+    const converter = this.getConverter(targetPlatform)
+    return converter.convertRequest({
+      ...sourceRequest,
+      model: mappedModel
+    })
   }
 
-  // 三层模型映射解析
+  // 简化的双层模型映射
   async resolveModelMapping(sourceModel, account) {
-    // 1. 系统级配置
+    // Layer 1: 系统级虚拟模型映射 (Redis system:bridge_config)
     const systemConfig = await redis.get('system:bridge_config')
+    let mappedModel = systemConfig?.modelMapping?.[sourceModel]
 
-    // 2. 账户级映射
-    const accountMapping = account.modelMapping
+    // Layer 3: 账户级模型适配 (如果账户不支持映射的模型)
+    if (!this.isModelSupportedByAccount(mappedModel, account)) {
+      mappedModel = this.findBestCompatibleModel(mappedModel, account)
+    }
 
-    // 3. 全局默认映射
-    const defaultMapping = config.claudeBridgeDefaults.modelMapping
-
-    // 按优先级合并映射规则
-    return this.mergeMappings(systemConfig, accountMapping, defaultMapping)
+    return mappedModel || systemConfig?.defaultModel
   }
 
-  // 桥接模式检测和激活
-  async shouldEnableBridge(requestModel, platform) {
-    const nativeAccounts = await this.getAvailableAccounts(platform)
-    if (nativeAccounts.length > 0) return false
+  // 桥接需求检测 (基于调度器选择结果)
+  detectBridgeRequirement(requestModel, accountType) {
+    const isGptModel = requestModel.startsWith('gpt-')
+    const isClaudeModel = requestModel.startsWith('claude-')
+    const isOpenAIAccount = accountType.startsWith('openai')
+    const isClaudeAccount = accountType.startsWith('claude')
 
-    const bridgeAccounts = await this.getBridgeAccounts(platform)
-    return bridgeAccounts.length > 0
+    // 跨平台请求需要桥接
+    return (isGptModel && isClaudeAccount) || (isClaudeModel && isOpenAIAccount)
   }
 }
 ```
+
+#### 3.1.3 各层职责重新定义
+
+**调度器 (unifiedOpenAIScheduler.js)**:
+- **首要职责**: 根据可用性、优先级、负载选择最合适的账户
+- **桥接感知**: 考虑桥接配置进行账户选择，但不过度复杂
+- **返回**: `{ accountId, accountType, needsBridge: boolean }`
+
+**桥接服务 (bridgeService.js)**:
+- **按需调用**: 只有需要桥接时才调用
+- **格式转换**: 将请求格式从源平台转换为目标平台格式
+- **双层映射**: Layer 1 (系统级) + Layer 3 (账户级) 模型映射
+
+**中继服务 (relayService.js)**:
+- **统一接口**: 无论是否桥接，都接收标准化的请求格式
+- **真实统计**: 记录实际调用的模型和 token 使用量
+- **纯转发**: 专注于与上游 API 的通信和流式处理
 
 #### 2.3.3 统一调度器
 ```
@@ -253,8 +279,17 @@ claude:account:{accountId} → Hash
 
 ## 3. 核心流程设计
 
-### 3.1 API请求处理流程
+### 3.1 API请求处理流程与桥接架构
 
+#### 3.1.1 修正后的数据流程
+```
+用户请求 → 路由层 → 调度器(选择账户) → 桥接判断 → [桥接服务] → 中继服务 → 上游 API
+                                       ↓
+                              如果账户类型匹配 → 无需桥接，直接转发
+                              如果账户类型不匹配 → 启动桥接转换
+```
+
+#### 3.1.2 桥接模式流程图
 ```
 ┌─────────┐    ┌────────────┐    ┌─────────────┐    ┌────────────┐
 │  Client │───▶│ Load       │───▶│ Auth        │───▶│ Route      │
@@ -275,31 +310,49 @@ claude:account:{accountId} → Hash
             └───────────────┘    └──────────────┘ └──────────────┘
                     │                     │              │
                     ▼                     ▼              ▼
-            ┌───────────────┐    ┌──────────────┐ ┌──────────────┐
-            │ Session       │    │ Account      │ │ Account      │
-            │ Hash          │    │ Selection    │ │ Validation   │
-            │ Generation    │    │ Algorithm    │ │              │
-            └───────────────┘    └──────────────┘ └──────────────┘
-                    │                     │              │
-                    ▼                     ▼              ▼
-            ┌───────────────┐    ┌──────────────┐ ┌──────────────┐
-            │ Request       │    │ Request      │ │ External API │
-            │ Proxying      │    │ Execution    │ │ Call         │
-            │               │    │              │ │              │
-            └───────────────┘    └──────────────┘ └──────────────┘
-                    │                     │              │
-                    ▼                     ▼              ▼
-            ┌───────────────┐    ┌──────────────┐ ┌──────────────┐
-            │ Response      │    │ Usage        │ │ Response     │
-            │ Streaming     │    │ Statistics   │ │ Processing   │
-            │               │    │ Recording    │ │              │
-            └───────────────┘    └──────────────┘ └──────────────┘
-                    │                     │              │
-                    ▼                     ▼              ▼
-            ┌───────────────┐    ┌──────────────┐ ┌──────────────┐
-            │ Error         │    │ Cost         │ │ Final        │
-            │ Handling      │    │ Calculation  │ │ Response     │
-            └───────────────┘    └──────────────┘ └──────────────┘
+            ┌─────────────────────────────┐    ┌─────────────────────────────┐
+            │     Account Selection        │    │    Account Validation       │
+            │   (Unified Scheduler)        │    │                             │
+            │  - Select available account   │    │  - Check account status     │
+            │  - Consider bridge config    │    │  - Validate model support   │
+            └─────────────────────────────┘    └─────────────────────────────┘
+                    │
+                    ▼
+            ┌─────────────────────────────┐
+            │      Bridge Detection        │
+            │                             │
+            │  requestModel vs accountType │
+            │  ┌─────────────────────┐     │
+            │  │ Match?              │     │
+            │  │ Yes → Direct Relay  │     │
+            │  │ No  → Bridge       │     │
+            │  └─────────────────────┘     │
+            └─────────────────────────────┘
+                    │                     │
+                    ▼                     ▼
+            ┌───────────────┐    ┌──────────────┐
+            │ Bridge Service │    │ Direct Relay │
+            │ (if needed)    │    │ (no bridge)  │
+            │ - Format Conv  │    │ - Forward    │
+            │ - Model Mapping │    │ - Statistics │
+            └───────────────┘    └──────────────┘
+                    │                     │
+                    └───────────┬─────────┘
+                                ▼
+            ┌─────────────────────────────┐
+            │      Relay Service          │
+            │                             │
+            │  - HTTP Request to Upstream │
+            │  - Stream Processing        │
+            │  - Usage Statistics         │
+            │  - Error Handling           │
+            └─────────────────────────────┘
+                    │
+                    ▼
+            ┌─────────────────────────────┐
+            │      Upstream API            │
+            │  (Claude/OpenAI/Gemini)     │
+            └─────────────────────────────┘
 ```
 
 ### 3.2 统一调度算法

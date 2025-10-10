@@ -4,6 +4,16 @@ const accountGroupService = require('./accountGroupService')
 const redis = require('../models/redis')
 const logger = require('../utils/logger')
 
+/**
+ * Unified OpenAI Account Scheduler
+ *
+ * 职责说明（简化后）：
+ * 1. 专注于账户选择和调度逻辑
+ * 2. 支持专属账户、分组账户和共享池账户
+ * 3. 提供会话粘性（sticky session）支持
+ * 4. 处理账户健康检查和限流状态管理
+ * 5. 移除了复杂的桥接 fallback 逻辑，桥接由路由层和桥接服务处理
+ */
 class UnifiedOpenAIScheduler {
   constructor() {
     this.SESSION_MAPPING_PREFIX = 'unified_openai_session_mapping:'
@@ -471,89 +481,6 @@ class UnifiedOpenAIScheduler {
           priority: parseInt(account.priority) || 50,
           lastUsedAt: account.lastUsedAt || '0'
         })
-      }
-    }
-
-    // 🌉 Claude 桥接 fallback: 如果没有可用的 OpenAI 账户，检查系统是否启用了 Claude → OpenAI 桥接
-    if (availableAccounts.length === 0) {
-      logger.info('🌉 No OpenAI accounts available, checking for Claude bridge configuration...')
-
-      // 检查系统级桥接配置
-      const redis = require('../models/redis')
-      const client = redis.getClientSafe()
-      const bridgeConfigStr = await client.get('system:bridge_config')
-
-      let claudeToOpenaiEnabled = false
-      if (bridgeConfigStr) {
-        try {
-          const bridgeConfig = JSON.parse(bridgeConfigStr)
-          claudeToOpenaiEnabled = bridgeConfig.claudeToOpenai?.enabled === true
-        } catch (err) {
-          logger.warn('⚠️ Failed to parse bridge config:', err.message)
-        }
-      }
-
-      if (!claudeToOpenaiEnabled) {
-        logger.info('🌉 Claude → OpenAI bridge is disabled at system level')
-      } else {
-        logger.info('✅ Claude → OpenAI bridge is enabled, loading Claude accounts...')
-
-        const claudeAccountService = require('./claudeAccountService')
-        const claudeConsoleAccountService = require('./claudeConsoleAccountService')
-
-        // 检查 Claude Official 账户
-        try {
-          const officialAccounts = await claudeAccountService.getAllAccounts()
-          for (const account of officialAccounts) {
-            if (
-              (account.isActive === true || account.isActive === 'true') &&
-              account.status !== 'error' &&
-              account.status !== 'unauthorized' &&
-              this._isSchedulable(account.schedulable)
-            ) {
-              availableAccounts.push({
-                ...account,
-                accountId: account.id,
-                accountType: 'claude-official',
-                priority: parseInt(account.priority) || 50,
-                lastUsedAt: account.lastUsedAt || '0'
-              })
-            }
-          }
-        } catch (err) {
-          logger.warn('⚠️ Failed to load Claude Official accounts for bridge:', err.message)
-        }
-
-        // 检查 Claude Console 账户
-        try {
-          const consoleAccounts = await claudeConsoleAccountService.getAllAccounts()
-          for (const account of consoleAccounts) {
-            if (
-              (account.isActive === true || account.isActive === 'true') &&
-              account.status !== 'error' &&
-              account.status !== 'unauthorized' &&
-              this._isSchedulable(account.schedulable)
-            ) {
-              availableAccounts.push({
-                ...account,
-                accountId: account.id,
-                accountType: 'claude-console',
-                priority: parseInt(account.priority) || 50,
-                lastUsedAt: account.lastUsedAt || '0'
-              })
-            }
-          }
-        } catch (err) {
-          logger.warn('⚠️ Failed to load Claude Console accounts for bridge:', err.message)
-        }
-
-        if (availableAccounts.length > 0) {
-          logger.info(
-            `🌉 Found ${availableAccounts.length} Claude accounts available for OpenAI bridge`
-          )
-        } else {
-          logger.info('🌉 No available Claude accounts for bridge')
-        }
       }
     }
 
