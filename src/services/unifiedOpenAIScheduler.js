@@ -254,7 +254,8 @@ class UnifiedOpenAIScheduler {
           }
           return {
             accountId: boundAccount.id,
-            accountType
+            accountType,
+            needsBridge: accountType === 'claude-official' || accountType === 'claude-console'
           }
         } else {
           // 专属账户不可用时直接报错，不降级到共享池
@@ -294,7 +295,10 @@ class UnifiedOpenAIScheduler {
             )
             // 更新账户的最后使用时间
             await openaiAccountService.recordUsage(mappedAccount.accountId, 0)
-            return mappedAccount
+            return {
+              ...mappedAccount,
+              needsBridge: mappedAccount.accountType === 'claude-official' || mappedAccount.accountType === 'claude-console'
+            }
           } else {
             logger.warn(
               `⚠️ Mapped account ${mappedAccount.accountId} is no longer available, selecting new account`
@@ -348,12 +352,13 @@ class UnifiedOpenAIScheduler {
         `🎯 Selected account: ${selectedAccount.name} (${selectedAccount.accountId}, ${selectedAccount.accountType}) for API key ${apiKeyData.name}`
       )
 
-      // 更新账户的最后使用时间
+      // 更新账户的最后使用时���
       await openaiAccountService.recordUsage(selectedAccount.accountId, 0)
 
       return {
         accountId: selectedAccount.accountId,
-        accountType: selectedAccount.accountType
+        accountType: selectedAccount.accountType,
+        needsBridge: selectedAccount.accountType === 'claude-official' || selectedAccount.accountType === 'claude-console'
       }
     } catch (error) {
       logger.error('❌ Failed to select account for API key:', error)
@@ -1062,7 +1067,8 @@ class UnifiedOpenAIScheduler {
 
       return {
         accountId: selectedAccount.accountId,
-        accountType: selectedAccount.accountType
+        accountType: selectedAccount.accountType,
+        needsBridge: selectedAccount.accountType === 'claude-official' || selectedAccount.accountType === 'claude-console'
       }
     } catch (error) {
       logger.error(`❌ Failed to select account from group ${groupId}:`, error)

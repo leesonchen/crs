@@ -365,52 +365,8 @@ const handleResponses = async (req, res) => {
       requestedModel
     ))
 
-    // 如果是 OpenAI-Responses 账户，检查是否需要桥接转换
+      // 如果是 OpenAI-Responses 账户，直接使用中继服务
     if (accountType === 'openai-responses') {
-      // 检查账户是否为Claude平台（需要桥接转换响应格式）
-      const isClaudePlatform = account.platform && (
-        account.platform === 'claude-official' ||
-        account.platform === 'claude-console'
-      )
-
-      if (isClaudePlatform) {
-        logger.info(`🌉 Claude platform detected (${account.platform}), setting up bridge conversion`)
-
-        // 检测客户端类型
-        const clientType = req.headers['user-agent'] ?
-          (req.headers['user-agent'].toLowerCase().includes('codex_cli') ? 'codex_cli' : 'unknown') :
-          'unknown'
-
-        // 为Claude平台设置桥接转换器（OpenAI Responses → Claude）
-        const OpenAIResponsesToClaudeConverter = require('../services/openaiResponsesToClaude')
-        const toClaude = new OpenAIResponsesToClaudeConverter({
-          clientType,
-          targetFormat: 'claude'
-        })
-
-        req._bridgeStreamTransform = (chunkStr) => {
-          const result = toClaude.convertStreamChunk(chunkStr)
-          return result
-        }
-        req._bridgeStreamFinalize = () => {
-          toClaude.finalizeStream()
-          return null // 不返回额外内容，让原始流正常结束
-        }
-        req._bridgeNonStreamConvert = () => {
-          const finalResponse = toClaude.getFinalResponse()
-          if (!finalResponse) {
-            throw new Error('Bridge converter did not capture final response')
-          }
-          return toClaude.convertNonStream({ response: finalResponse })
-        }
-
-        logger.info(`✅ Bridge converter configured for Claude platform`, {
-          clientType,
-          accountName: account.name,
-          platform: account.platform
-        })
-      }
-
       logger.info(`🔀 Using OpenAI-Responses relay service for account: ${account.name}`)
       return await openaiResponsesRelayService.handleRequest(req, res, account, apiKeyData)
     }
