@@ -32,6 +32,9 @@ async function prepareClaudeBridge(req, accountId, accountType) {
     (req.headers['user-agent'].toLowerCase().includes('codex_cli') ? 'codex_cli' : 'unknown') :
     'unknown'
 
+  // 从请求体中提取原始模型
+  const requestedModel = req.body?.model || 'gpt-5'
+
   // 1. 使用 Bridge Service 进行桥接（OpenAI Responses → Claude）
   const bridgeResult = await bridgeService.bridgeOpenAIToClaude(req.body, accountId, accountType, { clientType })
 
