@@ -126,7 +126,7 @@ class ApiKeyService {
     }
   }
 
-  // 🔍 验证API Key
+  // 🔍 验证 API Key
   async validateApiKey(apiKey) {
     try {
       if (!apiKey || !apiKey.startsWith(this.prefix)) {
@@ -136,8 +136,13 @@ class ApiKeyService {
       // 计算API Key的哈希值
       const hashedKey = this._hashApiKey(apiKey)
 
+      // 添加调试日志
+      logger.info(`🔍 [Auth] Validating API key: ${apiKey.substring(0, 10)}...`)
+      logger.info(`🔍 [Auth] Computed hash: ${hashedKey}`)
+
       // 通过哈希值直接查找API Key（性能优化）
       const keyData = await redis.findApiKeyByHash(hashedKey)
+      logger.info(`🔍 [Auth] Redis lookup result:`, keyData ? { id: keyData.id, found: true } : { found: false })
 
       if (!keyData) {
         return { valid: false, error: 'API key not found' }

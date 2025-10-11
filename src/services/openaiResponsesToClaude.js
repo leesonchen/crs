@@ -24,6 +24,18 @@ class OpenAIResponsesToClaudeConverter {
 
     // 处理 input → messages
     if (openaiRequest.input && Array.isArray(openaiRequest.input)) {
+      logger.info('🔍 [Bridge] Processing OpenAI Responses input array:', {
+        inputLength: openaiRequest.input.length,
+        firstItemKeys: openaiRequest.input.length > 0 ? Object.keys(openaiRequest.input[0]) : [],
+        firstItemPreview:
+          openaiRequest.input.length > 0
+            ? {
+                hasType: !!openaiRequest.input[0].type,
+                hasRole: !!openaiRequest.input[0].role,
+                hasContent: openaiRequest.input[0].content !== undefined
+              }
+            : {}
+      })
       claudeRequest.messages = this._convertInputToMessages(openaiRequest.input)
     } else if (openaiRequest.messages && Array.isArray(openaiRequest.messages)) {
       // 兼容传统格式
@@ -40,11 +52,20 @@ class OpenAIResponsesToClaudeConverter {
       claudeRequest.top_p = openaiRequest.top_p
     }
 
-    logger.debug('📝 Converted OpenAI Responses request to Claude format:', {
+    logger.info('📝 Converted OpenAI Responses request to Claude format:', {
       model: claudeRequest.model,
       hasSystem: !!claudeRequest.system,
       messageCount: claudeRequest.messages.length,
-      stream: claudeRequest.stream
+      stream: claudeRequest.stream,
+      messagesPreview: claudeRequest.messages.slice(0, 2).map((m) => ({
+        role: m.role,
+        contentLength:
+          typeof m.content === 'string'
+            ? m.content.length
+            : Array.isArray(m.content)
+              ? m.content.length
+              : 0
+      }))
     })
 
     return claudeRequest
@@ -58,7 +79,29 @@ class OpenAIResponsesToClaudeConverter {
     const messages = []
 
     for (const item of input) {
+      // 兼容两种格式：
+      // 1. 标准格式：{ type: 'message', role: 'user', content: '...' }
+      // 2. 兼容格式：{ role: 'user', content: '...' } (缺少 type 字段)
+
+      let isMessageItem = false
+      let formatType = 'unknown'
+
       if (item.type === 'message') {
+        // 标准格式
+        isMessageItem = true
+        formatType = 'standard'
+      } else if (item.role && item.content !== undefined) {
+        // 兼容格式：有 role 和 content 字段，但没有 type 字段
+        isMessageItem = true
+        formatType = 'compat'
+        logger.info('🔧 [Bridge] Converting item without type field to message format:', {
+          role: item.role,
+          contentType: typeof item.content,
+          hasContent: item.content !== undefined
+        })
+      }
+
+      if (isMessageItem) {
         const message = {
           role: item.role || 'user',
           content: []
@@ -91,8 +134,33 @@ class OpenAIResponsesToClaudeConverter {
         }
 
         messages.push(message)
+
+        logger.info('✅ [Bridge] Successfully converted message item:', {
+          formatType,
+          role: message.role,
+          contentType: typeof message.content,
+          contentLength:
+            typeof message.content === 'string'
+              ? message.content.length
+              : Array.isArray(message.content)
+                ? message.content.length
+                : 0
+        })
+      } else {
+        logger.warn('⚠️ [Bridge] Skipping non-message item in input array:', {
+          itemType: item.type,
+          hasRole: !!item.role,
+          hasContent: item.content !== undefined,
+          allKeys: Object.keys(item)
+        })
       }
     }
+
+    logger.info('📊 [Bridge] Input to messages conversion complete:', {
+      inputItemsCount: input.length,
+      outputMessagesCount: messages.length,
+      skippedItemsCount: input.length - messages.length
+    })
 
     return messages
   }
@@ -130,6 +198,13 @@ class OpenAIResponsesToClaudeConverter {
     }
 
     this.streamBuffer += rawChunk.replace(/\r\n/g, '\n')
+
+    logger.debug('🔄 [Bridge] Received stream chunk:', {
+      chunkLength: rawChunk.length,
+      chunkPreview: rawChunk.length > 200 ? `${rawChunk.substring(0, 200)}...` : rawChunk,
+      bufferLength: this.streamBuffer.length
+    })
+
     return this._drainBuffer(false)
   }
 
@@ -206,17 +281,74 @@ class OpenAIResponsesToClaudeConverter {
     }
 
     if (this.debugEventCount < 5) {
-      logger.info('Claude bridge收到 OpenAI-Responses 事件', {
+      logger.info('Claude bridge收到事件', {
         type: event.type,
         hasResponse: Boolean(event.response),
         itemType: event.item?.type,
         deltaType: event.delta?.type,
+        content: event.content ? (event.content.text ? event.content.text.substring(0, 50) + '...' : 'present') : 'none',
         keys: Object.keys(event || {})
       })
       this.debugEventCount += 1
     }
 
+    // 处理智谱AI/标准Claude格式事件
     switch (event.type) {
+      // 智谱AI/Claude格式事件
+      case 'message_start':
+        if (event.message) {
+          this.messageId = event.message.id
+          return this._emitMessageStart()
+        }
+        return this._emitMessageStart()
+
+      case 'content_block':
+        // 智谱AI的content_block事件需要转换为start+delta
+        if (event.content && event.content.type === 'text' && event.content.text) {
+          const events = []
+          events.push(...this._emitMessageStart())
+          events.push(...this._ensureTextBlock())
+          events.push(
+            this._sse({
+              type: 'content_block_delta',
+              index: event.index || 0,
+              delta: {
+                type: 'text_delta',
+                text: event.content.text
+              }
+            })
+          )
+          return events
+        }
+        return this._ensureTextBlock()
+
+      case 'content_block_stop':
+        return [
+          this._sse({
+            type: 'content_block_stop',
+            index: event.index || 0
+          })
+        ]
+
+      case 'message_delta':
+        const events = []
+        if (event.delta && event.delta.stop_reason) {
+          events.push(
+            this._sse({
+              type: 'message_delta',
+              delta: {
+                stop_reason: this._mapStopReason(event.delta.stop_reason)
+              },
+              usage: event.usage || {}
+            })
+          )
+        }
+        return events
+
+      case 'message_stop':
+        return this._emitCompletion(null)
+
+      // OpenAI Responses格式事件
       case 'response.started':
         return this._emitMessageStart()
       case 'response.output_text.delta':
@@ -255,6 +387,13 @@ class OpenAIResponsesToClaudeConverter {
       case 'response.delta':
         return this._handleResponseDelta(event)
       default:
+        // 未知事件类型，记录日志但不抛出错误
+        if (this.debugEventCount < 5) {
+          logger.warn('⚠️ 未知的SSE事件类型:', {
+            type: event.type,
+            data: event
+          })
+        }
         return []
     }
   }
@@ -734,7 +873,7 @@ class OpenAIResponsesToClaudeConverter {
       return
     }
 
-    if (this.debugEmitCount >= 5) {
+    if (this.debugEmitCount >= 10) {
       return
     }
 
@@ -747,9 +886,12 @@ class OpenAIResponsesToClaudeConverter {
     }
 
     if (names.length > 0) {
-      logger.info('Claude bridge向客户端写出事件', {
+      logger.info('📤 [Bridge] 向客户端写出事件', {
         events: names,
-        count: names.length
+        count: names.length,
+        streamFinished: this.streamFinished,
+        messageStarted: this.messageStarted,
+        contentBlockStarted: this.contentBlockStarted
       })
       this.debugEmitCount += 1
     }

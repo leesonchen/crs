@@ -36,7 +36,9 @@ const authenticateApiKey = async (req, res, next) => {
     }
 
     // 验证API Key（带缓存优化）
+    logger.debug(`🔍 Validating API key: ${apiKey.substring(0, 10)}...`)
     const validation = await apiKeyService.validateApiKey(apiKey)
+    logger.debug(`🔍 API key validation result: ${validation.valid}, error: ${validation.error}`)
 
     if (!validation.valid) {
       const clientIP = req.ip || req.connection?.remoteAddress || 'unknown'

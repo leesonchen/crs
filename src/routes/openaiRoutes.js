@@ -157,6 +157,55 @@ async function getOpenAIAuthToken(apiKeyData, sessionId = null, requestedModel =
       }
 
       logger.info(`Selected OpenAI-Responses account: ${account.name} (${result.accountId})`)
+    } else if (
+      result.accountType === 'claude-official' ||
+      result.accountType === 'claude-console'
+    ) {
+      // 处理桥接的 Claude 账户
+      const claudeAccountService =
+        result.accountType === 'claude-official'
+          ? require('../services/claudeAccountService')
+          : require('../services/claudeConsoleAccountService')
+
+      account = await claudeAccountService.getAccount(result.accountId)
+      if (!account) {
+        const error = new Error(
+          `Claude ${result.accountType} account ${result.accountId} not found`
+        )
+        error.statusCode = 403 // Forbidden - 账户配置错误
+        throw error
+      }
+
+      // 对于桥接的 Claude 账户，不需要 OpenAI 的 accessToken
+      // 使用 Claude 账户的认证信息（sessionKey 或 accessToken）
+      accessToken = account.sessionKey || null
+      if (account.accessToken) {
+        // 如果有加密的 accessToken，尝试解密
+        try {
+          accessToken = claudeAccountService.decrypt
+            ? claudeAccountService.decrypt(account.accessToken)
+            : account.accessToken
+        } catch (decryptError) {
+          logger.warn(`Failed to decrypt Claude ${result.accountType} accessToken:`, decryptError)
+          accessToken = account.accessToken // 使用原始值作为回退
+        }
+      }
+
+      // 解析代理配置
+      if (account.proxy) {
+        try {
+          proxy = typeof account.proxy === 'string' ? JSON.parse(account.proxy) : account.proxy
+        } catch (e) {
+          logger.warn(
+            `Failed to parse proxy configuration for Claude ${result.accountType} account:`,
+            e
+          )
+        }
+      }
+
+      logger.info(
+        `Selected Claude ${result.accountType} account for bridging: ${account.name} (${result.accountId})`
+      )
     } else {
       // 处理普通 OpenAI 账户
       account = await openaiAccountService.getAccount(result.accountId)
@@ -337,12 +386,13 @@ const handleResponses = async (req, res) => {
         // 设置 Claude API 端点路径
         req.headers['x-crs-upstream-path'] = '/v1/messages'
 
-        // 标准化账户对象（确保有 baseApi 和 apiKey）
+        // 标准化账户对象（确保有 baseApi �� apiKey）
         const standardAccount = {
           ...claudeAccount,
           accountType, // 保留原始类型
           baseApi:
             claudeAccount.baseApi ||
+            claudeAccount.apiUrl ||
             (accountType === 'claude-official'
               ? 'https://api.anthropic.com'
               : 'https://api.claude.ai'),

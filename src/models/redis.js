@@ -133,7 +133,8 @@ class RedisClient {
 
   async getApiKey(keyId) {
     const key = `apikey:${keyId}`
-    return await this.client.hgetall(key)
+    const client = this.getClientSafe()
+    return await client.hgetall(key)
   }
 
   async deleteApiKey(keyId) {
@@ -150,7 +151,8 @@ class RedisClient {
   }
 
   async getAllApiKeys() {
-    const keys = await this.client.keys('apikey:*')
+    const client = this.getClientSafe()
+    const keys = await client.keys('apikey:*')
     const apiKeys = []
     for (const key of keys) {
       // 过滤掉hash_map，它不是真正的API Key
@@ -158,7 +160,7 @@ class RedisClient {
         continue
       }
 
-      const keyData = await this.client.hgetall(key)
+      const keyData = await client.hgetall(key)
       if (keyData && Object.keys(keyData).length > 0) {
         apiKeys.push({ id: key.replace('apikey:', ''), ...keyData })
       }
@@ -168,19 +170,21 @@ class RedisClient {
 
   // 🔍 通过哈希值查找API Key（性能优化）
   async findApiKeyByHash(hashedKey) {
+    const client = this.getClientSafe()
+
     // 使用反向映射表：hash -> keyId
-    const keyId = await this.client.hget('apikey:hash_map', hashedKey)
+    const keyId = await client.hget('apikey:hash_map', hashedKey)
     if (!keyId) {
       return null
     }
 
-    const keyData = await this.client.hgetall(`apikey:${keyId}`)
+    const keyData = await client.hgetall(`apikey:${keyId}`)
     if (keyData && Object.keys(keyData).length > 0) {
       return { id: keyId, ...keyData }
     }
 
     // 如果数据不存在，清理映射表
-    await this.client.hdel('apikey:hash_map', hashedKey)
+    await client.hdel('apikey:hash_map', hashedKey)
     return null
   }
 

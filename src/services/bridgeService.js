@@ -110,7 +110,7 @@ class BridgeService {
 
       // 7. 记录完整映射链
       logger.info(
-        `🔄 Complete mapping chain: ${currentModel} → ${layer1Model}${finalModel !== layer1Model ? ` → ${finalModel}` : ''}`
+        `🔄 Complete mapping chain: ${currentModel} → ${systemModel}${finalModel !== systemModel ? ` → ${finalModel}` : ''}`
       )
 
       // 8. 构建桥接信息
@@ -121,9 +121,9 @@ class BridgeService {
         converter: 'ClaudeToOpenAIResponses',
         modelMapping: {
           original: currentModel,
-          systemLevel: layer1Model,
+          systemLevel: systemModel,
           accountLevel: finalModel,
-          chain: [currentModel, layer1Model, finalModel].filter(
+          chain: [currentModel, systemModel, finalModel].filter(
             (m, i, arr) => i === 0 || m !== arr[i - 1]
           )
         },
@@ -206,9 +206,9 @@ class BridgeService {
         claudeRequest.model = finalModel
       }
 
-      // 7. 记录完整映射链
+      // 7. 记录完整映���链
       logger.info(
-        `🔄 Complete mapping chain: ${currentModel} → ${layer1Model}${finalModel !== layer1Model ? ` → ${finalModel}` : ''}`
+        `🔄 Complete mapping chain: ${currentModel} → ${systemModel}${finalModel !== systemModel ? ` → ${finalModel}` : ''}`
       )
 
       // 8. 构建桥接信息
@@ -220,9 +220,9 @@ class BridgeService {
         requestFormat: isResponsesFormat ? 'responses' : 'chat',
         modelMapping: {
           original: currentModel,
-          systemLevel: layer1Model,
+          systemLevel: systemModel,
           accountLevel: finalModel,
-          chain: [currentModel, layer1Model, finalModel].filter(
+          chain: [currentModel, systemModel, finalModel].filter(
             (m, i, arr) => i === 0 || m !== arr[i - 1]
           )
         },
@@ -291,6 +291,22 @@ class BridgeService {
   _standardizeClaudeAccount(rawAccount, accountType) {
     const account = { ...rawAccount }
 
+    // 🔍 调试日志：检查原始账户数据
+    logger.info(`🔍 [Bridge] Raw Claude account data:`, {
+      id: account.id,
+      name: account.name,
+      hasSessionKey: !!account.sessionKey,
+      hasAccessToken: !!account.accessToken,
+      hasApiKey: !!account.apiKey,
+      hasClaudeAiOauth: !!account.claudeAiOauth,
+      sessionKeyLength: account.sessionKey ? account.sessionKey.length : 0,
+      accessTokenLength: account.accessToken ? account.accessToken.length : 0,
+      apiKeyLength: account.apiKey ? account.apiKey.length : 0,
+      claudeAiOauthLength: account.claudeAiOauth ? account.claudeAiOauth.length : 0,
+      accountType,
+      allFields: Object.keys(account)
+    })
+
     // 1. 设置显式类型
     account.accountType = accountType
     account.platform = accountType
@@ -298,14 +314,73 @@ class BridgeService {
     // 2. 处理认证信息
     if (accountType === 'claude-official') {
       // Claude 官方 OAuth 账户
-      if (account.sessionKey && !account.apiKey) {
-        const claudeAccountService = require('./claudeAccountService')
-        account.apiKey = claudeAccountService.decrypt(account.sessionKey)
+      if (!account.apiKey) {
+        logger.info(
+          `🔍 [Bridge] No apiKey found, checking sessionKey, accessToken, and claudeAiOauth`
+        )
+
+        // 检查 claudeAiOauth 字段（加密的OAuth数据）
+        if (account.claudeAiOauth) {
+          logger.info(`🔑 [Bridge] Found claudeAiOauth field, attempting to extract accessToken`)
+          try {
+            let oauthData
+            if (typeof account.claudeAiOauth === 'string') {
+              oauthData = JSON.parse(account.claudeAiOauth)
+            } else {
+              oauthData = account.claudeAiOauth
+            }
+
+            logger.info(`🔍 [Bridge] OAuth data fields:`, {
+              hasAccessToken: !!oauthData.accessToken,
+              hasRefreshToken: !!oauthData.refreshToken,
+              accessTokenLength: oauthData.accessToken ? oauthData.accessToken.length : 0
+            })
+
+            if (oauthData.accessToken) {
+              account.apiKey = oauthData.accessToken
+              logger.info(
+                `✅ [Bridge] Successfully extracted accessToken from claudeAiOauth, length: ${account.apiKey.length}`
+              )
+            } else {
+              logger.warn(`⚠️ [Bridge] No accessToken found in claudeAiOauth`)
+            }
+          } catch (error) {
+            logger.error(`❌ [Bridge] Failed to parse claudeAiOauth:`, error)
+          }
+        }
+
+        // 回退到 sessionKey
+        if (!account.apiKey && account.sessionKey) {
+          // 优先使用 sessionKey（加密存储）
+          logger.info(`🔑 [Bridge] Using sessionKey to derive apiKey`)
+          const claudeAccountService = require('./claudeAccountService')
+          try {
+            account.apiKey = claudeAccountService.decrypt(account.sessionKey)
+            logger.info(
+              `✅ [Bridge] Successfully derived apiKey from sessionKey, length: ${account.apiKey.length}`
+            )
+          } catch (error) {
+            logger.error(`❌ [Bridge] Failed to decrypt sessionKey:`, error)
+          }
+        } else if (!account.apiKey && account.accessToken) {
+          // 回退到 accessToken（可能是测试数据或已解密的token）
+          logger.info(`🔑 [Bridge] Using accessToken as apiKey directly`)
+          account.apiKey = account.accessToken
+          logger.info(`✅ [Bridge] Set apiKey from accessToken, length: ${account.apiKey.length}`)
+        }
+
+        if (!account.apiKey) {
+          logger.warn(
+            `⚠️ [Bridge] No sessionKey, accessToken, or claudeAiOauth with accessToken found for account ${account.id}`
+          )
+        }
+      } else {
+        logger.info(`✅ [Bridge] Account already has apiKey, length: ${account.apiKey.length}`)
       }
       account.baseApi = 'https://api.anthropic.com'
     } else if (accountType === 'claude-console') {
-      // Claude Console 账户
-      account.baseApi = 'https://api.claude.ai'
+      // Claude Console 账户 - 优先使用账户配置的 apiUrl
+      account.baseApi = account.apiUrl || 'https://api.claude.ai'
     } else if (accountType === 'bedrock') {
       // AWS Bedrock
       account.baseApi = account.baseApi || 'bedrock-runtime'
@@ -341,18 +416,36 @@ class BridgeService {
    * @private
    */
   async _fetchClaudeAccount(accountId, accountType) {
+    let rawAccount = null
     if (accountType === 'claude-official') {
       const claudeAccountService = require('./claudeAccountService')
-      return await claudeAccountService.getAccount(accountId)
+      rawAccount = await claudeAccountService.getAccount(accountId)
     } else if (accountType === 'claude-console') {
       const claudeConsoleAccountService = require('./claudeConsoleAccountService')
-      return await claudeConsoleAccountService.getAccount(accountId)
+      rawAccount = await claudeConsoleAccountService.getAccount(accountId)
     } else if (accountType === 'bedrock') {
       const bedrockAccountService = require('./bedrockAccountService')
       const result = await bedrockAccountService.getAccount(accountId)
-      return result.success ? result.data : null
+      rawAccount = result.success ? result.data : null
     }
-    return null
+
+    // 调试日志：检查获取到的原始账户数据
+    if (rawAccount) {
+      logger.info(`🔍 [Bridge] Fetched raw Claude account:`, {
+        id: rawAccount.id,
+        name: rawAccount.name,
+        accountType,
+        hasApiUrl: !!rawAccount.apiUrl,
+        apiUrl: rawAccount.apiUrl,
+        hasBaseApi: !!rawAccount.baseApi,
+        baseApi: rawAccount.baseApi,
+        allFields: Object.keys(rawAccount)
+      })
+    } else {
+      logger.warn(`⚠️ [Bridge] No raw account data found for ${accountId} (${accountType})`)
+    }
+
+    return rawAccount
   }
 
   /**

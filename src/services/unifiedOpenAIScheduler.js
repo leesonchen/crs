@@ -500,6 +500,7 @@ class UnifiedOpenAIScheduler {
 
       if (bridgeEnabled) {
         logger.info(`🌉 System bridge config enabled, checking Claude bridge candidates`)
+        logger.info(`🔍 Requested model: ${requestedModel}`)
 
         // 导入 Claude 相关服务
         const claudeAccountService = require('./claudeAccountService')
@@ -516,31 +517,53 @@ class UnifiedOpenAIScheduler {
         }
 
         // 将请求的OpenAI模型映射到Claude模型
-        const mappedModel = requestedModel ? (systemMapping[requestedModel] || defaultModel) : null
-        logger.debug(`🔄 Model mapping for bridge check: ${requestedModel} → ${mappedModel}`)
+        const mappedModel = requestedModel ? systemMapping[requestedModel] || defaultModel : null
+        logger.info(`🔄 System-level model mapping: ${requestedModel} → ${mappedModel}`)
+        logger.info(`📋 System mapping config: ${JSON.stringify(systemMapping)}`)
+        logger.info(`🎯 Default model: ${defaultModel}`)
 
         // 检查是否有启用的 Claude 账户支持桥接
         const claudeAccounts = await claudeAccountService.getAllAccounts()
-        for (const account of claudeAccounts) {
-          if (
-            account.isActive &&
-            account.status !== 'error' &&
-            account.schedulable !== false &&
-            account.openaiModelMapping && // 必须有 OpenAI 模型映射
-            Object.keys(account.openaiModelMapping).length > 0
-          ) {
-            // 检查是否支持请求的模型（使用映射后的Claude模型进行检查）
-            // 1. 首先检查账户是否支持原始OpenAI模型（通过openaiModelMapping）
-            const supportsOriginalModel = !requestedModel || Object.keys(account.openaiModelMapping).includes(requestedModel)
+        logger.info(
+          `🔍 Found ${claudeAccounts.length} Claude accounts to check for bridge eligibility`
+        )
 
-            // 2. 如果有映射后的模型，检查账户的实际模型支持情况
+        for (const account of claudeAccounts) {
+          // 🔧 claudeAccountService.getAllAccounts() 已经解析了JSON字段，直接使用
+          logger.info(
+            `🔎 Checking Claude account: ${account.name} (active: ${account.isActive}, status: ${account.status}, schedulable: ${account.schedulable})`
+          )
+          logger.info(
+            `📋 Account openaiModelMapping: ${JSON.stringify(account.openaiModelMapping)}`
+          )
+          logger.info(`📋 Account supportedModels: ${JSON.stringify(account.supportedModels)}`)
+
+          if (account.isActive && account.status !== 'error' && account.schedulable !== false) {
+            logger.info(`✅ Account ${account.name} passed basic eligibility check`)
+
+            // 桥接调度时，只检查映射后的 Claude 模型是否被支持
+            // 不再检查原始 OpenAI 模型，因为系统级映射已经处理了模型转换
+            logger.info(
+              `🔍 Account ${account.name} bridge candidate - checking mapped model support`
+            )
+
+            // 检查账户是否支持映射后的 Claude 模型
             let supportsMappedModel = true
             if (mappedModel && account.supportedModels && account.supportedModels.length > 0) {
               supportsMappedModel = account.supportedModels.includes(mappedModel)
+              logger.info(
+                `🔍 Account ${account.name} supports mapped model ${mappedModel}: ${supportsMappedModel}`
+              )
+            } else {
+              logger.info(
+                `🔍 Account ${account.name} has no supportedModels restriction, auto-supports mapped model ${mappedModel}`
+              )
             }
 
-            if (supportsOriginalModel && supportsMappedModel) {
-              logger.info(`🌉 Found Claude bridge candidate: ${account.name} (supports ${requestedModel} → ${mappedModel})`)
+            if (supportsMappedModel) {
+              logger.info(
+                `🌉 ✅ Found Claude bridge candidate: ${account.name} (supports ${requestedModel} → ${mappedModel})`
+              )
               availableAccounts.push({
                 ...account,
                 accountId: account.id,
@@ -548,30 +571,37 @@ class UnifiedOpenAIScheduler {
                 priority: parseInt(account.priority) || 60, // 桥接账户优先级略低
                 lastUsedAt: account.lastUsedAt || '0'
               })
+            } else {
+              logger.info(
+                `❌ Account ${account.name} rejected: does not support mapped model ${mappedModel}`
+              )
             }
+          } else {
+            logger.info(`❌ Account ${account.name} failed basic eligibility check`)
           }
         }
 
         // 检查 Claude Console 账户
         const claudeConsoleAccounts = await claudeConsoleAccountService.getAllAccounts()
         for (const account of claudeConsoleAccounts) {
-          if (
-            account.isActive &&
-            account.status !== 'error' &&
-            account.schedulable !== false &&
-            account.openaiModelMapping && // 必须有 OpenAI 模型映射
-            Object.keys(account.openaiModelMapping).length > 0
-          ) {
-            // 检查是否支持请求的模型（使用映射后的Claude模型进行检查）
-            const supportsOriginalModel = !requestedModel || Object.keys(account.openaiModelMapping).includes(requestedModel)
-
+          if (account.isActive && account.status !== 'error' && account.schedulable !== false) {
+            // 检查账户是否支持映射后的 Claude 模型
             let supportsMappedModel = true
             if (mappedModel && account.supportedModels && account.supportedModels.length > 0) {
               supportsMappedModel = account.supportedModels.includes(mappedModel)
+              logger.info(
+                `🔍 Claude Console account ${account.name} supports mapped model ${mappedModel}: ${supportsMappedModel}`
+              )
+            } else {
+              logger.info(
+                `🔍 Claude Console account ${account.name} has no supportedModels restriction, auto-supports mapped model ${mappedModel}`
+              )
             }
 
-            if (supportsOriginalModel && supportsMappedModel) {
-              logger.info(`🌉 Found Claude Console bridge candidate: ${account.name} (supports ${requestedModel} → ${mappedModel})`)
+            if (supportsMappedModel) {
+              logger.info(
+                `🌉 ✅ Found Claude Console bridge candidate: ${account.name} (supports ${requestedModel} → ${mappedModel})`
+              )
               availableAccounts.push({
                 ...account,
                 accountId: account.id,
@@ -579,14 +609,27 @@ class UnifiedOpenAIScheduler {
                 priority: parseInt(account.priority) || 60, // 桥接账户优先级略低
                 lastUsedAt: account.lastUsedAt || '0'
               })
+            } else {
+              logger.info(
+                `❌ Claude Console account ${account.name} rejected: does not support mapped model ${mappedModel}`
+              )
             }
+          } else {
+            logger.info(`❌ Claude Console account ${account.name} failed basic eligibility check`)
           }
         }
       } else {
         logger.debug(`🌉 System bridge config disabled, skipping Claude bridge candidates`)
       }
+
+      logger.info(
+        `📊 Bridge check completed. Total available accounts: ${availableAccounts.length}`
+      )
+      logger.info(
+        `📋 Available account types: ${availableAccounts.map((acc) => `${acc.accountType}(${acc.name || acc.accountId})`).join(', ')}`
+      )
     } catch (error) {
-      logger.warn(`⚠️ Failed to check bridge configuration:`, error.message)
+      logger.warn(`⚠️ Failed to check bridge configuration:`, error)
       // 桥接配置检查失败不应该影响正常的 OpenAI 账户调度
     }
 
