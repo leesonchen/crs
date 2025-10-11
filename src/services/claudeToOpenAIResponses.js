@@ -515,22 +515,44 @@ class ClaudeToOpenAIResponsesConverter {
    * @returns {String|null} OpenAI Responses SSE chunk
    */
   convertStreamChunk(claudeChunk) {
+    logger.info(`🔧 [Claude→OpenAI] Converting stream chunk:`, {
+      chunkLength: claudeChunk.length,
+      chunkPreview: claudeChunk.slice(0, 100) + (claudeChunk.length > 100 ? '...' : ''),
+      startsWithData: claudeChunk.startsWith('data: '),
+      startsWithEvent: claudeChunk.startsWith('event:'),
+      converterType: 'ClaudeToOpenAIResponsesConverter'
+    })
+
     // 解析 Claude SSE 格式
     if (!claudeChunk.startsWith('data: ')) {
       // 可能是 event: 行，保留
       if (claudeChunk.startsWith('event:')) {
+        logger.debug(`🔧 [Claude→OpenAI] Skipping event line:`, {
+          eventLine: claudeChunk.slice(0, 50)
+        })
         return null // 暂不转发 event 行
       }
+      logger.warn(`🔧 [Claude→OpenAI] Unexpected chunk format, skipping:`, {
+        chunkStart: claudeChunk.slice(0, 20)
+      })
       return null
     }
 
     const jsonStr = claudeChunk.slice(6).trim()
     if (jsonStr === '[DONE]') {
+      logger.info(`🔧 [Claude→OpenAI] Detected [DONE] chunk, forwarding to OpenAI format`)
       return 'data: [DONE]\n\n'
     }
 
     try {
       const claudeEvent = JSON.parse(jsonStr)
+      logger.info(`🔧 [Claude→OpenAI] Parsed Claude event:`, {
+        eventType: claudeEvent.type,
+        hasMessage: !!claudeEvent.message,
+        hasDelta: !!claudeEvent.delta,
+        hasUsage: !!claudeEvent.usage,
+        hasContentBlock: !!claudeEvent.content_block
+      })
 
       // 根据 Claude 事件类型转换
       if (claudeEvent.type === 'message_start') {
@@ -577,9 +599,22 @@ class ClaudeToOpenAIResponsesConverter {
         }
       } else if (claudeEvent.type === 'message_stop') {
         // 消息结束 - 转发 usage
+        logger.info(`🔧 [Claude→OpenAI] Processing message_stop event:`, {
+          hasUsage: !!claudeEvent.usage,
+          usage: claudeEvent.usage || 'none',
+          hasBedrockMetrics: !!claudeEvent['amazon-bedrock-invocationMetrics']
+        })
+
         const events = []
         if (claudeEvent.usage || claudeEvent['amazon-bedrock-invocationMetrics']) {
           const usage = claudeEvent.usage || {}
+          logger.info(`🔧 [Claude→OpenAI] Generating response.completed event from message_stop:`, {
+            inputTokens: usage.input_tokens || 0,
+            outputTokens: usage.output_tokens || 0,
+            totalTokens: (usage.input_tokens || 0) + (usage.output_tokens || 0),
+            cacheReadTokens: usage.cache_read_input_tokens || 0
+          })
+
           events.push(
             `data: ${JSON.stringify({
               type: 'response.completed',
@@ -595,7 +630,11 @@ class ClaudeToOpenAIResponsesConverter {
               }
             })}\n\n`
           )
+        } else {
+          logger.warn(`🔧 [Claude→OpenAI] message_stop event has no usage data`)
         }
+
+        logger.info(`🔧 [Claude→OpenAI] Adding [DONE] event after message_stop processing`)
         events.push('data: [DONE]\n\n')
         return events.join('')
       } else if (claudeEvent.type === 'content_block_start') {

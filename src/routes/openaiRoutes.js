@@ -45,9 +45,48 @@ async function prepareClaudeBridge(req, accountId, accountType) {
   })
 
   req._bridgeConverter = toOpenAI
-  req._bridgeStreamTransform = (chunkStr) => toOpenAI.convertStreamChunk(chunkStr)
-  req._bridgeStreamFinalize = () => toOpenAI.finalizeStream()
-  req._bridgeNonStreamConvert = (responseData) => toOpenAI.convertNonStream(responseData)
+  req._bridgeStreamTransform = (chunkStr) => {
+    logger.info(`🔧 [Bridge] Converting stream chunk for ${clientType}:`, {
+      chunkPreview: chunkStr.slice(0, 100) + (chunkStr.length > 100 ? '...' : ''),
+      chunkLength: chunkStr.length,
+      hasConverter: !!toOpenAI
+    })
+    const result = toOpenAI.convertStreamChunk(chunkStr)
+    logger.info(`🔧 [Bridge] Stream chunk conversion result:`, {
+      hasResult: !!result,
+      resultLength: result ? result.length : 0,
+      resultPreview: result ? result.slice(0, 100) + (result.length > 100 ? '...' : '') : 'null'
+    })
+    return result
+  }
+  req._bridgeStreamFinalize = () => {
+    logger.info(`🔧 [Bridge] Finalizing stream for ${clientType}`)
+    const result = toOpenAI.finalizeStream()
+    logger.info(`🔧 [Bridge] Stream finalize completed:`, { result })
+    return result
+  }
+  req._bridgeNonStreamConvert = (responseData) => {
+    logger.info(`🔧 [Bridge] Converting non-stream response for ${clientType}:`, {
+      hasData: !!responseData,
+      dataType: typeof responseData
+    })
+    const result = toOpenAI.convertNonStream(responseData)
+    logger.info(`🔧 [Bridge] Non-stream conversion completed:`, {
+      hasResult: !!result,
+      resultType: typeof result
+    })
+    return result
+  }
+
+  // 添加转换器设置成功的调试日志
+  logger.info(`🔧 [Bridge] Response converter configured for ${clientType}:`, {
+    clientType,
+    requestedModel,
+    hasStreamTransform: typeof req._bridgeStreamTransform === 'function',
+    hasStreamFinalize: typeof req._bridgeStreamFinalize === 'function',
+    hasNonStreamConvert: typeof req._bridgeNonStreamConvert === 'function',
+    converterType: 'ClaudeToOpenAIResponsesConverter'
+  })
 
   logger.info(
     `✅ Bridge prepared: ${bridgeResult.bridgeInfo.source} → ${bridgeResult.bridgeInfo.target}`,

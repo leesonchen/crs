@@ -724,15 +724,41 @@ class OpenAIResponsesRelayService {
         // 转发数据（允许桥接路由注入转换器）
         if (!forceNonStream && !res.destroyed && !streamEnded) {
           const transform = req._bridgeStreamTransform
+
+          // 添加转换器检查的调试日志
+          logger.info('🔍 [Bridge] Checking stream transformer:', {
+            hasTransform: !!transform,
+            transformType: typeof transform,
+            chunkLength: chunkStr.length,
+            chunkPreview: chunkStr.slice(0, 100) + (chunkStr.length > 100 ? '...' : ''),
+            accountType: accountType,
+            forceNonStream: forceNonStream,
+            streamEnded: streamEnded,
+            resDestroyed: res.destroyed
+          })
+
           if (typeof transform === 'function') {
+            logger.info('🔧 [Bridge] Calling stream transformer function...')
             const converted = transform(chunkStr)
+            logger.info('🔧 [Bridge] Stream transformer result:', {
+              hasConverted: !!converted,
+              convertedLength: converted ? converted.length : 0,
+              convertedPreview: converted ? converted.slice(0, 100) + (converted.length > 100 ? '...' : '') : 'null'
+            })
             if (converted) {
               res.write(converted)
               if (typeof res.flush === 'function') {
                 res.flush()
               }
+            } else {
+              logger.warn('⚠️ [Bridge] Stream transformer returned null/undefined, no data written')
             }
           } else {
+            logger.warn('⚠️ [Bridge] No stream transformer available, forwarding raw chunk:', {
+              transformType: typeof transform,
+              hasTransform: !!transform,
+              accountType: accountType
+            })
             res.write(chunk)
             if (typeof res.flush === 'function') {
               res.flush()
