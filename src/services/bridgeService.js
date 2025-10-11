@@ -148,9 +148,11 @@ class BridgeService {
    * @param {Object} openaiRequest - OpenAI API 格式请求
    * @param {String} accountId - 账户ID
    * @param {String} accountType - 账户类型 ('claude-official' | 'claude-console' | 'bedrock')
+   * @param {Object} options - 桥接选项
+   * @param {String} options.clientType - 客户端类型
    * @returns {Promise<BridgeResult>}
    */
-  async bridgeOpenAIToClaude(openaiRequest, accountId, accountType) {
+  async bridgeOpenAIToClaude(openaiRequest, accountId, accountType, options = {}) {
     const startTime = Date.now()
 
     try {
@@ -158,7 +160,8 @@ class BridgeService {
         accountId,
         accountType,
         model: openaiRequest.model,
-        stream: Boolean(openaiRequest.stream)
+        stream: Boolean(openaiRequest.stream),
+        clientType: options.clientType || 'unknown'
       })
 
       // 1. 获取原始账户
@@ -191,7 +194,10 @@ class BridgeService {
       )
 
       // 5. 转换请求格式
-      const converter = this._getConverter(converterType)
+      const converter = this._getConverter(converterType, {
+        clientType: options.clientType || 'unknown',
+        targetFormat: 'claude'
+      })
       const claudeRequest = converter.convertRequest(openaiRequest)
       claudeRequest.model = systemModel // 使用系统级映射的模型
 
@@ -507,7 +513,7 @@ class BridgeService {
       if (type === 'ClaudeToOpenAIResponses') {
         converter = new ClaudeToOpenAIResponsesConverter(options)
       } else if (type === 'OpenAIResponsesToClaude') {
-        converter = new OpenAIResponsesToClaudeConverter()
+        converter = new OpenAIResponsesToClaudeConverter(options)
       } else if (type === 'OpenAIToClaude') {
         converter = new OpenAIToClaudeConverter()
       } else {

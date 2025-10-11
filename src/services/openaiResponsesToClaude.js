@@ -1,8 +1,15 @@
 const logger = require('../utils/logger')
 
 class OpenAIResponsesToClaudeConverter {
-  constructor() {
+  constructor(options = {}) {
     this._resetStreamState()
+    this.clientType = options.clientType || 'unknown'
+    this.targetFormat = options.targetFormat || 'claude'
+    logger.info('🔧 [Bridge] Initialized converter:', {
+      clientType: this.clientType,
+      targetFormat: this.targetFormat,
+      isCodexCLI: this._isCodexClient()
+    })
   }
 
   /**
@@ -11,15 +18,35 @@ class OpenAIResponsesToClaudeConverter {
    * @returns {Object} Claude 格式的请求
    */
   convertRequest(openaiRequest) {
+    logger.info('🔄 [Bridge] Starting OpenAI Responses → Claude request conversion:', {
+      originalKeys: Object.keys(openaiRequest),
+      hasInput: !!(openaiRequest.input && Array.isArray(openaiRequest.input)),
+      hasMessages: !!(openaiRequest.messages && Array.isArray(openaiRequest.messages)),
+      hasInstructions: !!openaiRequest.instructions,
+      originalModel: openaiRequest.model,
+      stream: Boolean(openaiRequest.stream)
+    })
+
     const claudeRequest = {
       model: openaiRequest.model,
       max_tokens: openaiRequest.max_tokens || openaiRequest.max_output_tokens || 4096,
       stream: Boolean(openaiRequest.stream)
     }
 
+    // 记录字段映射过程
+    logger.debug('🔧 [Bridge] Field mapping:', {
+      model: `${openaiRequest.model} → ${claudeRequest.model}`,
+      max_tokens: `${openaiRequest.max_tokens}/${openaiRequest.max_output_tokens} → ${claudeRequest.max_tokens}`,
+      stream: `${openaiRequest.stream} → ${claudeRequest.stream}`
+    })
+
     // 处理 instructions → system
     if (openaiRequest.instructions) {
       claudeRequest.system = openaiRequest.instructions
+      logger.info('📝 [Bridge] Mapped instructions → system:', {
+        instructionsLength: openaiRequest.instructions.length,
+        instructionsPreview: openaiRequest.instructions.substring(0, 100)
+      })
     }
 
     // 处理 input → messages
@@ -39,32 +66,46 @@ class OpenAIResponsesToClaudeConverter {
       claudeRequest.messages = this._convertInputToMessages(openaiRequest.input)
     } else if (openaiRequest.messages && Array.isArray(openaiRequest.messages)) {
       // 兼容传统格式
+      logger.info('🔧 [Bridge] Using legacy messages format compatibility mode:', {
+        messageCount: openaiRequest.messages.length
+      })
       claudeRequest.messages = openaiRequest.messages
     } else {
+      logger.warn('⚠️ [Bridge] No input or messages array found, creating empty messages array')
       claudeRequest.messages = []
     }
 
     // 处理其他可选参数
-    if (openaiRequest.temperature !== undefined) {
-      claudeRequest.temperature = openaiRequest.temperature
-    }
-    if (openaiRequest.top_p !== undefined) {
-      claudeRequest.top_p = openaiRequest.top_p
+    const optionalParams = ['temperature', 'top_p', 'stop', 'presence_penalty', 'frequency_penalty']
+    for (const param of optionalParams) {
+      if (openaiRequest[param] !== undefined) {
+        claudeRequest[param] = openaiRequest[param]
+        logger.debug(`🔧 [Bridge] Mapped optional parameter: ${param}`, {
+          value: openaiRequest[param]
+        })
+      }
     }
 
-    logger.info('📝 Converted OpenAI Responses request to Claude format:', {
-      model: claudeRequest.model,
+    logger.info('📝 [Bridge] OpenAI Responses → Claude conversion complete:', {
+      originalModel: openaiRequest.model,
+      convertedModel: claudeRequest.model,
       hasSystem: !!claudeRequest.system,
-      messageCount: claudeRequest.messages.length,
+      originalMessageCount: (openaiRequest.input || openaiRequest.messages || []).length,
+      convertedMessageCount: claudeRequest.messages.length,
       stream: claudeRequest.stream,
+      convertedKeys: Object.keys(claudeRequest),
       messagesPreview: claudeRequest.messages.slice(0, 2).map((m) => ({
         role: m.role,
+        contentType: typeof m.content,
         contentLength:
           typeof m.content === 'string'
             ? m.content.length
             : Array.isArray(m.content)
               ? m.content.length
-              : 0
+              : 0,
+        contentPreview: typeof m.content === 'string' ? m.content.substring(0, 50) :
+                         Array.isArray(m.content) ? `[${m.content.length} blocks]` :
+                         'non-standard content'
       }))
     })
 
@@ -107,8 +148,17 @@ class OpenAIResponsesToClaudeConverter {
           content: []
         }
 
-        // 转换 content
+        // 转换 content - 增强的内容解析逻辑
+        logger.debug('🔍 [Bridge] Processing content field:', {
+          contentType: typeof item.content,
+          contentValue: item.content,
+          contentPreview: typeof item.content === 'string' ? item.content.substring(0, 100) :
+                         typeof item.content === 'object' ? JSON.stringify(item.content, null, 2).substring(0, 100) :
+                         String(item.content).substring(0, 100)
+        })
+
         if (Array.isArray(item.content)) {
+          // 处理数组格式的内容
           for (const contentBlock of item.content) {
             if (contentBlock.type === 'text') {
               message.content.push({
@@ -118,10 +168,89 @@ class OpenAIResponsesToClaudeConverter {
             } else if (contentBlock.type === 'image') {
               // 处理图片（如果需要）
               message.content.push(contentBlock)
+            } else {
+              // 处理其他类型的内容块
+              logger.debug('🔧 [Bridge] Processing unknown content block type:', {
+                type: contentBlock.type,
+                hasText: !!contentBlock.text,
+                hasContent: !!contentBlock.content
+              })
+
+              // 回退处理：尝试提取文本内容
+              if (contentBlock.text) {
+                message.content.push({
+                  type: 'text',
+                  text: contentBlock.text
+                })
+              } else if (contentBlock.content && typeof contentBlock.content === 'string') {
+                message.content.push({
+                  type: 'text',
+                  text: contentBlock.content
+                })
+              }
             }
           }
         } else if (typeof item.content === 'string') {
+          // 字符串内容直接使用
           message.content = item.content
+        } else if (typeof item.content === 'object' && item.content !== null) {
+          // 处理对象格式的内容 - 新增的回退逻辑
+          logger.info('🔧 [Bridge] Processing object content with fallback logic:', {
+            contentKeys: Object.keys(item.content),
+            hasText: !!item.content.text,
+            hasContent: !!item.content.content,
+            hasMessage: !!item.content.message
+          })
+
+          // 尝试多种方式提取文本内容
+          let extractedText = ''
+
+          if (item.content.text && typeof item.content.text === 'string') {
+            extractedText = item.content.text
+          } else if (item.content.content && typeof item.content.content === 'string') {
+            extractedText = item.content.content
+          } else if (item.content.message && typeof item.content.message === 'string') {
+            extractedText = item.content.message
+          } else if (item.content.input && typeof item.content.input === 'string') {
+            extractedText = item.content.input
+          } else if (item.content.prompt && typeof item.content.prompt === 'string') {
+            extractedText = item.content.prompt
+          }
+
+          if (extractedText) {
+            message.content = extractedText
+            logger.info('✅ [Bridge] Successfully extracted text from object content:', {
+              extractedLength: extractedText.length,
+              extractedPreview: extractedText.substring(0, 50)
+            })
+          } else {
+            // 最后的回退：将对象转换为JSON字符串
+            try {
+              const jsonString = JSON.stringify(item.content)
+              if (jsonString && jsonString !== '{}') {
+                message.content = jsonString
+                logger.warn('⚠️ [Bridge] Fallback: Using JSON string for object content:', {
+                  jsonStringLength: jsonString.length,
+                  jsonStringPreview: jsonString.substring(0, 50)
+                })
+              } else {
+                // 如果对象为空，使用默认内容
+                message.content = ''
+                logger.warn('⚠️ [Bridge] Empty object content, using empty string')
+              }
+            } catch (error) {
+              message.content = String(item.content)
+              logger.error('❌ [Bridge] Failed to stringify object content, using toString fallback:', error)
+            }
+          }
+        } else {
+          // 处理其他类型（null、undefined等）
+          message.content = String(item.content || '')
+          logger.warn('⚠️ [Bridge] Fallback: Converting non-standard content type to string:', {
+            originalType: typeof item.content,
+            originalValue: item.content,
+            convertedValue: message.content
+          })
         }
 
         // 如果 content 只有一个文本块，可以简化为字符串
@@ -131,6 +260,12 @@ class OpenAIResponsesToClaudeConverter {
           message.content[0].type === 'text'
         ) {
           message.content = message.content[0].text
+        }
+
+        // 验证最终内容不为空
+        if (!message.content || (typeof message.content === 'string' && message.content.trim() === '')) {
+          logger.warn('⚠️ [Bridge] Content is empty after processing, using fallback')
+          message.content = '' // 确保有默认值
         }
 
         messages.push(message)
@@ -166,6 +301,13 @@ class OpenAIResponsesToClaudeConverter {
   }
 
   convertNonStream(responseData) {
+    logger.info('🔄 [Bridge] Starting non-stream response conversion (OpenAI Responses → Claude):', {
+      responseDataKeys: Object.keys(responseData || {}),
+      hasResponse: !!(responseData?.response),
+      responseKeys: responseData?.response ? Object.keys(responseData.response) : [],
+      originalType: responseData?.type || 'unknown'
+    })
+
     const resp = responseData?.response || responseData || {}
     this.finalResponse = resp
     const usage = this._extractUsage(responseData)
@@ -173,15 +315,30 @@ class OpenAIResponsesToClaudeConverter {
       resp?.stop_reason || resp?.status || responseData?.stop_reason
     )
 
+    logger.debug('🔧 [Bridge] Extracted response metadata:', {
+      originalStopReason: resp?.stop_reason || resp?.status || responseData?.stop_reason,
+      mappedStopReason: stopReason,
+      hasUsage: !!(usage && (usage.input_tokens > 0 || usage.output_tokens > 0)),
+      usage,
+      model: resp?.model || 'unknown'
+    })
+
     const content = this._convertOutputContent(resp)
     if (content.length === 0) {
+      logger.warn('⚠️ [Bridge] No content found in response, attempting fallback text extraction')
       const fallbackText = this._extractText(resp)
       if (fallbackText) {
         content.push({ type: 'text', text: fallbackText })
+        logger.info('✅ [Bridge] Successfully extracted fallback text:', {
+          textLength: fallbackText.length,
+          textPreview: fallbackText.substring(0, 100)
+        })
+      } else {
+        logger.error('❌ [Bridge] Failed to extract any content from response')
       }
     }
 
-    return {
+    const claudeResponse = {
       id: resp?.id || this._generateId('msg'),
       type: 'message',
       role: 'assistant',
@@ -190,10 +347,27 @@ class OpenAIResponsesToClaudeConverter {
       content,
       usage
     }
+
+    logger.info('📝 [Bridge] Non-stream conversion complete:', {
+      claudeId: claudeResponse.id,
+      model: claudeResponse.model,
+      stopReason: claudeResponse.stop_reason,
+      contentBlockCount: claudeResponse.content.length,
+      totalContentLength: claudeResponse.content.reduce((sum, block) =>
+        sum + (block.text ? block.text.length : 0), 0),
+      hasUsage: !!(claudeResponse.usage && (claudeResponse.usage.input_tokens > 0 || claudeResponse.usage.output_tokens > 0)),
+      usage: claudeResponse.usage
+    })
+
+    return claudeResponse
   }
 
   convertStreamChunk(rawChunk) {
     if (!rawChunk || typeof rawChunk !== 'string') {
+      logger.warn('⚠️ [Bridge] Invalid stream chunk received:', {
+        chunkType: typeof rawChunk,
+        chunkValue: rawChunk
+      })
       return ''
     }
 
@@ -202,7 +376,13 @@ class OpenAIResponsesToClaudeConverter {
     logger.debug('🔄 [Bridge] Received stream chunk:', {
       chunkLength: rawChunk.length,
       chunkPreview: rawChunk.length > 200 ? `${rawChunk.substring(0, 200)}...` : rawChunk,
-      bufferLength: this.streamBuffer.length
+      bufferLength: this.streamBuffer.length,
+      hasCompleteEvents: rawChunk.includes('\n\n'),
+      streamState: {
+        messageStarted: this.messageStarted,
+        contentBlockStarted: this.contentBlockStarted,
+        streamFinished: this.streamFinished
+      }
     })
 
     return this._drainBuffer(false)
@@ -277,20 +457,42 @@ class OpenAIResponsesToClaudeConverter {
 
   _handleEvent(event) {
     if (!event || this.streamFinished) {
+      if (this.streamFinished) {
+        logger.debug('🚫 [Bridge] Ignoring event - stream already finished:', {
+          eventType: event?.type,
+          streamFinished: this.streamFinished
+        })
+      }
       return []
     }
 
-    if (this.debugEventCount < 5) {
-      logger.info('Claude bridge收到事件', {
-        type: event.type,
-        hasResponse: Boolean(event.response),
-        itemType: event.item?.type,
-        deltaType: event.delta?.type,
-        content: event.content ? (event.content.text ? event.content.text.substring(0, 50) + '...' : 'present') : 'none',
-        keys: Object.keys(event || {})
-      })
-      this.debugEventCount += 1
-    }
+    // 记录所有接收到的事件（移除5事件限制）
+    logger.info('📥 [Bridge] Received SSE event:', {
+      eventNumber: this.debugEventCount + 1,
+      type: event.type,
+      hasResponse: Boolean(event.response),
+      hasMessage: Boolean(event.message),
+      hasDelta: Boolean(event.delta),
+      hasItem: Boolean(event.item),
+      hasContent: Boolean(event.content),
+      hasUsage: Boolean(event.usage),
+      keys: Object.keys(event || {}),
+      streamState: {
+        messageStarted: this.messageStarted,
+        contentBlockStarted: this.contentBlockStarted,
+        streamFinished: this.streamFinished
+      },
+      // 记录关键内容预览
+      contentPreview: event.content ?
+        (event.content.text ? event.content.text.substring(0, 50) + '...' : 'present') :
+        'none',
+      deltaPreview: event.delta ?
+        (typeof event.delta === 'string' ? event.delta.substring(0, 50) + '...' :
+         event.delta.text ? event.delta.text.substring(0, 50) + '...' :
+         JSON.stringify(event.delta).substring(0, 50) + '...') :
+        'none'
+    })
+    this.debugEventCount += 1
 
     // 处理智谱AI/标准Claude格式事件
     switch (event.type) {
@@ -497,6 +699,57 @@ class OpenAIResponsesToClaudeConverter {
       return []
     }
 
+    logger.info('🎯 [Bridge] Emitting completion event:', {
+      isCodexClient: this._isCodexClient(),
+      clientType: this.clientType,
+      targetFormat: this.targetFormat,
+      hasResponsePayload: !!responsePayload,
+      streamState: {
+        messageStarted: this.messageStarted,
+        contentBlockStarted: this.contentBlockStarted,
+        streamFinished: this.streamFinished
+      }
+    })
+
+    // 如果是 Codex CLI，发送 OpenAI Responses 格式的完成事件
+    if (this._isCodexClient()) {
+      const completionEvents = this._emitOpenAIResponsesCompletion(responsePayload)
+
+      // 也要发送标准的Claude格式事件以确保兼容性
+      const claudeEvents = this._emitClaudeCompletion(responsePayload)
+
+      this.streamFinished = true
+
+      if (responsePayload) {
+        this.finalResponse = responsePayload
+      }
+
+      logger.info('📤 [Bridge] Sent dual completion events for Codex CLI:', {
+        openAIEventsCount: completionEvents.length,
+        claudeEventsCount: claudeEvents.length,
+        totalEvents: completionEvents.length + claudeEvents.length
+      })
+
+      return [...completionEvents, ...claudeEvents]
+    }
+
+    // 非Codex客户端，只发送标准Claude格式完成事件
+    const events = this._emitClaudeCompletion(responsePayload)
+
+    this.streamFinished = true
+
+    if (responsePayload) {
+      this.finalResponse = responsePayload
+    }
+
+    return events
+  }
+
+  /**
+   * 发送标准Claude格式的完成事件
+   * @private
+   */
+  _emitClaudeCompletion(responsePayload) {
     const events = []
     events.push(...this._emitMessageStart())
 
@@ -535,12 +788,6 @@ class OpenAIResponsesToClaudeConverter {
     )
 
     events.push(this._sse({ type: 'message_stop' }))
-
-    if (responsePayload) {
-      this.finalResponse = responsePayload
-    }
-
-    this.streamFinished = true
 
     return events
   }
@@ -817,6 +1064,56 @@ class OpenAIResponsesToClaudeConverter {
     this.debugEventCount = 0
     this.debugEmitCount = 0
     this.finalResponse = null
+  }
+
+  /**
+   * 检测是否为 Codex CLI 客户端
+   * @private
+   */
+  _isCodexClient() {
+    return this.clientType === 'codex_cli' ||
+           (this.clientType === 'unknown' && this.targetFormat === 'openai-responses')
+  }
+
+  /**
+   * 为 Codex CLI 生成 OpenAI Responses 格式的完成事件
+   * @private
+   */
+  _emitOpenAIResponsesCompletion(responsePayload) {
+    const usage = this._extractUsage({ usage: responsePayload?.usage })
+    const stopReason = this._mapStopReason(responsePayload?.stop_reason || responsePayload?.status)
+
+    logger.info('🎯 [Bridge] Emitting OpenAI Responses completion for Codex CLI:', {
+      hasUsage: !!(usage && (usage.input_tokens > 0 || usage.output_tokens > 0)),
+      stopReason,
+      usage,
+      clientType: this.clientType
+    })
+
+    const events = []
+
+    // 发送 response.completed 事件（Codex CLI 期望的格式）
+    events.push(
+      this._sse({
+        type: 'response.completed',
+        response: {
+          id: this.messageId || this._generateId('resp'),
+          status: 'completed',
+          status_details: {
+            type: 'content_filter',
+            stop_reason: stopReason
+          },
+          usage: {
+            input_tokens: usage.input_tokens,
+            output_tokens: usage.output_tokens,
+            total_tokens: usage.input_tokens + usage.output_tokens
+          },
+          model: 'gpt-5-codex' // Codex CLI 期望的模型名称
+        }
+      })
+    )
+
+    return events
   }
 
   _sanitizeToolArguments(rawArguments) {

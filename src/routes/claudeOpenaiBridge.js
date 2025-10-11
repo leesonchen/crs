@@ -31,8 +31,12 @@ router.post('/v1/messages', authenticateApiKey, async (req, res) => {
     res.setHeader('x-crs-bridge', 'claude-openai')
 
     // 将 Claude 请求转为 OpenAI-Responses 请求
+    const clientType = req.headers['user-agent'] ? req.headers['user-agent'].toLowerCase().includes('codex_cli') ? 'codex_cli' : 'unknown' : 'unknown'
     const toOpenAI = new ClaudeToOpenAIResponsesConverter({ modelMapping, defaultModel })
-    const toClaude = new OpenAIResponsesToClaudeConverter()
+    const toClaude = new OpenAIResponsesToClaudeConverter({
+      clientType,
+      targetFormat: 'claude'
+    })
     const originalStream = Boolean(req.body && req.body.stream)
     const responsesRequest = toOpenAI.convertRequest(req.body)
 

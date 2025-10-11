@@ -17,10 +17,88 @@ const OpenAIResponsesToClaudeConverter = require('../services/openaiResponsesToC
 
 const router = express.Router()
 
+// 🔧 客户端类型检测函数
+function detectClientType(userAgent) {
+  if (!userAgent || typeof userAgent !== 'string') {
+    return 'unknown'
+  }
+
+  const ua = userAgent.toLowerCase()
+
+  // 检测 Codex CLI
+  if (ua.includes('codex_cli')) {
+    return 'codex_cli'
+  }
+
+  // 检测 Claude CLI
+  if (ua.includes('claude-cli')) {
+    return 'claude_cli'
+  }
+
+  // 检测其他常见客户端
+  if (ua.includes('curl')) {
+    return 'curl'
+  }
+
+  if (ua.includes('python')) {
+    return 'python'
+  }
+
+  if (ua.includes('node')) {
+    return 'node'
+  }
+
+  return 'unknown'
+}
+
 // 🔧 共享的消息处理函数
 async function handleMessagesRequest(req, res) {
   try {
     const startTime = Date.now()
+    const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    req.requestId = requestId // 为后续日志跟踪添加请求ID
+
+    // 🔍 客户端交互生命周期跟踪 - 连接建立
+    logger.info('🔗 [Client] Connection established', {
+      requestId,
+      clientIP: req.ip || req.connection?.remoteAddress || req.socket?.remoteAddress || 'unknown',
+      userAgent: req.headers['user-agent'] || 'unknown',
+      apiKeyName: req.apiKey.name,
+      apiKeyId: req.apiKey.id,
+      method: req.method,
+      path: req.path,
+      url: req.url,
+      timestamp: new Date().toISOString(),
+      requestHeaders: {
+        'content-type': req.headers['content-type'],
+        'accept': req.headers['accept'],
+        'authorization': req.headers['authorization'] ? '[REDACTED]' : 'none',
+        'x-api-key': req.headers['x-api-key'] ? '[REDACTED]' : 'none',
+        'x-cr-api-key': req.headers['x-cr-api-key'] ? '[REDACTED]' : 'none'
+      }
+    })
+
+    // 设置客户端断开连接监听器
+    let clientDisconnected = false
+    const handleClientDisconnect = () => {
+      if (!clientDisconnected) {
+        clientDisconnected = true
+        const duration = Date.now() - startTime
+        logger.warn('🔌 [Client] Client disconnected prematurely', {
+          requestId,
+          apiKeyName: req.apiKey.name,
+          duration: `${duration}ms`,
+          reason: 'premature_disconnect',
+          responseHeadersSent: res.headersSent,
+          responseFinished: res.finished || res.writableEnded
+        })
+      }
+    }
+
+    // 监听客户端断开事件
+    req.on('close', handleClientDisconnect)
+    req.on('aborted', handleClientDisconnect)
+    res.on('close', handleClientDisconnect)
 
     // Claude 服务权限校验，阻止未授权的 Key
     if (
@@ -28,6 +106,13 @@ async function handleMessagesRequest(req, res) {
       req.apiKey.permissions !== 'all' &&
       req.apiKey.permissions !== 'claude'
     ) {
+      const duration = Date.now() - startTime
+      logger.warn('🚫 [Client] Permission denied - insufficient permissions', {
+        requestId,
+        apiKeyName: req.apiKey.name,
+        permissions: req.apiKey.permissions,
+        duration: `${duration}ms`
+      })
       return res.status(403).json({
         error: {
           type: 'permission_error',
@@ -128,13 +213,26 @@ async function handleMessagesRequest(req, res) {
         req.headers['x-crs-upstream-path'] =
           accountType === 'openai' ? '/responses' : '/v1/responses'
 
+        // 检测客户端类型
+        const clientType = detectClientType(req.headers['user-agent'])
+
         // 设置响应转换器（将 OpenAI 响应转回 Claude 格式）
-        const toClaude = new OpenAIResponsesToClaudeConverter()
+        const toClaude = new OpenAIResponsesToClaudeConverter({
+          clientType,
+          targetFormat: 'openai-responses'
+        })
         req._bridgeConverter = toClaude
         req._bridgeStreamTransform = (chunkStr) => toClaude.convertStreamChunk(chunkStr)
         req._bridgeStreamFinalize = () => toClaude.finalizeStream()
         req._bridgeNonStreamConvert = (responseData) =>
           toClaude.convertNonStream({ response: responseData })
+
+        logger.info('🔧 [Bridge] Configured converter for client:', {
+          clientType,
+          userAgent: req.headers['user-agent'],
+          accountType,
+          bridgeInfo: bridgeResult.bridgeInfo
+        })
 
         logger.info(
           `✅ Bridge prepared: ${bridgeResult.bridgeInfo.source} → ${bridgeResult.bridgeInfo.target}`,
@@ -788,9 +886,42 @@ async function handleMessagesRequest(req, res) {
     }
 
     const duration = Date.now() - startTime
+
+    // 🔍 客户端交互生命周期跟踪 - 请求完成
+    logger.info('✅ [Client] Request completed successfully', {
+      requestId,
+      apiKeyName: req.apiKey.name,
+      duration: `${duration}ms`,
+      clientDisconnected,
+      finalState: {
+        responseHeadersSent: res.headersSent,
+        responseFinished: res.finished || res.writableEnded,
+        responseStatus: res.statusCode || 'unknown'
+      }
+    })
+
     logger.api(`✅ Request completed in ${duration}ms for key: ${req.apiKey.name}`)
     return undefined
   } catch (error) {
+    const duration = Date.now() - startTime
+
+    // 🔍 客户端交互生命周期跟踪 - 错误处理
+    logger.error('❌ [Client] Request failed with error', {
+      requestId,
+      apiKeyName: req.apiKey.name,
+      duration: `${duration}ms`,
+      clientDisconnected,
+      error: {
+        message: error.message,
+        code: error.code,
+        type: error.constructor.name
+      },
+      finalState: {
+        responseHeadersSent: res.headersSent,
+        responseFinished: res.finished || res.writableEnded
+      }
+    })
+
     logger.error('❌ Claude relay error:', error.message, {
       code: error.code,
       stack: error.stack

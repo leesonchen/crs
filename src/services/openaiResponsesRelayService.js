@@ -569,8 +569,10 @@ class OpenAIResponsesRelayService {
     let rateLimitDetected = false
     let rateLimitResetsInSeconds = null
     let streamEnded = false
+    let eventDebugCount = 0
+    let allSSEEvents = [] // 记录所有SSE事件用于完整调试
 
-    // 解析 SSE 事件以捕获 usage 数据和 model
+    // 解析 SSE 事件以捕获 usage 数据和 model - 支持多种供应商格式
     const parseSSEForUsage = (data) => {
       const lines = data.split('\n')
 
@@ -584,18 +586,55 @@ class OpenAIResponsesRelayService {
 
             const eventData = JSON.parse(jsonStr)
 
-            // 检查是否是 response.completed 事件（OpenAI-Responses 格式）
+            // 供应商格式识别
+            const detectedVendor = this._detectSSEVendor(eventData)
+
+            // 记录所有SSE事件完整内容（移除5事件限制）
+            const eventDataSummary = {
+              eventNumber: allSSEEvents.length + 1,
+              type: eventData.type,
+              vendor: detectedVendor,
+              hasUsage: !!(eventData.response?.usage || eventData.usage || eventData.message?.usage),
+              hasModel: !!(eventData.response?.model || eventData.model || eventData.message?.model),
+              hasContent: !!(eventData.content || eventData.delta || eventData.response?.output_text),
+              keys: Object.keys(eventData),
+              // 记录完整事件内容用于深度调试
+              fullContent: eventData
+            }
+
+            allSSEEvents.push(eventDataSummary)
+
+            logger.info('📡 [SSE] Received event:', {
+              eventNumber: eventDataSummary.eventNumber,
+              type: eventData.type,
+              vendor: detectedVendor,
+              hasUsage: eventDataSummary.hasUsage,
+              hasModel: eventDataSummary.hasModel,
+              hasContent: eventDataSummary.hasContent,
+              keys: eventDataSummary.keys,
+              // 记录关键内容但避免日志过于冗长
+              ...(eventDataSummary.hasUsage && {
+                usage: eventData.response?.usage || eventData.usage || eventData.message?.usage
+              }),
+              ...(eventDataSummary.hasModel && {
+                model: eventData.response?.model || eventData.model || eventData.message?.model
+              }),
+              ...(eventDataSummary.hasContent && {
+                contentPreview: this._extractContentPreview(eventData)
+              })
+            })
+
+            // 支持多种供应商格式的 usage 和 model 提取
+
+            // 1. OpenAI Responses 格式：response.completed
             if (eventData.type === 'response.completed' && eventData.response) {
-              // 从响应中获取真实的 model
               if (eventData.response.model) {
                 actualModel = eventData.response.model
                 logger.debug(`📊 Captured actual model from response.completed: ${actualModel}`)
               }
-
-              // 获取 usage 数据 - OpenAI-Responses 格式在 response.usage 下
               if (eventData.response.usage) {
                 usageData = eventData.response.usage
-                logger.info('📊 Successfully captured usage data from OpenAI-Responses:', {
+                logger.info('📊 Successfully captured usage data from response.completed:', {
                   input_tokens: usageData.input_tokens,
                   output_tokens: usageData.output_tokens,
                   total_tokens: usageData.total_tokens
@@ -603,9 +642,59 @@ class OpenAIResponsesRelayService {
               }
             }
 
-            // 检查是否有限流错误
+            // 2. 智谱AI/Claude 格式：message_stop（带完整响应信息）
+            else if (eventData.type === 'message_stop' && eventData.message) {
+              if (eventData.message.model) {
+                actualModel = eventData.message.model
+                logger.debug(`📊 Captured actual model from message_stop: ${actualModel}`)
+              }
+              if (eventData.message.usage) {
+                usageData = eventData.message.usage
+                logger.info('📊 Successfully captured usage data from message_stop:', {
+                  input_tokens: usageData.input_tokens,
+                  output_tokens: usageData.output_tokens,
+                  total_tokens: usageData.total_tokens
+                })
+              }
+            }
+
+            // 3. Claude 标准格式：message_delta（增量usage信息）
+            else if (eventData.type === 'message_delta') {
+              if (eventData.model) {
+                actualModel = eventData.model
+                logger.debug(`📊 Captured actual model from message_delta: ${actualModel}`)
+              }
+              if (eventData.usage) {
+                usageData = { ...usageData, ...eventData.usage } // 合并usage数据
+                logger.debug('📊 Captured incremental usage data from message_delta:', eventData.usage)
+              }
+              // 检查 stop_reason 表示流结束
+              if (eventData.delta?.stop_reason) {
+                logger.debug('📊 Stream completion detected via message_delta stop_reason')
+              }
+            }
+
+            // 4. 其他可能的格式：直接在事件根级别包含usage/model
+            else if (eventData.type && (eventData.usage || eventData.model)) {
+              if (eventData.model) {
+                actualModel = eventData.model
+                logger.debug(`📊 Captured actual model from direct event: ${actualModel}`)
+              }
+              if (eventData.usage) {
+                usageData = { ...usageData, ...eventData.usage }
+                logger.debug('📊 Captured usage data from direct event:', eventData.usage)
+              }
+            }
+
+            // 检查是否是流完成事件（各种格式）
+            if (eventData.type === 'message_stop' ||
+                eventData.type === 'response.completed' ||
+                (eventData.type === 'message_delta' && eventData.delta?.stop_reason)) {
+              logger.debug(`📊 Stream completion detected via event: ${eventData.type}`)
+            }
+
+            // 检查是否有限流错误（各种格式）
             if (eventData.error) {
-              // 检查多种可能的限流错误类型
               if (
                 eventData.error.type === 'rate_limit_error' ||
                 eventData.error.type === 'usage_limit_reached' ||
@@ -621,7 +710,7 @@ class OpenAIResponsesRelayService {
               }
             }
           } catch (e) {
-            // 忽略解析错误
+            logger.debug('Failed to parse SSE event:', e.message)
           }
         }
       }
@@ -698,27 +787,39 @@ class OpenAIResponsesRelayService {
         }
       }
 
-      // 记录使用统计
+      // 记录使用统计 - 支持多格式的usage数据
       if (usageData) {
         try {
-          // OpenAI-Responses 使用 input_tokens/output_tokens，标准 OpenAI 使用 prompt_tokens/completion_tokens
-          const totalInputTokens = usageData.input_tokens || usageData.prompt_tokens || 0
-          const outputTokens = usageData.output_tokens || usageData.completion_tokens || 0
+          // 确保usageData包含所有必要字段，支持多种格式
+          const consolidatedUsage = {
+            input_tokens: usageData.input_tokens || usageData.prompt_tokens || 0,
+            output_tokens: usageData.output_tokens || usageData.completion_tokens || 0,
+            total_tokens: usageData.total_tokens || 0,
+            cache_creation_input_tokens: usageData.cache_creation_input_tokens || 0,
+            cache_read_input_tokens: usageData.input_tokens_details?.cached_tokens || 0,
+            input_tokens_details: usageData.input_tokens_details || {}
+          }
+
+          // 如果没有total_tokens，计算总和
+          if (!consolidatedUsage.total_tokens) {
+            consolidatedUsage.total_tokens =
+              consolidatedUsage.input_tokens +
+              consolidatedUsage.output_tokens +
+              consolidatedUsage.cache_creation_input_tokens
+          }
 
           // 提取缓存相关的 tokens（如果存在）
-          const cacheReadTokens = usageData.input_tokens_details?.cached_tokens || 0
-          const cacheCreateTokens = extractCacheCreationTokens(usageData)
+          const cacheReadTokens = consolidatedUsage.cache_read_input_tokens
+          const cacheCreateTokens = extractCacheCreationTokens(consolidatedUsage)
           // 计算实际输入token（总输入减去缓存部分）
-          const actualInputTokens = Math.max(0, totalInputTokens - cacheReadTokens)
+          const actualInputTokens = Math.max(0, consolidatedUsage.input_tokens - cacheReadTokens)
 
-          const totalTokens =
-            usageData.total_tokens || totalInputTokens + outputTokens + cacheCreateTokens
-          const modelToRecord = actualModel || requestedModel || 'gpt-4'
+          const modelToRecord = actualModel || requestedModel || 'unknown'
 
           await apiKeyService.recordUsage(
             apiKeyData.id,
             actualInputTokens, // 传递实际输入（不含缓存）
-            outputTokens,
+            consolidatedUsage.output_tokens,
             cacheCreateTokens,
             cacheReadTokens,
             modelToRecord,
@@ -726,13 +827,13 @@ class OpenAIResponsesRelayService {
           )
 
           logger.info(
-            `📊 Recorded usage - Input: ${totalInputTokens}(actual:${actualInputTokens}+cached:${cacheReadTokens}), CacheCreate: ${cacheCreateTokens}, Output: ${outputTokens}, Total: ${totalTokens}, Model: ${modelToRecord}`
+            `📊 Successfully recorded usage - Input: ${consolidatedUsage.input_tokens}(actual:${actualInputTokens}+cached:${cacheReadTokens}), CacheCreate: ${cacheCreateTokens}, Output: ${consolidatedUsage.output_tokens}, Total: ${consolidatedUsage.total_tokens}, Model: ${modelToRecord}`
           )
 
           // 更新账户的 token 使用统计（根据 accountType 动态选择 service）
           const accountService = getAccountService(accountType)
           if (accountService.updateAccountUsage) {
-            await accountService.updateAccountUsage(account.id, totalTokens)
+            await accountService.updateAccountUsage(account.id, consolidatedUsage.total_tokens)
           }
 
           // 更新账户使用额度（如果设置了额度限制）
@@ -742,7 +843,7 @@ class OpenAIResponsesRelayService {
             const costInfo = CostCalculator.calculateCost(
               {
                 input_tokens: actualInputTokens, // 实际输入（不含缓存）
-                output_tokens: outputTokens,
+                output_tokens: consolidatedUsage.output_tokens,
                 cache_creation_input_tokens: cacheCreateTokens,
                 cache_read_input_tokens: cacheReadTokens
               },
@@ -755,6 +856,13 @@ class OpenAIResponsesRelayService {
         } catch (error) {
           logger.error('Failed to record usage:', error)
         }
+      } else {
+        // 如果没有捕获到usage数据，记录警告以便调试
+        logger.warn('⚠️ No usage data captured from stream', {
+          accountId: account.id,
+          actualModel: actualModel || 'unknown',
+          requestedModel: requestedModel || 'unknown'
+        })
       }
 
       // 如果在流式响应中检测到限流
@@ -807,10 +915,52 @@ class OpenAIResponsesRelayService {
         res.end()
       }
 
-      logger.info('Stream response completed', {
+      // 记录完整的SSE事件序列总结
+      const vendorsDetected = [...new Set(allSSEEvents.map(e => e.vendor))]
+      logger.info('📊 [SSE] Complete event sequence summary:', {
+        accountId: account.id,
+        totalEvents: allSSEEvents.length,
+        detectedVendors: vendorsDetected,
+        eventTypes: allSSEEvents.map(e => e.type),
+        hasUsage: !!usageData,
+        actualModel: actualModel || 'unknown',
+        requestedModel: requestedModel || 'unknown',
+        eventsWithUsage: allSSEEvents.filter(e => e.hasUsage).length,
+        eventsWithModel: allSSEEvents.filter(e => e.hasModel).length,
+        eventsWithContent: allSSEEvents.filter(e => e.hasContent).length,
+        completionEvent: allSSEEvents.find(e =>
+          e.type === 'response.completed' ||
+          e.type === 'message_stop' ||
+          (e.type === 'message_delta' && e.fullContent.delta?.stop_reason)
+        )?.type || 'none',
+        vendorDistribution: vendorsDetected.map(vendor => ({
+          vendor,
+          count: allSSEEvents.filter(e => e.vendor === vendor).length,
+          types: [...new Set(allSSEEvents.filter(e => e.vendor === vendor).map(e => e.type))]
+        }))
+      })
+
+      // 如果需要，可以记录详细的事件内容（仅在调试模式下）
+      if (process.env.NODE_ENV === 'development' || process.env.DEBUG_SSE_EVENTS === 'true') {
+        logger.debug('📊 [SSE] Detailed event contents:', {
+          accountId: account.id,
+          events: allSSEEvents.map(e => ({
+            eventNumber: e.eventNumber,
+            type: e.type,
+            keys: e.keys,
+            hasUsage: e.hasUsage,
+            hasModel: e.hasModel,
+            content: e.fullContent
+          }))
+        })
+      }
+
+      logger.info('✅ Stream response completed successfully', {
         accountId: account.id,
         hasUsage: !!usageData,
-        actualModel: actualModel || 'unknown'
+        actualModel: actualModel || 'unknown',
+        requestedModel: requestedModel || 'unknown',
+        streamEndedProperly: true
       })
     })
 
@@ -1110,6 +1260,98 @@ class OpenAIResponsesRelayService {
     }
 
     return filtered
+  }
+
+  // 🔍 检测SSE事件的供应商格式
+  _detectSSEVendor(eventData) {
+    // OpenAI Responses 格式特征
+    if (eventData.type && eventData.type.startsWith('response.')) {
+      return 'openai-responses'
+    }
+    if (eventData.response && eventData.response.output_text) {
+      return 'openai-responses'
+    }
+    if (eventData.delta && eventData.delta.output_text) {
+      return 'openai-responses'
+    }
+
+    // 智谱AI格式特征 (类似Claude格式)
+    if (eventData.type === 'message_start' ||
+        eventData.type === 'content_block' ||
+        eventData.type === 'content_block_start' ||
+        eventData.type === 'content_block_stop' ||
+        eventData.type === 'message_stop' ||
+        eventData.type === 'message_delta') {
+      return 'zhipuai-claude'
+    }
+
+    // Claude官方格式特征
+    if (eventData.type && eventData.type.includes('message')) {
+      return 'claude-official'
+    }
+    if (eventData.message && eventData.message.usage) {
+      return 'claude-official'
+    }
+
+    // Gemini格式特征
+    if (eventData.candidate || eventData.usageMetadata) {
+      return 'gemini'
+    }
+    if (eventData.type && eventData.type.includes('candidate')) {
+      return 'gemini'
+    }
+
+    // 通用格式检测
+    if (eventData.usage && eventData.usage.input_tokens) {
+      return 'generic-with-usage'
+    }
+    if (eventData.model && typeof eventData.model === 'string') {
+      return 'generic-with-model'
+    }
+
+    return 'unknown'
+  }
+
+  // 🔍 提取事件内容预览
+  _extractContentPreview(eventData) {
+    let contentPreview = ''
+
+    // OpenAI Responses 格式
+    if (eventData.delta && eventData.delta.output_text) {
+      contentPreview = typeof eventData.delta.output_text === 'string'
+        ? eventData.delta.output_text.substring(0, 50)
+        : JSON.stringify(eventData.delta.output_text).substring(0, 50)
+    } else if (eventData.response && eventData.response.output_text) {
+      contentPreview = Array.isArray(eventData.response.output_text)
+        ? eventData.response.output_text.join('').substring(0, 50)
+        : String(eventData.response.output_text).substring(0, 50)
+    }
+
+    // Claude/智谱AI 格式
+    else if (eventData.content && eventData.content.text) {
+      contentPreview = eventData.content.text.substring(0, 50)
+    } else if (eventData.delta && eventData.delta.text) {
+      contentPreview = eventData.delta.text.substring(0, 50)
+    } else if (eventData.content && typeof eventData.content === 'string') {
+      contentPreview = eventData.content.substring(0, 50)
+    }
+
+    // Gemini 格式
+    else if (eventData.candidate && eventData.candidate.content) {
+      const text = eventData.candidate.content.parts?.[0]?.text || ''
+      contentPreview = text.substring(0, 50)
+    }
+
+    // 通用内容提取
+    else if (eventData.text) {
+      contentPreview = eventData.text.substring(0, 50)
+    } else if (eventData.content) {
+      contentPreview = typeof eventData.content === 'string'
+        ? eventData.content.substring(0, 50)
+        : JSON.stringify(eventData.content).substring(0, 50)
+    }
+
+    return contentPreview || 'no_content'
   }
 
   // 估算费用（简化版本，实际应该根据不同的定价模型）

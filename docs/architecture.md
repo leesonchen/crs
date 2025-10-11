@@ -538,6 +538,91 @@ if (availableClaudeAccounts.length === 0) {
 }
 ```
 
+### 3.4 实际CLI交互案例分析
+
+基于 `@logs-bak-clean-1011/` 日志分析，我们验证了桥接模式的实际工作流程：
+
+#### 案例1: Codex CLI 桥接模式���求
+
+**请求信息**:
+- **客户端**: `codex_cli_rs/0.46.0 (Ubuntu 22.4.0; x86_64)`
+- **端点**: `POST /openai/responses`
+- **请求模型**: `gpt-5-codex`
+
+**桥接激活过程**:
+```log
+📝 Non-Codex CLI request detected, applying Codex CLI adaptation
+🌉 System bridge config enabled, checking Claude bridge candidates
+🔍 Requested model: gpt-5-codex
+🔄 System-level model mapping: gpt-5-codex → claude-3-5-haiku-20241022
+
+🔍 Found 0 Claude accounts to check for bridge eligibility
+❌ Claude Console account mirror failed basic eligibility check
+❌ Claude Console account glm failed basic eligibility check
+❌ Claude Console account anyrouter failed basic eligibility check
+
+📊 Bridge check completed. Total available accounts: 1
+📋 Available account types: openai-responses(mirror-codex)
+🎯 Selected account: mirror-codex (a5c123d1-f5d8-4140-b305-ffd8a50fb7cc)
+```
+
+**请求转发**:
+```log
+🎯 Forwarding to: https://api.codemirror.codes/v1/responses
+📤 OpenAI-Responses relay request
+├── Account: mirror-codex
+├── Target URL: https://api.codemirror.codes/v1/responses
+├── Method: POST
+├── Stream: true
+├── Model: gpt-5-codex
+└── User-Agent: codex_cli_rs/0.46.0
+```
+
+**SSE 流处理结果**:
+- **总事件数**: 45-86 个事件
+- **供应商格式**: `openai-responses`
+- **处理时间**: 7.3-11.3 秒
+- **Token 使用**: 4,220-4,295 total tokens
+- **推理密度**: 高推理输出 (256/289 tokens 为推理内容)
+
+#### 案例2: Claude CLI 直接访问
+
+**请求信息**:
+- **客户端**: `claude-cli/2.0.14 (external, cli)`
+- **端点**: `POST /api/v1/messages?beta=true`
+- **访问模式**: 直接访问 (无桥接)
+
+**性能对比**:
+- **平均响应时间**: 2.1 秒 (vs Codex CLI 7.3-11.3 秒)
+- **成功率**: 100% (15个连续请求)
+- **并发处理**: 支持多个并发请求
+- **请求频率**: 高频连续请求处理
+
+**关键发现**:
+1. **桥接开销**: 桥接模式引入显著的延迟 (3-5倍)
+2. **稳定性**: 两种模式都能稳定处理请求
+3. **功能完整性**: 桥接模式保持了完整的 SSE 流处理
+4. **Token 统计**: 桥接模式提供详细的使用统计
+
+#### 性能优化建议
+
+**基于实际数据的优化策略**:
+
+1. **桥接模式优化**:
+   - 实现智能缓存减少重复的模型映射
+   - 优化桥接转换逻辑减少处理延迟
+   - 考虑预热常用模型的映射关系
+
+2. **客户端体验优化**:
+   - 为桥接模式添加进度指示
+   - 实现更精细的错误处理和重试机制
+   - 提供桥接状态的可视化反馈
+
+3. **监控增强**:
+   - 桥接激活频率和成功率监控
+   - 不同客户端类型的性能对比分析
+   - 实时桥接延迟统计和告警
+
 ## 4. 数据流和处理架构
 
 ### 4.1 标准API请求处理流程

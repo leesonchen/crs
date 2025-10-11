@@ -27,8 +27,13 @@ function createProxyAgent(proxy) {
  * @returns {Promise<{fullAccount, claudeRequest}>}
  */
 async function prepareClaudeBridge(req, accountId, accountType) {
+  // 检测客户端类型
+  const clientType = req.headers['user-agent'] ?
+    (req.headers['user-agent'].toLowerCase().includes('codex_cli') ? 'codex_cli' : 'unknown') :
+    'unknown'
+
   // 1. 使用 Bridge Service 进行桥接（OpenAI Responses → Claude）
-  const bridgeResult = await bridgeService.bridgeOpenAIToClaude(req.body, accountId, accountType)
+  const bridgeResult = await bridgeService.bridgeOpenAIToClaude(req.body, accountId, accountType, { clientType })
 
   // 2. 设置响应转换器（Claude → OpenAI Responses）
   const toOpenAI = new ClaudeToOpenAIResponsesConverter({
