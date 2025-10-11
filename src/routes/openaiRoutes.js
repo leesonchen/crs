@@ -365,8 +365,49 @@ const handleResponses = async (req, res) => {
       requestedModel
     ))
 
-    // 如果是 OpenAI-Responses 账户，使用专门的中继服务处理
+    // 如果是 OpenAI-Responses 账户，检查是否需要桥接转换
     if (accountType === 'openai-responses') {
+      // 检查账户平台，如果是 Claude 平台则需要桥接转换
+      const accountPlatform = account.platform || 'unknown'
+
+      if (accountPlatform === 'zhipuai-claude' || accountPlatform === 'claude-official' || accountPlatform === 'claude-console') {
+        logger.info(`🌉 Claude platform detected (${accountPlatform}), setting up bridge conversion for OpenAI-Responses account`)
+
+        // 检测客户端类型
+        const clientType = req.headers['user-agent'] ?
+          (req.headers['user-agent'].toLowerCase().includes('codex_cli') ? 'codex_cli' : 'unknown') :
+          'unknown'
+
+        // 为 Claude 平台设置桥接转换器（OpenAI Responses → Claude）
+        const OpenAIResponsesToClaudeConverter = require('../services/openaiResponsesToClaude')
+        const toClaude = new OpenAIResponsesToClaudeConverter({
+          clientType,
+          targetFormat: 'claude'
+        })
+
+        req._bridgeStreamTransform = (chunkStr) => {
+          const result = toClaude.convertStreamChunk(chunkStr)
+          return result
+        }
+        req._bridgeStreamFinalize = () => {
+          toClaude.finalizeStream()
+          return null // 不返回额外内容，让原始流正常结束
+        }
+        req._bridgeNonStreamConvert = () => {
+          const finalResponse = toClaude.getFinalResponse()
+          if (!finalResponse) {
+            throw new Error('Bridge converter did not capture final response')
+          }
+          return toClaude.convertNonStream({ response: finalResponse })
+        }
+
+        logger.info(`✅ Bridge converter configured for ${accountPlatform} platform`, {
+          clientType,
+          accountName: account.name,
+          platform: accountPlatform
+        })
+      }
+
       logger.info(`🔀 Using OpenAI-Responses relay service for account: ${account.name}`)
       return await openaiResponsesRelayService.handleRequest(req, res, account, apiKeyData)
     }
