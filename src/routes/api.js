@@ -17,7 +17,6 @@ const OpenAIResponsesToClaudeConverter = require('../services/openaiResponsesToC
 
 const router = express.Router()
 
-
 // 🔧 共享的消息处理函数
 async function handleMessagesRequest(req, res) {
   try {
@@ -119,10 +118,15 @@ async function handleMessagesRequest(req, res) {
         )
 
         // 使用 Bridge Service 进行桥接（格式转换 + 账户标准化）
-        const bridgeResult = await bridgeService.bridgeClaudeToOpenAI(req.body, accountId, accountType)
+        const bridgeResult = await bridgeService.bridgeClaudeToOpenAI(
+          req.body,
+          accountId,
+          accountType
+        )
 
         // 设置上游路径
-        req.headers['x-crs-upstream-path'] = accountType === 'openai' ? '/responses' : '/v1/responses'
+        req.headers['x-crs-upstream-path'] =
+          accountType === 'openai' ? '/responses' : '/v1/responses'
 
         // 设置响应转换器（将 OpenAI 响应转回 Claude 格式）
         const toClaude = new OpenAIResponsesToClaudeConverter()
@@ -575,10 +579,15 @@ async function handleMessagesRequest(req, res) {
         )
 
         // 使用 Bridge Service 进行桥接（格式转换 + 账户标准化）
-        const bridgeResult = await bridgeService.bridgeClaudeToOpenAI(req.body, accountId, accountType)
+        const bridgeResult = await bridgeService.bridgeClaudeToOpenAI(
+          req.body,
+          accountId,
+          accountType
+        )
 
         // 设置上游路径
-        req.headers['x-crs-upstream-path'] = accountType === 'openai' ? '/responses' : '/v1/responses'
+        req.headers['x-crs-upstream-path'] =
+          accountType === 'openai' ? '/responses' : '/v1/responses'
 
         logger.info(
           `✅ Bridge prepared: ${bridgeResult.bridgeInfo.source} → ${bridgeResult.bridgeInfo.target}`,

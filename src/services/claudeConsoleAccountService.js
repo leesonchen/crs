@@ -162,6 +162,14 @@ class ClaudeConsoleAccountService {
             isActive: accountData.isActive === 'true',
             proxy: accountData.proxy ? JSON.parse(accountData.proxy) : null,
             accountType: accountData.accountType || 'shared',
+            // 添加桥接相关字段
+            openaiModelMapping: accountData.openaiModelMapping
+              ? JSON.parse(accountData.openaiModelMapping)
+              : undefined,
+            modelMapping: accountData.modelMapping
+              ? JSON.parse(accountData.modelMapping)
+              : undefined,
+            tags: accountData.tags ? JSON.parse(accountData.tags) : undefined,
             createdAt: accountData.createdAt,
             lastUsedAt: accountData.lastUsedAt,
             status: accountData.status || 'active',

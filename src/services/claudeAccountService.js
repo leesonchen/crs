@@ -506,7 +506,19 @@ class ClaudeAccountService {
             useUnifiedClientId: account.useUnifiedClientId === 'true', // 默认为false
             unifiedClientId: account.unifiedClientId || '', // 统一的客户端标识
             // 添加停止原因
-            stoppedReason: account.stoppedReason || null
+            stoppedReason: account.stoppedReason || null,
+            // 添加桥接相关字段
+            openaiModelMapping: account.openaiModelMapping
+              ? JSON.parse(account.openaiModelMapping)
+              : undefined,
+            supportedModels: account.supportedModels
+              ? JSON.parse(account.supportedModels)
+              : undefined,
+            modelMapping: account.modelMapping ? JSON.parse(account.modelMapping) : undefined,
+            tags: account.tags ? JSON.parse(account.tags) : undefined,
+            restrictedModels: account.restrictedModels
+              ? JSON.parse(account.restrictedModels)
+              : undefined
           }
         })
       )
