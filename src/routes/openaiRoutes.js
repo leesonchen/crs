@@ -36,9 +36,9 @@ async function prepareClaudeBridge(req, accountId, accountType) {
   const bridgeResult = await bridgeService.bridgeOpenAIToClaude(req.body, accountId, accountType, { clientType })
 
   // 2. 设置响应转换器（Claude → OpenAI Responses）
+  // 对于桥接模式，使用客户端最初请求的模型，不需要 modelMapping
   const toOpenAI = new ClaudeToOpenAIResponsesConverter({
-    modelMapping: bridgeResult.account.openaiModelMapping || {},
-    defaultModel: 'gpt-5'
+    defaultModel: requestedModel || 'gpt-5'
   })
 
   req._bridgeConverter = toOpenAI
