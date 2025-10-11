@@ -534,6 +534,22 @@ class OpenAIResponsesToClaudeConverter {
 
       case 'message_delta':
         const events = []
+
+        // 累积使用数据（智谱AI格式的usage通常在message_delta事件中）
+        if (event.usage) {
+          logger.info('📊 [Bridge] Accumulating usage from message_delta:', {
+            usage: event.usage,
+            currentAccumulated: this.accumulatedUsage
+          })
+
+          if (event.usage.input_tokens) {
+            this.accumulatedUsage.input_tokens += event.usage.input_tokens
+          }
+          if (event.usage.output_tokens) {
+            this.accumulatedUsage.output_tokens += event.usage.output_tokens
+          }
+        }
+
         if (event.delta && event.delta.stop_reason) {
           events.push(
             this._sse({
@@ -548,7 +564,27 @@ class OpenAIResponsesToClaudeConverter {
         return events
 
       case 'message_stop':
-        return this._emitCompletion(null)
+        logger.info('📥 [Bridge] Processing message_stop event for completion:', {
+          isCodexClient: this._isCodexClient(),
+          clientType: this.clientType,
+          eventType: 'message_stop',
+          streamState: {
+            messageStarted: this.messageStarted,
+            contentBlockStarted: this.contentBlockStarted,
+            streamFinished: this.streamFinished
+          }
+        })
+
+        // 对于智谱AI格式的message_stop事件，如果是Codex CLI，也需要发送双完成事件
+        // 这里使用��积的usage数据（如果有）
+        const accumulatedUsage = this._extractUsage({ usage: null })
+        const completionPayload = {
+          id: this.messageId,
+          usage: accumulatedUsage,
+          stop_reason: 'end_turn'
+        }
+
+        return this._emitCompletion(completionPayload)
 
       // OpenAI Responses格式事件
       case 'response.started':
@@ -1010,6 +1046,20 @@ class OpenAIResponsesToClaudeConverter {
   }
 
   _extractUsage(data) {
+    // 如果有累积的使用数据，优先使用累积数据
+    if (this.accumulatedUsage && (this.accumulatedUsage.input_tokens > 0 || this.accumulatedUsage.output_tokens > 0)) {
+      logger.info('📊 [Bridge] Using accumulated usage data:', {
+        accumulatedUsage: this.accumulatedUsage,
+        fallbackUsage: data?.usage || data?.response?.usage || {}
+      })
+      return {
+        input_tokens: this.accumulatedUsage.input_tokens,
+        output_tokens: this.accumulatedUsage.output_tokens,
+        cache_creation_input_tokens: 0,
+        cache_read_input_tokens: 0
+      }
+    }
+
     const usage = data?.usage || data?.response?.usage || {}
     return {
       input_tokens: usage.input_tokens || usage.prompt_tokens || 0,
@@ -1064,6 +1114,7 @@ class OpenAIResponsesToClaudeConverter {
     this.debugEventCount = 0
     this.debugEmitCount = 0
     this.finalResponse = null
+    this.accumulatedUsage = null // 新增：累积的usage数据
   }
 
   /**
