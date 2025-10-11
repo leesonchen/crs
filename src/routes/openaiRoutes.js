@@ -367,18 +367,21 @@ const handleResponses = async (req, res) => {
 
     // 如果是 OpenAI-Responses 账户，检查是否需要桥接转换
     if (accountType === 'openai-responses') {
-      // 检查账户平台，如果是 Claude 平台则需要桥接转换
-      const accountPlatform = account.platform || 'unknown'
+      // 检查账户是否为Claude平台（需要桥接转换响应格式）
+      const isClaudePlatform = account.platform && (
+        account.platform === 'claude-official' ||
+        account.platform === 'claude-console'
+      )
 
-      if (accountPlatform === 'zhipuai-claude' || accountPlatform === 'claude-official' || accountPlatform === 'claude-console') {
-        logger.info(`🌉 Claude platform detected (${accountPlatform}), setting up bridge conversion for OpenAI-Responses account`)
+      if (isClaudePlatform) {
+        logger.info(`🌉 Claude platform detected (${account.platform}), setting up bridge conversion`)
 
         // 检测客户端类型
         const clientType = req.headers['user-agent'] ?
           (req.headers['user-agent'].toLowerCase().includes('codex_cli') ? 'codex_cli' : 'unknown') :
           'unknown'
 
-        // 为 Claude 平台设置桥接转换器（OpenAI Responses → Claude）
+        // 为Claude平台设置桥接转换器（OpenAI Responses → Claude）
         const OpenAIResponsesToClaudeConverter = require('../services/openaiResponsesToClaude')
         const toClaude = new OpenAIResponsesToClaudeConverter({
           clientType,
@@ -401,10 +404,10 @@ const handleResponses = async (req, res) => {
           return toClaude.convertNonStream({ response: finalResponse })
         }
 
-        logger.info(`✅ Bridge converter configured for ${accountPlatform} platform`, {
+        logger.info(`✅ Bridge converter configured for Claude platform`, {
           clientType,
           accountName: account.name,
-          platform: accountPlatform
+          platform: account.platform
         })
       }
 
