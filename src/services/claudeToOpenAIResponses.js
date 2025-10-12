@@ -523,144 +523,174 @@ class ClaudeToOpenAIResponsesConverter {
       converterType: 'ClaudeToOpenAIResponsesConverter'
     })
 
-    // 解析 Claude SSE 格式
-    if (!claudeChunk.startsWith('data: ')) {
-      // 可能是 event: 行，保留
-      if (claudeChunk.startsWith('event:')) {
-        logger.debug(`🔧 [Claude→OpenAI] Skipping event line:`, {
-          eventLine: claudeChunk.slice(0, 50)
-        })
-        return null // 暂不转发 event 行
+    // 处理智谱AI的 SSE 格式 (event + data 组合)
+    const lines = claudeChunk.trim().split('\n')
+    let eventType = null
+    let jsonData = null
+
+    for (const line of lines) {
+      if (line.startsWith('event:')) {
+        eventType = line.slice(6).trim()
+        logger.info(`🔧 [Claude→OpenAI] Extracted event type:`, { eventType })
+      } else if (line.startsWith('data:')) {
+        const jsonStr = line.slice(5).trim()
+        if (jsonStr === '[DONE]') {
+          logger.info(`🔧 [Claude→OpenAI] Detected [DONE] chunk, forwarding to OpenAI format`)
+          return 'data: [DONE]\n\n'
+        }
+
+        try {
+          jsonData = JSON.parse(jsonStr)
+          logger.info(`🔧 [Claude→OpenAI] Parsed JSON data:`, {
+            hasEventType: !!eventType,
+            jsonType: jsonData.type,
+            hasMessage: !!jsonData.message,
+            hasDelta: !!jsonData.delta,
+            hasUsage: !!jsonData.usage,
+            hasContentBlock: !!jsonData.content_block
+          })
+        } catch (e) {
+          logger.error(`🔧 [Claude→OpenAI] Failed to parse JSON data:`, {
+            jsonStr: jsonStr.slice(0, 100),
+            error: e.message
+          })
+          return null
+        }
       }
-      logger.warn(`🔧 [Claude→OpenAI] Unexpected chunk format, skipping:`, {
-        chunkStart: claudeChunk.slice(0, 20)
-      })
+    }
+
+    // 如果没有找到有效数据，跳过
+    if (!jsonData) {
+      logger.warn(`🔧 [Claude→OpenAI] No valid JSON data found in chunk, skipping`)
       return null
     }
 
-    const jsonStr = claudeChunk.slice(6).trim()
-    if (jsonStr === '[DONE]') {
-      logger.info(`🔧 [Claude→OpenAI] Detected [DONE] chunk, forwarding to OpenAI format`)
-      return 'data: [DONE]\n\n'
+    // 确保有事件类型，如果没有则从JSON中获取
+    if (!eventType && jsonData.type) {
+      eventType = jsonData.type
+      logger.info(`🔧 [Claude→OpenAI] Using event type from JSON:`, { eventType })
     }
 
-    try {
-      const claudeEvent = JSON.parse(jsonStr)
-      logger.info(`🔧 [Claude→OpenAI] Parsed Claude event:`, {
-        eventType: claudeEvent.type,
-        hasMessage: !!claudeEvent.message,
-        hasDelta: !!claudeEvent.delta,
-        hasUsage: !!claudeEvent.usage,
-        hasContentBlock: !!claudeEvent.content_block
-      })
+    logger.info(`🔧 [Claude→OpenAI] Processing event:`, {
+      eventType,
+      jsonType: jsonData.type,
+      finalEventType: eventType || jsonData.type
+    })
 
-      // 根据 Claude 事件类型转换
-      if (claudeEvent.type === 'message_start') {
-        // 消息开始
+      // 根据事件类型转换
+    const finalEventType = eventType || jsonData.type
+
+    if (finalEventType === 'message_start') {
+      // 消息开始
+      return `data: ${JSON.stringify({
+        type: 'response.started',
+        response: {
+          id: jsonData.message?.id || `resp_${Date.now()}`,
+          model: this._mapClaudeModelToOpenAI(jsonData.message?.model)
+        }
+      })}\n\n`
+    } else if (finalEventType === 'content_block_delta') {
+      // 文本增量
+      const { delta } = jsonData
+      if (delta && delta.type === 'text_delta') {
         return `data: ${JSON.stringify({
-          type: 'response.started',
-          response: {
-            id: claudeEvent.message?.id || `resp_${Date.now()}`,
-            model: this._mapClaudeModelToOpenAI(claudeEvent.message?.model)
+          type: 'response.output_text.delta',
+          delta: {
+            type: 'text',
+            text: delta.text
           }
         })}\n\n`
-      } else if (claudeEvent.type === 'content_block_delta') {
-        // 文本增量
-        const { delta } = claudeEvent
-        if (delta.type === 'text_delta') {
-          return `data: ${JSON.stringify({
-            type: 'response.output_text.delta',
-            delta: {
-              type: 'text',
-              text: delta.text
-            }
-          })}\n\n`
-        } else if (delta.type === 'input_json_delta') {
-          // 工具调用参数增量
-          return `data: ${JSON.stringify({
-            type: 'response.function_call_arguments.delta',
-            delta: delta.partial_json,
-            index: claudeEvent.index
-          })}\n\n`
-        }
-      } else if (claudeEvent.type === 'message_delta') {
-        // 消息元数据更新（如停止原因）
-        if (claudeEvent.delta?.stop_reason) {
-          return `data: ${JSON.stringify({
-            type: 'response.delta',
-            delta: {
-              stop_reason: this._mapStopReason(claudeEvent.delta.stop_reason)
-            }
-          })}\n\n`
-        }
-        if (claudeEvent.usage) {
-          // Usage 数据 - 不直接转发，等待 message_stop
-          return null
-        }
-      } else if (claudeEvent.type === 'message_stop') {
-        // 消息结束 - 转发 usage
-        logger.info(`🔧 [Claude→OpenAI] Processing message_stop event:`, {
-          hasUsage: !!claudeEvent.usage,
-          usage: claudeEvent.usage || 'none',
-          hasBedrockMetrics: !!claudeEvent['amazon-bedrock-invocationMetrics']
-        })
-
-        const events = []
-        if (claudeEvent.usage || claudeEvent['amazon-bedrock-invocationMetrics']) {
-          const usage = claudeEvent.usage || {}
-          logger.info(`🔧 [Claude→OpenAI] Generating response.completed event from message_stop:`, {
-            inputTokens: usage.input_tokens || 0,
-            outputTokens: usage.output_tokens || 0,
-            totalTokens: (usage.input_tokens || 0) + (usage.output_tokens || 0),
-            cacheReadTokens: usage.cache_read_input_tokens || 0
-          })
-
-          events.push(
-            `data: ${JSON.stringify({
-              type: 'response.completed',
-              response: {
-                usage: {
-                  input_tokens: usage.input_tokens || 0,
-                  output_tokens: usage.output_tokens || 0,
-                  total_tokens: (usage.input_tokens || 0) + (usage.output_tokens || 0),
-                  input_tokens_details: usage.cache_read_input_tokens
-                    ? { cached_tokens: usage.cache_read_input_tokens }
-                    : undefined
-                }
-              }
-            })}\n\n`
-          )
-        } else {
-          logger.warn(`🔧 [Claude→OpenAI] message_stop event has no usage data`)
-        }
-
-        logger.info(`🔧 [Claude→OpenAI] Adding [DONE] event after message_stop processing`)
-        events.push('data: [DONE]\n\n')
-        return events.join('')
-      } else if (claudeEvent.type === 'content_block_start') {
-        // 内容块开始
-        if (claudeEvent.content_block?.type === 'tool_use') {
-          return `data: ${JSON.stringify({
-            type: 'response.output_item.added',
-            item: {
-              type: 'function_call',
-              name: claudeEvent.content_block.name,
-              call_id: claudeEvent.content_block.id
-            },
-            index: claudeEvent.index
-          })}\n\n`
-        }
-      } else if (claudeEvent.type === 'content_block_stop') {
-        // 内容块结束
+      } else if (delta && delta.type === 'input_json_delta') {
+        // 工具调用参数增量
         return `data: ${JSON.stringify({
-          type: 'response.output_item.done',
-          index: claudeEvent.index
+          type: 'response.function_call_arguments.delta',
+          delta: delta.partial_json,
+          index: jsonData.index
         })}\n\n`
       }
-    } catch (e) {
-      console.error('Failed to parse Claude SSE chunk:', e)
+    } else if (finalEventType === 'message_delta') {
+      // 消息元数据更新（如停止原因）
+      if (jsonData.delta?.stop_reason) {
+        return `data: ${JSON.stringify({
+          type: 'response.delta',
+          delta: {
+            stop_reason: this._mapStopReason(jsonData.delta.stop_reason)
+          }
+        })}\n\n`
+      }
+      if (jsonData.usage) {
+        // Usage 数据 - 不直接转发，等待 message_stop
+        return null
+      }
+    } else if (finalEventType === 'message_stop') {
+      // 消息结束 - 转发 usage，这是关键的事件！
+      logger.info(`🔧 [Claude→OpenAI] Processing message_stop event:`, {
+        hasUsage: !!jsonData.usage,
+        usage: jsonData.usage || 'none',
+        hasBedrockMetrics: !!jsonData['amazon-bedrock-invocationMetrics']
+      })
+
+      const events = []
+      if (jsonData.usage || jsonData['amazon-bedrock-invocationMetrics']) {
+        const usage = jsonData.usage || {}
+        logger.info(`🔧 [Claude→OpenAI] Generating response.completed event from message_stop:`, {
+          inputTokens: usage.input_tokens || 0,
+          outputTokens: usage.output_tokens || 0,
+          totalTokens: (usage.input_tokens || 0) + (usage.output_tokens || 0),
+          cacheReadTokens: usage.cache_read_input_tokens || 0
+        })
+
+        events.push(
+          `data: ${JSON.stringify({
+            type: 'response.completed',
+            response: {
+              usage: {
+                input_tokens: usage.input_tokens || 0,
+                output_tokens: usage.output_tokens || 0,
+                total_tokens: (usage.input_tokens || 0) + (usage.output_tokens || 0),
+                input_tokens_details: usage.cache_read_input_tokens
+                  ? { cached_tokens: usage.cache_read_input_tokens }
+                  : undefined
+              }
+            }
+          })}\n\n`
+        )
+      } else {
+        logger.warn(`🔧 [Claude→OpenAI] message_stop event has no usage data`)
+      }
+
+      logger.info(`🔧 [Claude→OpenAI] Adding [DONE] event after message_stop processing`)
+      events.push('data: [DONE]\n\n')
+      return events.join('')
+    } else if (finalEventType === 'content_block_start') {
+      // 内容块开始
+      if (jsonData.content_block?.type === 'tool_use') {
+        return `data: ${JSON.stringify({
+          type: 'response.output_item.added',
+          item: {
+            type: 'function_call',
+            name: jsonData.content_block.name,
+            call_id: jsonData.content_block.id
+          },
+          index: jsonData.index
+        })}\n\n`
+      }
+    } else if (finalEventType === 'content_block_stop') {
+      // 内容块结束
+      return `data: ${JSON.stringify({
+        type: 'response.output_item.done',
+        index: jsonData.index
+      })}\n\n`
+    } else if (finalEventType === 'ping') {
+      // 忽略 ping 事件
+      logger.debug(`🔧 [Claude→OpenAI] Skipping ping event`)
+      return null
     }
 
+    logger.warn(`🔧 [Claude→OpenAI] Unhandled event type:`, {
+      eventType: finalEventType,
+      jsonDataKeys: Object.keys(jsonData || {})
+    })
     return null
   }
 
