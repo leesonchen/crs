@@ -618,50 +618,40 @@ class ClaudeToOpenAIResponsesConverter {
           }
         })}\n\n`
       }
-      if (jsonData.usage) {
-        // Usage 数据 - 不直接转发，等待 message_stop
-        return null
-      }
-    } else if (finalEventType === 'message_stop') {
-      // 消息结束 - 转发 usage，这是关键的事件！
-      logger.info(`🔧 [Claude→OpenAI] Processing message_stop event:`, {
-        hasUsage: !!jsonData.usage,
-        usage: jsonData.usage || 'none',
-        hasBedrockMetrics: !!jsonData['amazon-bedrock-invocationMetrics']
-      })
 
-      const events = []
-      if (jsonData.usage || jsonData['amazon-bedrock-invocationMetrics']) {
-        const usage = jsonData.usage || {}
-        logger.info(`🔧 [Claude→OpenAI] Generating response.completed event from message_stop:`, {
-          inputTokens: usage.input_tokens || 0,
-          outputTokens: usage.output_tokens || 0,
-          totalTokens: (usage.input_tokens || 0) + (usage.output_tokens || 0),
-          cacheReadTokens: usage.cache_read_input_tokens || 0
+      // 🎯 关键修复：智谱AI的 usage 数据在 message_delta 中
+      if (jsonData.usage) {
+        logger.info(`🔧 [Claude→OpenAI] Generating response.completed event from message_delta usage:`, {
+          inputTokens: jsonData.usage.input_tokens || 0,
+          outputTokens: jsonData.usage.output_tokens || 0,
+          totalTokens: (jsonData.usage.input_tokens || 0) + (jsonData.usage.output_tokens || 0),
+          cacheReadTokens: jsonData.usage.cache_read_input_tokens || 0
         })
 
-        events.push(
-          `data: ${JSON.stringify({
-            type: 'response.completed',
-            response: {
-              usage: {
-                input_tokens: usage.input_tokens || 0,
-                output_tokens: usage.output_tokens || 0,
-                total_tokens: (usage.input_tokens || 0) + (usage.output_tokens || 0),
-                input_tokens_details: usage.cache_read_input_tokens
-                  ? { cached_tokens: usage.cache_read_input_tokens }
-                  : undefined
-              }
+        const usage = jsonData.usage
+        const completionEvent = `data: ${JSON.stringify({
+          type: 'response.completed',
+          response: {
+            usage: {
+              input_tokens: usage.input_tokens || 0,
+              output_tokens: usage.output_tokens || 0,
+              total_tokens: (usage.input_tokens || 0) + (usage.usage.output_tokens || 0),
+              input_tokens_details: usage.cache_read_input_tokens
+                ? { cached_tokens: usage.cache_read_input_tokens }
+                : undefined
             }
-          })}\n\n`
-        )
-      } else {
-        logger.warn(`🔧 [Claude→OpenAI] message_stop event has no usage data`)
-      }
+          }
+        })}\n\ndata: [DONE]\n\n`
 
-      logger.info(`🔧 [Claude→OpenAI] Adding [DONE] event after message_stop processing`)
-      events.push('data: [DONE]\n\n')
-      return events.join('')
+        logger.info(`🔧 [Claude→OpenAI] Generated response.completed + [DONE] events from message_delta`)
+        return completionEvent
+      }
+    } else if (finalEventType === 'message_stop') {
+      // 消息结束 - 简化处理，因为 response.completed 已在 message_delta 中生成
+      logger.info(`🔧 [Claude→OpenAI] Processing message_stop event (response.completed already sent in message_delta)`)
+
+      // 只发送 [DONE] 信号，response.completed 已在 message_delta 中生成
+      return 'data: [DONE]\n\n'
     } else if (finalEventType === 'content_block_start') {
       // 内容块开始
       if (jsonData.content_block?.type === 'tool_use') {
