@@ -24,9 +24,10 @@ function createProxyAgent(proxy) {
  * @param {Object} req - Express 请求对象
  * @param {String} accountId - Claude 账户 ID
  * @param {String} accountType - 账户类型 ('claude-official' | 'claude-console')
+ * @param {Object} res - Express 响应对象（用于流程模拟）
  * @returns {Promise<{fullAccount, claudeRequest}>}
  */
-async function prepareClaudeBridge(req, accountId, accountType) {
+async function prepareClaudeBridge(req, accountId, accountType, res = null) {
   // 检测客户端类型
   const clientType = req.headers['user-agent'] ?
     (req.headers['user-agent'].toLowerCase().includes('codex_cli') ? 'codex_cli' : 'unknown') :
@@ -39,10 +40,15 @@ async function prepareClaudeBridge(req, accountId, accountType) {
   const bridgeResult = await bridgeService.bridgeOpenAIToClaude(req.body, accountId, accountType, { clientType })
 
   // 2. 设置响应转换器（Claude → OpenAI Responses）
-  // 对于桥接模式，使用客户端最初请求的模型，不需要 modelMapping
+  // 对于桥接模式，使用客户端最初请求的模型，简化架构：禁用流程模拟
   const toOpenAI = new ClaudeToOpenAIResponsesConverter({
-    defaultModel: requestedModel || 'gpt-5'
+    defaultModel: requestedModel || 'gpt-5',
+    // 简化架构：禁用流程模拟
+    enableFlowSimulation: false,
+    clientType: clientType
   })
+
+  // 简化架构：移除流程模拟逻辑，始终使用实时转换模式
 
   req._bridgeConverter = toOpenAI
   req._bridgeStreamTransform = (chunkStr) => {
@@ -424,7 +430,8 @@ const handleResponses = async (req, res) => {
         const { fullAccount: claudeAccount, claudeRequest } = await prepareClaudeBridge(
           req,
           accountId,
-          accountType
+          accountType,
+          res
         )
 
         // 覆写请求体为 Claude 格式

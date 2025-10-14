@@ -78,7 +78,10 @@ class BridgeService {
       // 4. 转换请求格式
       const converter = this._getConverter('ClaudeToOpenAIResponses', {
         modelMapping: systemMapping,
-        defaultModel
+        defaultModel,
+        // 简化架构：禁用流程模拟
+        enableFlowSimulation: false,
+        clientType: options.clientType || 'unknown'
       })
       const openaiRequest = converter.convertRequest(claudeRequest)
       openaiRequest.model = systemModel // 使用系统级映射的模型

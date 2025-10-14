@@ -938,7 +938,13 @@ class OpenAIResponsesRelayService {
           }
         }
       } else if (!res.destroyed) {
-        res.end()
+        // 检查是否是流程模拟模式，如果是则不立即结束响应流
+        const isFlowSimulationActive = req._bridgeConverter && req._bridgeConverter._simulationState && req._bridgeConverter._simulationState.isActive
+        if (!isFlowSimulationActive) {
+          res.end()
+        } else {
+          logger.info(`🔄 [Relay] Stream end deferred - flow simulation active`)
+        }
       }
 
       // 记录完整的SSE事件序列总结

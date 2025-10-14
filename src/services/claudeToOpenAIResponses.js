@@ -1,10 +1,30 @@
 const logger = require('../utils/logger')
+const OpenAIResponsesFlowSimulator = require('./openAIResponsesFlowSimulator')
+const FlowTimingController = require('./flowTimingController')
 
 class ClaudeToOpenAIResponsesConverter {
   constructor(options = {}) {
     this.modelMapping = options.modelMapping || {}
     this.defaultModel = options.defaultModel || 'gpt-5'
     this._lastToolSummary = null
+
+    // 流程模拟器和时序控制器 - 简化架构：禁用流程模拟
+    this.clientType = options.clientType || 'unknown'
+    this.enableFlowSimulation = false // 强制禁用流程模拟器
+
+    // 移除流程模拟器和时序控制器
+    this.flowSimulator = null
+    this.timingController = null
+
+    logger.info(`📝 [Converter] Using simplified real-time conversion mode (flow simulation disabled)`)
+
+    // 简化状态管理
+    this._simulationState = {
+      isActive: false,
+      collectedResponse: null,
+      eventsBuffer: [],
+      completionCallback: null
+    }
   }
 
   mapModel(claudeModel) {
@@ -510,12 +530,300 @@ class ClaudeToOpenAIResponsesConverter {
   }
 
   /**
-   * 转换 Claude SSE 流式 chunk 为 OpenAI Responses 格式
+   * 启动流程模拟模式
+   * @param {Function} completionCallback - 完成回调函数
+   */
+  startFlowSimulation(completionCallback) {
+    if (!this.enableFlowSimulation) {
+      logger.warn(`⚠️ [Converter] Flow simulation not enabled, falling back to legacy mode`)
+      return false
+    }
+
+    logger.info(`🎬 [Converter] Starting flow simulation mode`)
+    this._simulationState = {
+      isActive: true,
+      collectedResponse: {
+        id: `resp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        model: null,
+        content: [],
+        usage: null,
+        stop_reason: null
+      },
+      eventsBuffer: [],
+      completionCallback
+    }
+
+    return true
+  }
+
+  /**
+   * 收集 Claude 响应数据（用于流程模拟）
+   * @param {Object} claudeEventData - Claude 事件数据
+   */
+  collectClaudeResponse(claudeEventData) {
+    if (!this._simulationState.isActive) {
+      return
+    }
+
+    const { collectedResponse } = this._simulationState
+
+    // 收集不同类型的事件数据
+    switch (claudeEventData.type) {
+      case 'message_start':
+        if (claudeEventData.message?.id) {
+          collectedResponse.id = claudeEventData.message.id
+        }
+        if (claudeEventData.message?.model) {
+          collectedResponse.model = claudeEventData.message.model
+        }
+        break
+
+      case 'content_block_start':
+        logger.info(`📝 [Converter] Processing content_block_start:`, {
+          hasContentBlock: !!claudeEventData.content_block,
+          blockType: claudeEventData.content_block?.type,
+          currentContentCount: collectedResponse.content.length
+        })
+        if (claudeEventData.content_block?.type === 'text') {
+          collectedResponse.content.push({
+            type: 'text',
+            text: ''
+          })
+          logger.info(`✅ [Converter] Created new text content block, total: ${collectedResponse.content.length}`)
+        } else {
+          logger.warn(`⚠️ [Converter] Skipped non-text content block: ${claudeEventData.content_block?.type}`)
+        }
+        break
+
+      case 'content_block_delta':
+        if (claudeEventData.delta?.type === 'text_delta' && claudeEventData.delta?.text) {
+          const lastContent = collectedResponse.content[collectedResponse.content.length - 1]
+          if (lastContent && lastContent.type === 'text') {
+            lastContent.text += claudeEventData.delta.text
+          } else {
+            collectedResponse.content.push({
+              type: 'text',
+              text: claudeEventData.delta.text
+            })
+          }
+        }
+        break
+
+      case 'message_delta':
+        if (claudeEventData.usage) {
+          collectedResponse.usage = claudeEventData.usage
+        }
+        if (claudeEventData.delta?.stop_reason) {
+          collectedResponse.stop_reason = claudeEventData.delta.stop_reason
+        }
+        break
+    }
+
+    const contentLength = collectedResponse.content.reduce((sum, c) => sum + (c.text?.length || 0), 0)
+
+    logger.info(`📥 [Converter] Collected Claude response data`, {
+      eventType: claudeEventData.type,
+      hasContent: collectedResponse.content.length > 0,
+      contentBlocks: collectedResponse.content.length,
+      contentLength,
+      contentPreview: contentLength > 0 ? collectedResponse.content[0]?.text?.substring(0, 50) + '...' : '',
+      hasUsage: !!collectedResponse.usage,
+      hasStopReason: !!collectedResponse.stop_reason,
+      model: collectedResponse.model,
+      id: collectedResponse.id
+    })
+  }
+
+  /**
+   * 完成数据收集并启动流程模拟
+   * @param {Object} finalEventData - 最终事件数据
+   * @returns {Promise<void>}
+   */
+  async completeCollectionAndSimulate(finalEventData) {
+    if (!this._simulationState.isActive || !this._simulationState.completionCallback) {
+      logger.warn(`⚠️ [Converter] No active simulation or completion callback`)
+      return
+    }
+
+    // 收集最终数据
+    this.collectClaudeResponse(finalEventData)
+
+    const { collectedResponse, completionCallback } = this._simulationState
+
+    logger.info(`🏁 [Converter] Completing collection and starting flow simulation`, {
+      hasCollectedData: !!collectedResponse,
+      contentLength: collectedResponse.content.reduce((sum, c) => sum + (c.text?.length || 0), 0),
+      hasUsage: !!collectedResponse.usage
+    })
+
+    try {
+      // 使用流程模拟器生成完整事件序列
+      const events = this.flowSimulator.simulateCompleteFlow(collectedResponse)
+
+      logger.info(`🎭 [Converter] Generated complete flow simulation`, {
+        totalEvents: events.length,
+        firstEventType: events[0]?.type,
+        lastEventType: events[events.length - 1]?.type
+      })
+
+      // 使用时序控制器发送事件
+      await this.timingController.sendEventsWithTiming(
+        events,
+        async (event) => {
+          const sseData = `data: ${JSON.stringify(event)}\n\n`
+          await completionCallback(sseData)
+        },
+        {
+          enableProgressLog: true,
+          progressInterval: 10,
+          onProgress: (progress) => {
+            logger.debug(`📊 [Converter] Flow simulation progress: ${progress.progress}%`)
+          },
+          onError: async (error, event, index) => {
+            logger.error(`❌ [Converter] Flow simulation error at event ${index}:`, error)
+            return true // 继续处理后续事件
+          }
+        }
+      )
+
+      // 发送完成信号
+      await completionCallback('data: [DONE]\n\n')
+
+      logger.info(`✅ [Converter] Flow simulation completed successfully`)
+
+    } catch (error) {
+      logger.error(`❌ [Converter] Flow simulation failed:`, error)
+
+      // 降级到传统模式
+      logger.warn(`🔄 [Converter] Falling back to legacy mode due to simulation failure`)
+      this.enableFlowSimulation = false
+    }
+
+    // 重置状态
+    this._simulationState.isActive = false
+    this._simulationState.collectedResponse = null
+    this._simulationState.eventsBuffer = []
+    this._simulationState.completionCallback = null
+  }
+
+  /**
+   * 转换 Claude SSE 流式 chunk 为 OpenAI Responses 格式 - 简化架构
    * @param {String} claudeChunk - Claude SSE chunk
    * @returns {String|null} OpenAI Responses SSE chunk
    */
   convertStreamChunk(claudeChunk) {
-    logger.info(`🔧 [Claude→OpenAI] Converting stream chunk:`, {
+    // 简化架构：始终使用实时转换模式，移除复杂的流程模拟逻辑
+    return this._convertLegacyMode(claudeChunk)
+  }
+
+  /**
+   * 流程模拟模式：收集数据并准备模拟
+   * @private
+   */
+  _collectAndForwardForSimulation(claudeChunk) {
+    logger.debug(`📥 [Converter] Collecting data for flow simulation`, {
+      chunkLength: claudeChunk.length,
+      isActive: this._simulationState.isActive
+    })
+
+    // 解析事件数据
+    const eventData = this._parseClaudeEvent(claudeChunk)
+    if (!eventData) {
+      return null
+    }
+
+    // 收集数据用于后续流程模拟
+    this.collectClaudeResponse(eventData)
+
+    // 在流程模拟期间，不直接发送转换的事件
+    // 等待完整的响应收集完成后，统一生成模拟流程
+    if (eventData.type === 'message_stop') {
+      logger.info(`🏁 [Converter] Message stop detected, triggering flow simulation`)
+
+      // 异步启动流程模拟
+      setImmediate(() => {
+        this.completeCollectionAndSimulate(eventData).catch(error => {
+          logger.error(`❌ [Converter] Failed to complete collection and simulate:`, error)
+        })
+      })
+    }
+
+    return null // 不立即发送任何事件
+  }
+
+  /**
+   * 解析 Claude 事件数据
+   * @private
+   */
+  _parseClaudeEvent(claudeChunk) {
+    const lines = claudeChunk.trim().split('\n')
+    let currentEventType = null
+    let events = []
+
+    // 🎯 关键修复：正确处理包含多个事件的 chunk
+    // 将 chunk 解析为多个独立的事件
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+
+      if (line.startsWith('event:')) {
+        currentEventType = line.slice(6).trim()
+      } else if (line.startsWith('data:')) {
+        const jsonStr = line.slice(5).trim()
+        if (jsonStr === '[DONE]') {
+          events.push({ type: 'DONE' })
+          continue
+        }
+
+        try {
+          const jsonData = JSON.parse(jsonStr)
+
+          // 🎯 关键修复：使用当前的事件类型，而不是 JSON 中的 type 字段
+          // 这解决了多个事件在同一个 chunk 中的解析问题
+          const eventType = currentEventType || jsonData.type
+
+          events.push({
+            type: eventType,
+            data: jsonData
+          })
+
+        } catch (e) {
+          logger.error(`🔧 [Claude→OpenAI] Failed to parse JSON data:`, {
+            jsonStr: jsonStr.slice(0, 100),
+            error: e.message
+          })
+          // 继续处理其他事件，不要因为一个解析失败就返回 null
+          continue
+        }
+      }
+    }
+
+    // 🎯 关键修复：返回最后一个有效的事件
+    // 这符合流式处理的预期：每个 chunk 对应一个主要事件
+    if (events.length === 0) {
+      return null
+    }
+
+    const result = events[events.length - 1]
+
+    logger.info(`🔍 [Converter] Parsed Claude event:`, {
+      eventType: result.type,
+      hasData: !!result.data,
+      dataKeys: result.data ? Object.keys(result.data) : [],
+      hasDelta: !!result.data?.delta,
+      deltaType: result.data?.delta?.type,
+      deltaText: result.data?.delta?.text ? result.data.delta.text.substring(0, 50) + '...' : '',
+      totalEventsInChunk: events.length
+    })
+
+    return result
+  }
+
+  /**
+   * 传统模式：直接转换事件
+   * @private
+   */
+  _convertLegacyMode(claudeChunk) {
+    logger.info(`🔧 [Claude→OpenAI] Converting stream chunk (legacy mode):`, {
       chunkLength: claudeChunk.length,
       chunkPreview: claudeChunk.slice(0, 100) + (claudeChunk.length > 100 ? '...' : ''),
       startsWithData: claudeChunk.startsWith('data: '),
@@ -523,72 +831,53 @@ class ClaudeToOpenAIResponsesConverter {
       converterType: 'ClaudeToOpenAIResponsesConverter'
     })
 
-    // 处理智谱AI的 SSE 格式 (event + data 组合)
-    const lines = claudeChunk.trim().split('\n')
-    let eventType = null
-    let jsonData = null
-
-    for (const line of lines) {
-      if (line.startsWith('event:')) {
-        eventType = line.slice(6).trim()
-        logger.info(`🔧 [Claude→OpenAI] Extracted event type:`, { eventType })
-      } else if (line.startsWith('data:')) {
-        const jsonStr = line.slice(5).trim()
-        if (jsonStr === '[DONE]') {
-          logger.info(`🔧 [Claude→OpenAI] Detected [DONE] chunk, forwarding to OpenAI format`)
-          return 'data: [DONE]\n\n'
-        }
-
-        try {
-          jsonData = JSON.parse(jsonStr)
-          logger.info(`🔧 [Claude→OpenAI] Parsed JSON data:`, {
-            hasEventType: !!eventType,
-            jsonType: jsonData.type,
-            hasMessage: !!jsonData.message,
-            hasDelta: !!jsonData.delta,
-            hasUsage: !!jsonData.usage,
-            hasContentBlock: !!jsonData.content_block
-          })
-        } catch (e) {
-          logger.error(`🔧 [Claude→OpenAI] Failed to parse JSON data:`, {
-            jsonStr: jsonStr.slice(0, 100),
-            error: e.message
-          })
-          return null
-        }
-      }
-    }
-
-    // 如果没有找到有效数据，跳过
-    if (!jsonData) {
-      logger.warn(`🔧 [Claude→OpenAI] No valid JSON data found in chunk, skipping`)
+    // 解析事件数据
+    const eventData = this._parseClaudeEvent(claudeChunk)
+    if (!eventData) {
       return null
     }
 
-    // 确保有事件类型，如果没有则从JSON中获取
-    if (!eventType && jsonData.type) {
-      eventType = jsonData.type
-      logger.info(`🔧 [Claude→OpenAI] Using event type from JSON:`, { eventType })
-    }
-
-    logger.info(`🔧 [Claude→OpenAI] Processing event:`, {
-      eventType,
-      jsonType: jsonData.type,
-      finalEventType: eventType || jsonData.type
-    })
-
-      // 根据事件类型转换
-    const finalEventType = eventType || jsonData.type
+    const { type: finalEventType, data: jsonData } = eventData
 
     if (finalEventType === 'message_start') {
-      // 消息开始
-      return `data: ${JSON.stringify({
-        type: 'response.started',
+      // 消息开始 - 发送标准 OpenAI Response 事件序列
+      const responseId = jsonData.message?.id || `resp_${Date.now()}`
+      const mappedModel = this._mapClaudeModelToOpenAI(jsonData.message?.model)
+
+      // 🎯 关键改进：生成完整的事件序列，包含 response.created 和 response.in_progress
+      const events = []
+
+      // 1. 发送 response.created 事件
+      const responseCreatedEvent = {
+        type: 'response.created',
         response: {
-          id: jsonData.message?.id || `resp_${Date.now()}`,
-          model: this._mapClaudeModelToOpenAI(jsonData.message?.model)
+          id: responseId,
+          created: Math.floor(Date.now() / 1000),
+          model: mappedModel,
+          object: 'response'
         }
-      })}\n\n`
+      }
+      events.push(responseCreatedEvent)
+
+      // 2. 发送 response.in_progress 事件
+      const responseInProgressEvent = {
+        type: 'response.in_progress',
+        response: {
+          status: 'in_progress'
+        }
+      }
+      events.push(responseInProgressEvent)
+
+      logger.info(`🔧 [Claude→OpenAI] Generating complete event sequence for message_start:`, {
+        responseId: responseCreatedEvent.response.id,
+        model: responseCreatedEvent.response.model,
+        created: responseCreatedEvent.response.created,
+        eventCount: events.length,
+        eventTypes: events.map(e => e.type)
+      })
+
+      // 🎯 关键修复：批量发送事件，确保客户端接收到完整序列
+      return events.map(event => `data: ${JSON.stringify(event)}\n\n`).join('')
     } else if (finalEventType === 'content_block_delta') {
       // 文本增量
       const { delta } = jsonData
@@ -612,9 +901,10 @@ class ClaudeToOpenAIResponsesConverter {
       // 消息元数据更新（如停止原因）
       if (jsonData.delta?.stop_reason) {
         return `data: ${JSON.stringify({
-          type: 'response.delta',
-          delta: {
-            stop_reason: this._mapStopReason(jsonData.delta.stop_reason)
+          type: 'response.completed',
+          response: {
+            status: 'completed',
+            error: null
           }
         })}\n\n`
       }
@@ -635,7 +925,7 @@ class ClaudeToOpenAIResponsesConverter {
             usage: {
               input_tokens: usage.input_tokens || 0,
               output_tokens: usage.output_tokens || 0,
-              total_tokens: (usage.input_tokens || 0) + (usage.usage.output_tokens || 0),
+              total_tokens: (usage.input_tokens || 0) + (usage.output_tokens || 0),
               input_tokens_details: usage.cache_read_input_tokens
                 ? { cached_tokens: usage.cache_read_input_tokens }
                 : undefined
@@ -653,8 +943,25 @@ class ClaudeToOpenAIResponsesConverter {
       // 只发送 [DONE] 信号，response.completed 已在 message_delta 中生成
       return 'data: [DONE]\n\n'
     } else if (finalEventType === 'content_block_start') {
-      // 内容块开始
-      if (jsonData.content_block?.type === 'tool_use') {
+      // 内容块开始 - 发送输出项目添加事件
+      if (jsonData.content_block?.type === 'text') {
+        // 🎯 关键改进：直接发送 output_item.added 事件，in_progress 已在 message_start 中发送
+        const outputItemEvent = {
+          type: 'response.output_item.added',
+          item: {
+            type: 'text',
+            text: ''
+          },
+          index: jsonData.index || 0
+        }
+
+        logger.info(`🔧 [Claude→OpenAI] Generating response.output_item.added event for text content:`, {
+          index: outputItemEvent.index,
+          itemType: outputItemEvent.item.type
+        })
+
+        return `data: ${JSON.stringify(outputItemEvent)}\n\n`
+      } else if (jsonData.content_block?.type === 'tool_use') {
         return `data: ${JSON.stringify({
           type: 'response.output_item.added',
           item: {
@@ -685,9 +992,10 @@ class ClaudeToOpenAIResponsesConverter {
   }
 
   /**
-   * 流式响应结束时调用
+   * 流式响应结束时调用 - 简化架构
    */
   finalizeStream() {
+    // 简化架构：直接返回完成信号，移除复杂的流程控制逻辑
     return 'data: [DONE]\n\n'
   }
 
