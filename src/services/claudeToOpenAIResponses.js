@@ -1140,6 +1140,8 @@ ${content}`
 
     if (!this._session.initialized) {
       logger.warn('🔧 [Claude→OpenAI] Stream finalize called but session not initialized')
+      // Session 已被 message_stop 重置，只发送 DONE 结束符
+      // 不生成额外的 completion 事件，避免覆盖 message_stop 生成的响应
       return 'data: [DONE]\n\n'
     }
 
