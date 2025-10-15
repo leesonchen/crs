@@ -81,7 +81,7 @@ class BridgeService {
         defaultModel,
         // 简化架构：禁用流程模拟
         enableFlowSimulation: false,
-        clientType: options.clientType || 'unknown'
+        clientType: 'unknown' // Claude to OpenAI 桥接默认 clientType
       })
       const openaiRequest = converter.convertRequest(claudeRequest)
       openaiRequest.model = systemModel // 使用系统级映射的模型
@@ -508,14 +508,16 @@ class BridgeService {
    * @private
    */
   _getConverter(type, options = {}) {
+    if (type === 'ClaudeToOpenAIResponses') {
+      return new ClaudeToOpenAIResponsesConverter(options)
+    }
+
     const key = `${type}-${JSON.stringify(options)}`
 
     if (!this._converterCache.has(key)) {
       let converter
 
-      if (type === 'ClaudeToOpenAIResponses') {
-        converter = new ClaudeToOpenAIResponsesConverter(options)
-      } else if (type === 'OpenAIResponsesToClaude') {
+      if (type === 'OpenAIResponsesToClaude') {
         converter = new OpenAIResponsesToClaudeConverter(options)
       } else if (type === 'OpenAIToClaude') {
         converter = new OpenAIToClaudeConverter()

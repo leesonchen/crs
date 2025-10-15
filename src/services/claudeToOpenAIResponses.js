@@ -761,6 +761,47 @@ ${content}`
         return this._formatEvents(events)
       }
 
+      if (blockType === 'reasoning') {
+        const itemId = this._makeUid('reason')
+        const partId = this._makeUid('part')
+        blockInfo = {
+          type: 'reasoning',
+          outputIndex,
+          itemId,
+          partId,
+          reasoningBuffer: ''
+        }
+        this._session.blocks.set(indexKey, blockInfo)
+
+        const events = [
+          {
+            type: 'response.output_item.added',
+            item: {
+              type: 'reasoning',
+              status: 'in_progress'
+            },
+            item_id: itemId,
+            output_index: outputIndex
+          },
+          {
+            type: 'response.reasoning_summary_part.added',
+            item_id: itemId,
+            part: partId,
+            sequence_number: 0,
+            summary_index: 0,
+            output_index: outputIndex
+          }
+        ]
+
+        logger.info(`🔧 [Claude→OpenAI] Added reasoning summary block`, {
+          outputIndex,
+          itemId,
+          partId
+        })
+
+        return this._formatEvents(events)
+      }
+
       if (blockType === 'tool_use') {
         const itemId = this._makeUid('fn')
         blockInfo = {
@@ -828,6 +869,15 @@ ${content}`
         return null
       }
 
+      // 📝 记录 Claude API 响应的文本内容（前20个字符）
+      const newText = delta.text
+      const textPreview = newText.substring(0, 20) + (newText.length > 20 ? '...' : '')
+      logger.info(`📥 [Claude→OpenAI] Received text from Claude API: "${textPreview}"`, {
+        textLength: newText.length,
+        accumulatedLength: block.textBuffer.length + newText.length,
+        blockIndex: indexKey
+      })
+
       block.textBuffer += delta.text
 
       const events = [
@@ -840,6 +890,41 @@ ${content}`
           item_id: block.itemId,
           part: block.partId,
           content_index: 0,
+          output_index: block.outputIndex
+        }
+      ]
+
+      return this._formatEvents(events)
+    }
+
+    if (block.type === 'reasoning') {
+      const delta = data?.delta
+      if (!delta || delta.type !== 'text_delta' || !delta.text) {
+        return null
+      }
+
+      // 📝 记录 Claude API 推理内容（前20个字符）
+      const newText = delta.text
+      const textPreview = newText.substring(0, 20) + (newText.length > 20 ? '...' : '')
+      logger.info(`📥 [Claude→OpenAI] Received reasoning from Claude API: "${textPreview}"`, {
+        textLength: newText.length,
+        accumulatedLength: block.reasoningBuffer.length + newText.length,
+        blockIndex: indexKey
+      })
+
+      block.reasoningBuffer += delta.text
+
+      const events = [
+        {
+          type: 'response.reasoning_summary_text.delta',
+          delta: {
+            type: 'text',
+            text: delta.text
+          },
+          item_id: block.itemId,
+          part: block.partId,
+          sequence_number: 0,
+          summary_index: 0,
           output_index: block.outputIndex
         }
       ]
@@ -897,6 +982,30 @@ ${content}`
           item_id: block.itemId,
           part: block.partId,
           content_index: 0,
+          output_index: block.outputIndex
+        },
+        {
+          type: 'response.output_item.done',
+          item_id: block.itemId,
+          output_index: block.outputIndex
+        }
+      )
+    } else if (block.type === 'reasoning') {
+      events.push(
+        {
+          type: 'response.reasoning_summary_text.done',
+          item_id: block.itemId,
+          part: block.partId,
+          sequence_number: 0,
+          summary_index: 0,
+          output_index: block.outputIndex
+        },
+        {
+          type: 'response.reasoning_summary_part.done',
+          item_id: block.itemId,
+          part: block.partId,
+          sequence_number: 0,
+          summary_index: 0,
           output_index: block.outputIndex
         },
         {
@@ -1083,6 +1192,31 @@ ${content}`
         if (event === '[DONE]') {
           return 'data: [DONE]\n\n'
         }
+
+        // 📝 记录转发给 Codex CLI 的内容（前20个字符）
+        if (event.type === 'response.output_text.delta' && event.delta?.text) {
+          const forwardedText = event.delta.text
+          const textPreview = forwardedText.substring(0, 20) + (forwardedText.length > 20 ? '...' : '')
+          logger.info(`📤 [Claude→OpenAI] Forwarding text to Codex CLI: "${textPreview}"`, {
+            textLength: forwardedText.length,
+            eventType: event.type,
+            itemId: event.item_id
+          })
+        }
+
+        if (event.type === 'response.completed' && event.response?.output?.length > 0) {
+          const totalText = event.response.output
+            .filter(item => item.content?.[0]?.text)
+            .map(item => item.content[0].text)
+            .join('')
+          const textPreview = totalText.substring(0, 20) + (totalText.length > 20 ? '...' : '')
+          logger.info(`📤 [Claude→OpenAI] Forwarding completed response to Codex CLI: "${textPreview}"`, {
+            totalLength: totalText.length,
+            outputItems: event.response.output.length,
+            responseId: event.response.id
+          })
+        }
+
         return `data: ${JSON.stringify(event)}\n\n`
       })
       .filter(Boolean)
