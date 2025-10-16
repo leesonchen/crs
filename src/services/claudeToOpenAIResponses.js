@@ -728,7 +728,9 @@ ${content}`
           outputIndex,
           itemId,
           partId,
-          textBuffer: ''
+          textBuffer: '',
+          contentIndex: 0,
+          sequenceNumber: 0
         }
         this._session.blocks.set(indexKey, blockInfo)
 
@@ -884,13 +886,13 @@ ${content}`
         {
           type: 'response.output_text.delta',
           delta: {
-            type: 'text',
+            type: 'output_text.delta',
             text: delta.text
           },
           item_id: block.itemId,
-          part: block.partId,
-          content_index: 0,
-          output_index: block.outputIndex
+          content_index: block.contentIndex,
+          output_index: block.outputIndex,
+          sequence_number: block.sequenceNumber++
         }
       ]
 
@@ -972,10 +974,8 @@ ${content}`
         {
           type: 'response.output_text.done',
           item_id: block.itemId,
-          part: block.partId,
-          content_index: 0,
-          output_index: block.outputIndex,
-          text: block.textBuffer
+          content_index: block.contentIndex,
+          output_index: block.outputIndex
         },
         {
           type: 'response.content_part.done',

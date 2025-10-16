@@ -9,6 +9,8 @@ jest.mock('../src/utils/logger', () => ({
 const OpenAIResponsesToClaudeConverter = require('../src/services/openaiResponsesToClaude')
 
 describe('OpenAIResponsesToClaudeConverter', () => {
+  const directiveLine1 = '请直接根据以上上下文完成用户任务，并一次性输出最终结果。'
+
   test('converts non-stream response into Claude message format', () => {
     const converter = new OpenAIResponsesToClaudeConverter()
     const openaiResponse = {
@@ -79,5 +81,115 @@ describe('OpenAIResponsesToClaudeConverter', () => {
         text: 'fallback text'
       }
     ])
+  })
+
+  test('merges user messages and appends execution directive', () => {
+    const converter = new OpenAIResponsesToClaudeConverter()
+
+    const claudeRequest = converter.convertRequest({
+      model: 'gpt-5-codex',
+      stream: true,
+      instructions: 'system prompt',
+      input: [
+        {
+          type: 'message',
+          role: 'user',
+          content: [
+            {
+              type: 'input_text',
+              text: 'First requirement'
+            }
+          ]
+        },
+        {
+          type: 'message',
+          role: 'user',
+          content: 'Additional context'
+        },
+        {
+          type: 'message',
+          role: 'assistant',
+          content: [
+            {
+              type: 'output_text',
+              text: 'Previous answer'
+            }
+          ]
+        },
+        {
+          type: 'message',
+          role: 'user',
+          content: [
+            {
+              type: 'input_text',
+              text: 'Final request'
+            }
+          ]
+        }
+      ]
+    })
+
+    expect(claudeRequest.system).toBe('system prompt')
+    expect(claudeRequest.messages).toHaveLength(2)
+
+    const [userMessage, assistantMessage] = claudeRequest.messages
+
+    expect(userMessage.role).toBe('user')
+    expect(Array.isArray(userMessage.content)).toBe(true)
+    const combinedUserText = userMessage.content
+      .filter((block) => block.type === 'text')
+      .map((block) => block.text)
+      .join('\n')
+
+    expect(combinedUserText).toContain('First requirement')
+    expect(combinedUserText).toContain('Additional context')
+    expect(combinedUserText).toContain('Final request')
+    expect(combinedUserText).toContain(directiveLine1)
+
+    expect(assistantMessage.role).toBe('assistant')
+    expect(
+      assistantMessage.content.some(
+        (block) => block.type === 'text' && block.text.includes('Previous answer')
+      )
+    ).toBe(true)
+  })
+
+  test('normalizes object content blocks into text', () => {
+    const converter = new OpenAIResponsesToClaudeConverter()
+
+    const claudeRequest = converter.convertRequest({
+      model: 'gpt-5-codex',
+      stream: true,
+      instructions: 'system prompt',
+      input: [
+        {
+          type: 'message',
+          role: 'user',
+          content: {
+            text: 'Primary text'
+          }
+        },
+        {
+          type: 'message',
+          role: 'user',
+          content: {
+            parts: [
+              {
+                text: 'Extra part'
+              }
+            ]
+          }
+        }
+      ]
+    })
+
+    expect(claudeRequest.messages).toHaveLength(1)
+    const onlyMessage = claudeRequest.messages[0]
+    const textBlocks = onlyMessage.content.filter((block) => block.type === 'text')
+    const mergedText = textBlocks.map((block) => block.text).join('\n')
+
+    expect(mergedText).toContain('Primary text')
+    expect(mergedText).toContain('Extra part')
+    expect(mergedText).toContain(directiveLine1)
   })
 })

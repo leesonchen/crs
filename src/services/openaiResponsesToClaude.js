@@ -63,13 +63,15 @@ class OpenAIResponsesToClaudeConverter {
               }
             : {}
       })
-      claudeRequest.messages = this._convertInputToMessages(openaiRequest.input)
+      claudeRequest.messages = this._postProcessMessages(
+        this._convertInputToMessages(openaiRequest.input)
+      )
     } else if (openaiRequest.messages && Array.isArray(openaiRequest.messages)) {
       // 兼容传统格式
       logger.info('🔧 [Bridge] Using legacy messages format compatibility mode:', {
         messageCount: openaiRequest.messages.length
       })
-      claudeRequest.messages = openaiRequest.messages
+      claudeRequest.messages = this._postProcessMessages(openaiRequest.messages)
     } else {
       logger.warn('⚠️ [Bridge] No input or messages array found, creating empty messages array')
       claudeRequest.messages = []
@@ -96,16 +98,9 @@ class OpenAIResponsesToClaudeConverter {
       convertedKeys: Object.keys(claudeRequest),
       messagesPreview: claudeRequest.messages.slice(0, 2).map((m) => ({
         role: m.role,
-        contentType: typeof m.content,
-        contentLength:
-          typeof m.content === 'string'
-            ? m.content.length
-            : Array.isArray(m.content)
-              ? m.content.length
-              : 0,
-        contentPreview: typeof m.content === 'string' ? m.content.substring(0, 50) :
-                         Array.isArray(m.content) ? `[${m.content.length} blocks]` :
-                         'non-standard content'
+        contentType: Array.isArray(m.content) ? 'array' : typeof m.content,
+        contentLength: this._estimateContentLength(m.content),
+        contentPreview: this._buildContentPreview(m.content)
       }))
     })
 
@@ -119,177 +114,65 @@ class OpenAIResponsesToClaudeConverter {
   _convertInputToMessages(input) {
     const messages = []
 
-    for (const item of input) {
-      // 兼容两种格式：
-      // 1. 标准格式：{ type: 'message', role: 'user', content: '...' }
-      // 2. 兼容格式：{ role: 'user', content: '...' } (缺少 type 字段)
-
+    input.forEach((item, index) => {
       let isMessageItem = false
       let formatType = 'unknown'
 
-      if (item.type === 'message') {
-        // 标准格式
+      if (item && item.type === 'message') {
         isMessageItem = true
         formatType = 'standard'
-      } else if (item.role && item.content !== undefined) {
-        // 兼容格式：有 role 和 content 字段，但没有 type 字段
+      } else if (item && item.role && item.content !== undefined) {
         isMessageItem = true
         formatType = 'compat'
         logger.info('🔧 [Bridge] Converting item without type field to message format:', {
+          index,
           role: item.role,
           contentType: typeof item.content,
           hasContent: item.content !== undefined
         })
       }
 
-      if (isMessageItem) {
-        const message = {
-          role: item.role || 'user',
-          content: []
-        }
-
-        // 转换 content - 增强的内容解析逻辑
-        logger.debug('🔍 [Bridge] Processing content field:', {
-          contentType: typeof item.content,
-          contentValue: item.content,
-          contentPreview: typeof item.content === 'string' ? item.content.substring(0, 100) :
-                         typeof item.content === 'object' ? JSON.stringify(item.content, null, 2).substring(0, 100) :
-                         String(item.content).substring(0, 100)
+      if (!isMessageItem) {
+        logger.warn('⚠️ [Bridge] Skipping non-message item in input array:', {
+          index,
+          itemType: item?.type,
+          hasRole: !!item?.role,
+          hasContent: item?.content !== undefined,
+          allKeys: item ? Object.keys(item) : []
         })
+        return
+      }
 
-        if (Array.isArray(item.content)) {
-          // 处理数组格式的内容
-          for (const contentBlock of item.content) {
-            if (contentBlock.type === 'text') {
-              message.content.push({
-                type: 'text',
-                text: contentBlock.text || ''
-              })
-            } else if (contentBlock.type === 'image') {
-              // 处理图片（如果需要）
-              message.content.push(contentBlock)
-            } else {
-              // 处理其他类型的内容块
-              logger.debug('🔧 [Bridge] Processing unknown content block type:', {
-                type: contentBlock.type,
-                hasText: !!contentBlock.text,
-                hasContent: !!contentBlock.content
-              })
+      const message = {
+        role: item.role || 'user',
+        content: this._normalizeContentBlocks(item.content)
+      }
 
-              // 回退处理：尝试提取文本内容
-              if (contentBlock.text) {
-                message.content.push({
-                  type: 'text',
-                  text: contentBlock.text
-                })
-              } else if (contentBlock.content && typeof contentBlock.content === 'string') {
-                message.content.push({
-                  type: 'text',
-                  text: contentBlock.content
-                })
-              }
-            }
-          }
-        } else if (typeof item.content === 'string') {
-          // 字符串内容直接使用
-          message.content = item.content
-        } else if (typeof item.content === 'object' && item.content !== null) {
-          // 处理对象格式的内容 - 新增的回退逻辑
-          logger.info('🔧 [Bridge] Processing object content with fallback logic:', {
-            contentKeys: Object.keys(item.content),
-            hasText: !!item.content.text,
-            hasContent: !!item.content.content,
-            hasMessage: !!item.content.message
-          })
-
-          // 尝试多种方式提取文本内容
-          let extractedText = ''
-
-          if (item.content.text && typeof item.content.text === 'string') {
-            extractedText = item.content.text
-          } else if (item.content.content && typeof item.content.content === 'string') {
-            extractedText = item.content.content
-          } else if (item.content.message && typeof item.content.message === 'string') {
-            extractedText = item.content.message
-          } else if (item.content.input && typeof item.content.input === 'string') {
-            extractedText = item.content.input
-          } else if (item.content.prompt && typeof item.content.prompt === 'string') {
-            extractedText = item.content.prompt
-          }
-
-          if (extractedText) {
-            message.content = extractedText
-            logger.info('✅ [Bridge] Successfully extracted text from object content:', {
-              extractedLength: extractedText.length,
-              extractedPreview: extractedText.substring(0, 50)
-            })
-          } else {
-            // 最后的回退：将对象转换为JSON字符串
-            try {
-              const jsonString = JSON.stringify(item.content)
-              if (jsonString && jsonString !== '{}') {
-                message.content = jsonString
-                logger.warn('⚠️ [Bridge] Fallback: Using JSON string for object content:', {
-                  jsonStringLength: jsonString.length,
-                  jsonStringPreview: jsonString.substring(0, 50)
-                })
-              } else {
-                // 如果对象为空，使用默认内容
-                message.content = ''
-                logger.warn('⚠️ [Bridge] Empty object content, using empty string')
-              }
-            } catch (error) {
-              message.content = String(item.content)
-              logger.error('❌ [Bridge] Failed to stringify object content, using toString fallback:', error)
-            }
-          }
-        } else {
-          // 处理其他类型（null、undefined等）
-          message.content = String(item.content || '')
-          logger.warn('⚠️ [Bridge] Fallback: Converting non-standard content type to string:', {
-            originalType: typeof item.content,
-            originalValue: item.content,
-            convertedValue: message.content
-          })
-        }
-
-        // 如果 content 只有一个文本块，可以简化为字符串
-        if (
-          Array.isArray(message.content) &&
-          message.content.length === 1 &&
-          message.content[0].type === 'text'
-        ) {
-          message.content = message.content[0].text
-        }
-
-        // 验证最终内容不为空
-        if (!message.content || (typeof message.content === 'string' && message.content.trim() === '')) {
-          logger.warn('⚠️ [Bridge] Content is empty after processing, using fallback')
-          message.content = '' // 确保有默认值
-        }
-
-        messages.push(message)
-
-        logger.info('✅ [Bridge] Successfully converted message item:', {
+      if (message.content.length === 0) {
+        logger.warn('⚠️ [Bridge] Content is empty after processing, inserting placeholder', {
+          index,
           formatType,
           role: message.role,
-          contentType: typeof message.content,
-          contentLength:
-            typeof message.content === 'string'
-              ? message.content.length
-              : Array.isArray(message.content)
-                ? message.content.length
-                : 0
+          originalType: typeof item.content
         })
-      } else {
-        logger.warn('⚠️ [Bridge] Skipping non-message item in input array:', {
-          itemType: item.type,
-          hasRole: !!item.role,
-          hasContent: item.content !== undefined,
-          allKeys: Object.keys(item)
-        })
+        message.content = [
+          {
+            type: 'text',
+            text: ''
+          }
+        ]
       }
-    }
+
+      messages.push(message)
+
+      logger.info('✅ [Bridge] Successfully converted message item:', {
+        index,
+        formatType,
+        role: message.role,
+        contentType: Array.isArray(message.content) ? 'array' : typeof message.content,
+        contentLength: this._estimateContentLength(message.content)
+      })
+    })
 
     logger.info('📊 [Bridge] Input to messages conversion complete:', {
       inputItemsCount: input.length,
@@ -298,6 +181,338 @@ class OpenAIResponsesToClaudeConverter {
     })
 
     return messages
+  }
+
+  _postProcessMessages(messages) {
+    if (!Array.isArray(messages)) {
+      return []
+    }
+
+    const normalizedMessages = messages
+      .map((msg, index) => {
+        if (!msg || typeof msg !== 'object') {
+          logger.warn('⚠️ [Bridge] Encountered invalid message during post-processing', {
+            index,
+            type: typeof msg
+          })
+          return null
+        }
+
+        const role = msg.role || 'user'
+        const content = this._normalizeContentBlocks(msg.content)
+
+        if (content.length === 0) {
+          return null
+        }
+
+        return {
+          role,
+          content
+        }
+      })
+      .filter(Boolean)
+
+    if (normalizedMessages.length === 0) {
+      return []
+    }
+
+    const mergedMessages = this._mergeConsecutiveUserMessages(normalizedMessages)
+    this._ensureExecutionDirective(mergedMessages)
+
+    const lastUser = [...mergedMessages]
+      .reverse()
+      .find((msg) => msg.role === 'user')
+
+    if (lastUser) {
+      const aggregatedText = this._extractAllText(lastUser.content)
+      logger.info('🔍 [Bridge] Compiled user message preview', {
+        totalLength: aggregatedText.length,
+        head: aggregatedText.substring(0, 160),
+        tail: aggregatedText.slice(-160)
+      })
+    }
+
+    return mergedMessages
+  }
+
+  _normalizeContentBlocks(content) {
+    const blocks = []
+
+    if (Array.isArray(content)) {
+      content.forEach((block, index) => {
+        const normalized = this._normalizeContentBlock(block, index)
+        if (Array.isArray(normalized)) {
+          blocks.push(...normalized)
+        } else if (normalized) {
+          blocks.push(normalized)
+        }
+      })
+      return this._mergeAdjacentTextBlocks(blocks)
+    }
+
+    if (typeof content === 'string') {
+      return [{ type: 'text', text: content }]
+    }
+
+    if (content && typeof content === 'object') {
+      const extracted = this._extractTextFromObject(content)
+      if (extracted) {
+        return [{ type: 'text', text: extracted }]
+      }
+    }
+
+    if (content !== undefined && content !== null) {
+      return [{ type: 'text', text: String(content) }]
+    }
+
+    return []
+  }
+
+  _normalizeContentBlock(block, index) {
+    if (!block || typeof block !== 'object') {
+      if (block !== undefined && block !== null) {
+        return { type: 'text', text: String(block) }
+      }
+      return null
+    }
+
+    const { type } = block
+
+    if (!type || type === 'text' || type === 'input_text' || type === 'output_text') {
+      const text = this._extractTextFromObject(block)
+      if (text) {
+        return { type: 'text', text }
+      }
+      return null
+    }
+
+    if (type === 'image') {
+      return block
+    }
+
+    const textFallback = this._extractTextFromObject(block)
+    if (textFallback) {
+      logger.debug('🔧 [Bridge] Normalized non-text block via fallback text extraction', {
+        blockIndex: index,
+        normalizedType: type
+      })
+      return { type: 'text', text: textFallback }
+    }
+
+    logger.warn('⚠️ [Bridge] Dropping unsupported content block', {
+      blockIndex: index,
+      blockType: type,
+      availableKeys: Object.keys(block)
+    })
+    return null
+  }
+
+  _extractTextFromObject(content) {
+    if (!content || typeof content !== 'object') {
+      return ''
+    }
+
+    const candidateKeys = [
+      'text',
+      'content',
+      'message',
+      'input',
+      'prompt',
+      'value',
+      'string'
+    ]
+
+    for (const key of candidateKeys) {
+      if (typeof content[key] === 'string' && content[key].trim()) {
+        return content[key]
+      }
+    }
+
+    if (Array.isArray(content.parts)) {
+      return content.parts
+        .map((part) => {
+          if (typeof part === 'string') {
+            return part
+          }
+          if (part && typeof part.text === 'string') {
+            return part.text
+          }
+          return ''
+        })
+        .filter(Boolean)
+        .join('\n')
+    }
+
+    return ''
+  }
+
+  _mergeConsecutiveUserMessages(messages) {
+    const merged = []
+
+    for (const message of messages) {
+      const last = merged[merged.length - 1]
+
+      if (last && last.role === 'user' && message.role === 'user') {
+        last.content = this._mergeAdjacentTextBlocks([...last.content, ...message.content])
+        continue
+      }
+
+      merged.push({
+        role: message.role,
+        content: this._mergeAdjacentTextBlocks(message.content)
+      })
+    }
+
+    return merged
+  }
+
+  _mergeAdjacentTextBlocks(blocks) {
+    if (!Array.isArray(blocks) || blocks.length === 0) {
+      return []
+    }
+
+    const merged = []
+
+    for (const block of blocks) {
+      if (!block) {
+        continue
+      }
+
+      if (block.type === 'text') {
+        if (merged.length > 0 && merged[merged.length - 1].type === 'text') {
+          merged[merged.length - 1] = {
+            type: 'text',
+            text: this._mergeTextContent(merged[merged.length - 1].text, block.text)
+          }
+        } else {
+          merged.push({
+            type: 'text',
+            text: block.text || ''
+          })
+        }
+      } else {
+        merged.push(block)
+      }
+    }
+
+    return merged
+  }
+
+  _mergeTextContent(left = '', right = '') {
+    if (!left) {
+      return right || ''
+    }
+    if (!right) {
+      return left
+    }
+
+    const needsSpacing = !/\s$/.test(left) && !/^\s/.test(right)
+
+    return needsSpacing ? `${left}\n\n${right}` : `${left}${right}`
+  }
+
+  _ensureExecutionDirective(messages) {
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return
+    }
+
+    const directive = [
+      '请直接根据以上上下文完成用户任务，并一次性输出最终结果。',
+      '禁止寒暄、问候、再次确认问题或询问下一步，直接给出最终答案。',
+      '回答中不得包含疑问句或“如何协助”等表述，也不得请求更多指示。',
+      'If the user asked for analysis or a document, produce it immediately without introductory phrases.'
+    ].join('\n')
+
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const message = messages[i]
+      if (message.role !== 'user') {
+        continue
+      }
+
+      const existingText = this._extractAllText(message.content)
+      if (existingText.includes(directive)) {
+        return
+      }
+
+      this._appendTextBlock(message, directive)
+      return
+    }
+  }
+
+  _appendTextBlock(message, text) {
+    if (!text || !message) {
+      return
+    }
+
+    if (!Array.isArray(message.content)) {
+      message.content = this._normalizeContentBlocks(message.content)
+    }
+
+    if (message.content.length === 0) {
+      message.content.push({ type: 'text', text })
+      return
+    }
+
+    const lastBlock = message.content[message.content.length - 1]
+
+    if (lastBlock.type === 'text') {
+      lastBlock.text = this._mergeTextContent(lastBlock.text, text)
+    } else {
+      message.content.push({ type: 'text', text })
+    }
+  }
+
+  _extractAllText(content) {
+    if (typeof content === 'string') {
+      return content
+    }
+
+    if (!Array.isArray(content)) {
+      return ''
+    }
+
+    return content
+      .map((block) => {
+        if (block && block.type === 'text') {
+          return block.text || ''
+        }
+        return ''
+      })
+      .join('\n')
+  }
+
+  _estimateContentLength(content) {
+    if (typeof content === 'string') {
+      return content.length
+    }
+
+    if (!Array.isArray(content)) {
+      return 0
+    }
+
+    return content.reduce((sum, block) => {
+      if (block && block.type === 'text') {
+        return sum + (block.text ? block.text.length : 0)
+      }
+      return sum + 1
+    }, 0)
+  }
+
+  _buildContentPreview(content) {
+    if (typeof content === 'string') {
+      return content.substring(0, 50)
+    }
+
+    if (!Array.isArray(content) || content.length === 0) {
+      return '[]'
+    }
+
+    const first = content[0]
+    if (first.type === 'text') {
+      return first.text ? first.text.substring(0, 50) : ''
+    }
+
+    return `[${content.length} blocks]`
   }
 
   convertNonStream(responseData) {
