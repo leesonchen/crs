@@ -32,6 +32,54 @@ const ProxyHelper = require('../utils/proxyHelper')
 
 const router = express.Router()
 
+// 🔧 桥接配置工具函数
+function parseBooleanFlag(value, defaultValue = false) {
+  if (value === undefined || value === null) {
+    return defaultValue
+  }
+
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    if (['true', '1', 'yes', 'on'].includes(normalized)) {
+      return true
+    }
+    if (['false', '0', 'no', 'off'].includes(normalized)) {
+      return false
+    }
+  }
+
+  return Boolean(value)
+}
+
+function parseClaudeModelMappingPayload(input) {
+  if (input === undefined || input === null) {
+    return null
+  }
+
+  if (typeof input === 'string') {
+    const trimmed = input.trim()
+    if (!trimmed) {
+      return null
+    }
+
+    try {
+      const parsed = JSON.parse(trimmed)
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed
+      }
+      throw new Error('claudeModelMapping must be a JSON object')
+    } catch (error) {
+      throw new Error('claudeModelMapping must be valid JSON')
+    }
+  }
+
+  if (typeof input === 'object' && !Array.isArray(input)) {
+    return input
+  }
+
+  throw new Error('claudeModelMapping must be an object')
+}
+
 // 🛠️ 工具函数：处理可为空的时间字段
 function normalizeNullableDate(value) {
   if (value === undefined || value === null) {
@@ -9168,6 +9216,199 @@ router.post('/droid-accounts/:id/refresh-token', authenticateAdmin, async (req, 
   } catch (error) {
     logger.error(`Failed to refresh Droid account token ${req.params.id}:`, error)
     return res.status(500).json({ error: 'Failed to refresh token', message: error.message })
+  }
+})
+
+// 🔗 桥接配置管理
+
+// 获取桥接配置
+router.get('/bridge/config', authenticateAdmin, async (req, res) => {
+  try {
+    // 从 Redis 读取配置
+    const configStr = await redis.get('system:bridge_config')
+    let bridgeConfig
+
+    if (configStr) {
+      bridgeConfig = JSON.parse(configStr)
+
+      // 向后兼容：如果是旧格式，转换为新格式
+      if (bridgeConfig.enabled !== undefined && !bridgeConfig.openaiToClaude) {
+        bridgeConfig = {
+          openaiToClaude: {
+            enabled: bridgeConfig.enabled,
+            defaultModel: bridgeConfig.defaultModel,
+            modelMapping: bridgeConfig.modelMapping || {}
+          },
+          claudeToOpenai: {
+            enabled: false,
+            defaultModel: 'gpt-5',
+            modelMapping: {}
+          },
+          createdAt: bridgeConfig.createdAt,
+          updatedAt: bridgeConfig.updatedAt
+        }
+      }
+    } else {
+      // 返回默认配置（双向）
+      bridgeConfig = {
+        openaiToClaude: {
+          enabled: false,
+          defaultModel: 'claude-3-5-sonnet-20241022',
+          modelMapping: {
+            'gpt-5': 'claude-sonnet-4-20250514',
+            'gpt-5-plus': 'claude-opus-4-20250514',
+            'gpt-5-mini': 'claude-3-5-haiku-20241022'
+          }
+        },
+        claudeToOpenai: {
+          enabled: false,
+          defaultModel: 'gpt-5',
+          modelMapping: {
+            'claude-sonnet-4-20250514': 'gpt-5',
+            'claude-opus-4-20250514': 'gpt-5-plus',
+            'claude-3-5-haiku-20241022': 'gpt-5-mini'
+          }
+        },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }
+    }
+
+    res.json({
+      success: true,
+      data: bridgeConfig
+    })
+  } catch (error) {
+    logger.error('❌ Failed to get bridge config:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get bridge configuration',
+      message: error.message
+    })
+  }
+})
+
+// 更新桥接配置
+router.put('/bridge/config', authenticateAdmin, async (req, res) => {
+  try {
+    const { openaiToClaude, claudeToOpenai } = req.body
+
+    // 验证配置
+    if (!openaiToClaude || !claudeToOpenai) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required configuration',
+        message: 'Both openaiToClaude and claudeToOpenai configurations are required'
+      })
+    }
+
+    // 验证模型映射
+    if (openaiToClaude.modelMapping && typeof openaiToClaude.modelMapping !== 'object') {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid model mapping',
+        message: 'Model mapping must be an object'
+      })
+    }
+
+    if (claudeToOpenai.modelMapping && typeof claudeToOpenai.modelMapping !== 'object') {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid model mapping',
+        message: 'Model mapping must be an object'
+      })
+    }
+
+    // 验证模型名称格式
+    const openaiModelRegex = /^gpt-[a-z0-9-]+$/i
+    const claudeModelRegex = /^claude-[a-z0-9.-]+$/i
+
+    if (openaiToClaude.modelMapping) {
+      for (const [openaiModel, claudeModel] of Object.entries(openaiToClaude.modelMapping)) {
+        if (!openaiModelRegex.test(openaiModel)) {
+          return res.status(400).json({
+            success: false,
+            error: 'Invalid OpenAI model name',
+            message: `Model "${openaiModel}" does not match required format`
+          })
+        }
+        if (!claudeModelRegex.test(claudeModel)) {
+          return res.status(400).json({
+            success: false,
+            error: 'Invalid Claude model name',
+            message: `Model "${claudeModel}" does not match required format`
+          })
+        }
+      }
+    }
+
+    if (claudeToOpenai.modelMapping) {
+      for (const [claudeModel, openaiModel] of Object.entries(claudeToOpenai.modelMapping)) {
+        if (!claudeModelRegex.test(claudeModel)) {
+          return res.status(400).json({
+            success: false,
+            error: 'Invalid Claude model name',
+            message: `Model "${claudeModel}" does not match required format`
+          })
+        }
+        if (!openaiModelRegex.test(openaiModel)) {
+          return res.status(400).json({
+            success: false,
+            error: 'Invalid OpenAI model name',
+            message: `Model "${openaiModel}" does not match required format`
+          })
+        }
+      }
+    }
+
+    // 构建新配置
+    const newConfig = {
+      openaiToClaude: {
+        enabled: Boolean(openaiToClaude.enabled),
+        defaultModel: openaiToClaude.defaultModel || 'claude-3-5-sonnet-20241022',
+        modelMapping: openaiToClaude.modelMapping || {}
+      },
+      claudeToOpenai: {
+        enabled: Boolean(claudeToOpenai.enabled),
+        defaultModel: claudeToOpenai.defaultModel || 'gpt-5',
+        modelMapping: claudeToOpenai.modelMapping || {}
+      },
+      updatedAt: new Date().toISOString()
+    }
+
+    // 保持创建时间
+    const existingConfig = await redis.get('system:bridge_config')
+    if (existingConfig) {
+      const parsed = JSON.parse(existingConfig)
+      newConfig.createdAt = parsed.createdAt
+    } else {
+      newConfig.createdAt = new Date().toISOString()
+    }
+
+    // 保存到 Redis
+    await redis.set('system:bridge_config', JSON.stringify(newConfig))
+
+    logger.info('🔗 Bridge configuration updated:', {
+      openaiToClaude: newConfig.openaiToClaude.enabled,
+      claudeToOpenai: newConfig.claudeToOpenai.enabled,
+      mappingCount: {
+        openaiToClaude: Object.keys(newConfig.openaiToClaude.modelMapping).length,
+        claudeToOpenai: Object.keys(newConfig.claudeToOpenai.modelMapping).length
+      }
+    })
+
+    res.json({
+      success: true,
+      message: 'Bridge configuration updated successfully',
+      config: newConfig
+    })
+  } catch (error) {
+    logger.error('❌ Failed to update bridge config:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update bridge configuration',
+      message: error.message
+    })
   }
 })
 

@@ -12,6 +12,9 @@ const { getEffectiveModel, parseVendorPrefixedModel } = require('../utils/modelH
 const sessionHelper = require('../utils/sessionHelper')
 const { updateRateLimitCounters } = require('../utils/rateLimitHelper')
 const { sanitizeUpstreamError } = require('../utils/errorSanitizer')
+const bridgeService = require('../services/bridgeService') // Bridge Service
+const OpenAIResponsesToClaudeConverter = require('../services/openaiResponsesToClaude') // 响应转换器
+
 const router = express.Router()
 
 function queueRateLimitUpdate(rateLimitInfo, usageSummary, model, context = '') {
@@ -35,6 +38,40 @@ function queueRateLimitUpdate(rateLimitInfo, usageSummary, model, context = '') 
       logger.error(`❌ Failed to update rate limit counters${label}:`, error)
       return { totalTokens: 0, totalCost: 0 }
     })
+}
+
+// 🔧 客户端类型检测函数
+function detectClientType(userAgent) {
+  if (!userAgent || typeof userAgent !== 'string') {
+    return 'unknown'
+  }
+
+  const ua = userAgent.toLowerCase()
+
+  // 检测 Codex CLI
+  if (ua.includes('codex_cli')) {
+    return 'codex_cli'
+  }
+
+  // 检测 Claude CLI
+  if (ua.includes('claude-cli')) {
+    return 'claude_cli'
+  }
+
+  // 检测其他常见客户端
+  if (ua.includes('curl')) {
+    return 'curl'
+  }
+
+  if (ua.includes('python')) {
+    return 'python'
+  }
+
+  if (ua.includes('node')) {
+    return 'node'
+  }
+
+  return 'unknown'
 }
 
 // 🔧 共享的消息处理函数
