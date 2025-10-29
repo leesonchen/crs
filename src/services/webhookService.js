@@ -213,7 +213,7 @@ class WebhookService {
     // 使用通用格式
     const payload = {
       type,
-      service: 'claude-relay-service',
+      service: 'api-service',
       timestamp: getISOStringWithTimezone(new Date()),
       data
     }
@@ -331,7 +331,7 @@ class WebhookService {
   async sendHttpRequest(url, payload, timeout, axiosOptions = {}) {
     const headers = {
       'Content-Type': 'application/json',
-      'User-Agent': 'claude-relay-service/2.0',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       ...(axiosOptions.headers || {})
     }
 

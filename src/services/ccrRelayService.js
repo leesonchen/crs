@@ -6,7 +6,7 @@ const { parseVendorPrefixedModel } = require('../utils/modelHelper')
 
 class CcrRelayService {
   constructor() {
-    this.defaultUserAgent = 'claude-relay-service/1.0.0'
+    this.defaultUserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
   }
 
   // 🚀 转发请求到CCR API

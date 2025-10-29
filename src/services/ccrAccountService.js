@@ -42,7 +42,7 @@ class CcrAccountService {
       apiKey = '',
       priority = 50, // 默认优先级50（1-100）
       supportedModels = [], // 支持的模型列表或映射表，空数组/对象表示支持所有
-      userAgent = 'claude-relay-service/1.0.0',
+      userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       rateLimitDuration = 60, // 限流时间（分钟）
       proxy = null,
       isActive = true,

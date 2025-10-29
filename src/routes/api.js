@@ -983,18 +983,12 @@ router.get('/health', async (req, res) => {
     const healthStatus = await claudeRelayService.healthCheck()
 
     res.status(healthStatus.healthy ? 200 : 503).json({
-      status: healthStatus.healthy ? 'healthy' : 'unhealthy',
-      service: 'claude-relay-service',
-      version: '1.0.0',
-      ...healthStatus
+      status: healthStatus.healthy ? 'healthy' : 'unhealthy'
     })
   } catch (error) {
     logger.error('❌ Health check error:', error)
     res.status(503).json({
-      status: 'unhealthy',
-      service: 'claude-relay-service',
-      error: error.message,
-      timestamp: new Date().toISOString()
+      status: 'unhealthy'
     })
   }
 })

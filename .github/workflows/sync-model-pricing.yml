@@ -1,12 +1,17 @@
-name: 同步模型价格数据
+# Workflow已禁用 - 存在信息泄露风险
+# 此workflow会定期访问外部GitHub仓库，可能暴露服务器信息
+name: [已禁用] 同步模型价格数据
 
 on:
-  schedule:
-    - cron: '*/10 * * * *'
-  workflow_dispatch: {}
+  # 已移除所有触发器，禁用自动执行
+  # schedule:
+  #   - cron: '*/10 * * * *'
+  # workflow_dispatch: {}
 
 jobs:
   sync-pricing:
+    # Job已禁用 - 整个workflow已被禁用
+    if: false
     runs-on: ubuntu-latest
     permissions:
       contents: write

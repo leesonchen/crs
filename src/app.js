@@ -326,22 +326,9 @@ class Application {
             }
           }
 
+          // 健康检查端点已简化 - 防止信息泄露
           const health = {
-            status: 'healthy',
-            service: 'claude-relay-service',
-            version,
-            timestamp: new Date().toISOString(),
-            uptime: process.uptime(),
-            memory: {
-              used: `${Math.round(memory.heapUsed / 1024 / 1024)}MB`,
-              total: `${Math.round(memory.heapTotal / 1024 / 1024)}MB`,
-              external: `${Math.round(memory.external / 1024 / 1024)}MB`
-            },
-            components: {
-              redis: redisHealth,
-              logger: loggerHealth
-            },
-            stats: logger.getStats()
+            status: 'healthy'
           }
 
           timer.end('completed')
@@ -349,25 +336,18 @@ class Application {
         } catch (error) {
           logger.error('❌ Health check failed:', { error: error.message, stack: error.stack })
           res.status(503).json({
-            status: 'unhealthy',
-            error: error.message,
-            timestamp: new Date().toISOString()
+            status: 'unhealthy'
           })
         }
       })
 
-      // 📊 指标端点
+      // 📊 指标端点 (已简化 - 防止信息泄露)
       this.app.get('/metrics', async (req, res) => {
         try {
-          const stats = await redis.getSystemStats()
-          const metrics = {
-            ...stats,
-            uptime: process.uptime(),
-            memory: process.memoryUsage(),
-            timestamp: new Date().toISOString()
-          }
-
-          res.json(metrics)
+          res.json({
+            status: 'ok',
+            message: '指标端点已禁用以防止信息泄露'
+          })
         } catch (error) {
           logger.error('❌ Metrics collection failed:', error)
           res.status(500).json({ error: 'Failed to collect metrics' })
@@ -474,18 +454,8 @@ class Application {
       await this.initialize()
 
       this.server = this.app.listen(config.server.port, config.server.host, () => {
-        logger.start(
-          `🚀 Claude Relay Service started on ${config.server.host}:${config.server.port}`
-        )
-        logger.info(
-          `🌐 Web interface: http://${config.server.host}:${config.server.port}/admin-next/api-stats`
-        )
-        logger.info(
-          `🔗 API endpoint: http://${config.server.host}:${config.server.port}/api/v1/messages`
-        )
-        logger.info(`⚙️  Admin API: http://${config.server.host}:${config.server.port}/admin`)
-        logger.info(`🏥 Health check: http://${config.server.host}:${config.server.port}/health`)
-        logger.info(`📊 Metrics: http://${config.server.host}:${config.server.port}/metrics`)
+        logger.start(`🚀 Claude Relay Service started on port ${config.server.port}`)
+        logger.info('🌐 服务已启动 - 详细端点信息已在日志中隐藏')
       })
 
       const serverTimeout = 600000 // 默认10分钟
