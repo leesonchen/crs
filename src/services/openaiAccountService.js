@@ -283,6 +283,7 @@ async function refreshAccessToken(refreshToken, proxy = null) {
     // 配置代理（如果有）
     const proxyAgent = ProxyHelper.createProxyAgent(proxy)
     if (proxyAgent) {
+      requestOptions.httpAgent = proxyAgent
       requestOptions.httpsAgent = proxyAgent
       requestOptions.proxy = false
       logger.info(
@@ -392,6 +393,19 @@ function isTokenExpired(account) {
     return false
   }
   return new Date(account.expiresAt) <= new Date()
+}
+
+/**
+ * 检查账户订阅是否过期
+ * @param {Object} account - 账户对象
+ * @returns {boolean} - true: 已过期, false: 未过期
+ */
+function isSubscriptionExpired(account) {
+  if (!account.subscriptionExpiresAt) {
+    return false // 未设置视为永不过期
+  }
+  const expiryDate = new Date(account.subscriptionExpiresAt)
+  return expiryDate <= new Date()
 }
 
 // 刷新账户的 access token（带分布式锁）
@@ -615,7 +629,11 @@ async function createAccount(accountData) {
     // 过期时间
     expiresAt: oauthData.expires_in
       ? new Date(Date.now() + oauthData.expires_in * 1000).toISOString()
-      : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // 默认1年
+      : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // OAuth Token 过期时间（技术字段）
+
+    // ✅ 新增：账户订阅到期时间（业务字段，手动管理）
+    subscriptionExpiresAt: accountData.subscriptionExpiresAt || null,
+
     // 状态字段
     isActive: accountData.isActive !== false ? 'true' : 'false',
     status: 'active',
@@ -729,6 +747,12 @@ async function updateAccount(accountId, updates) {
       typeof updates.proxy === 'string' ? updates.proxy : JSON.stringify(updates.proxy)
   }
 
+  // ✅ 如果通过路由映射更新了 subscriptionExpiresAt，直接保存
+  // subscriptionExpiresAt 是业务字段，与 token 刷新独立
+  if (updates.subscriptionExpiresAt !== undefined) {
+    // 直接保存，不做任何调整
+  }
+
   // 更新账户类型时处理共享账户集合
   const client = redisClient.getClientSafe()
   if (updates.accountType && updates.accountType !== existingAccount.accountType) {
@@ -827,6 +851,12 @@ async function getAllAccounts() {
         }
       }
 
+      const tokenExpiresAt = accountData.expiresAt || null
+      const subscriptionExpiresAt =
+        accountData.subscriptionExpiresAt && accountData.subscriptionExpiresAt !== ''
+          ? accountData.subscriptionExpiresAt
+          : null
+
       // 不解密敏感字段，只返回基本信息
       accounts.push({
         ...accountData,
@@ -835,6 +865,12 @@ async function getAllAccounts() {
         openaiOauth: maskedOauth,
         accessToken: maskedAccessToken,
         refreshToken: maskedRefreshToken,
+
+        // ✅ 前端显示订阅过期时间（业务字段）
+        tokenExpiresAt,
+        subscriptionExpiresAt,
+        expiresAt: subscriptionExpiresAt,
+
         // 添加 scopes 字段用于判断认证方式
         // 处理空字符串的情况
         scopes:
@@ -864,6 +900,47 @@ async function getAllAccounts() {
   }
 
   return accounts
+}
+
+// 获取单个账户的概要信息（用于外部展示基本状态）
+async function getAccountOverview(accountId) {
+  const client = redisClient.getClientSafe()
+  const accountData = await client.hgetall(`${OPENAI_ACCOUNT_KEY_PREFIX}${accountId}`)
+
+  if (!accountData || Object.keys(accountData).length === 0) {
+    return null
+  }
+
+  const codexUsage = buildCodexUsageSnapshot(accountData)
+  const rateLimitInfo = await getAccountRateLimitInfo(accountId)
+
+  if (accountData.proxy) {
+    try {
+      accountData.proxy = JSON.parse(accountData.proxy)
+    } catch (error) {
+      accountData.proxy = null
+    }
+  }
+
+  const scopes =
+    accountData.scopes && accountData.scopes.trim() ? accountData.scopes.split(' ') : []
+
+  return {
+    id: accountData.id,
+    accountType: accountData.accountType || 'shared',
+    platform: accountData.platform || 'openai',
+    isActive: accountData.isActive === 'true',
+    schedulable: accountData.schedulable !== 'false',
+    rateLimitStatus: rateLimitInfo || {
+      status: 'normal',
+      isRateLimited: false,
+      rateLimitedAt: null,
+      rateLimitResetAt: null,
+      minutesRemaining: 0
+    },
+    codexUsage,
+    scopes
+  }
 }
 
 // 选择可用账户（支持专属和共享账户）
@@ -919,8 +996,17 @@ async function selectAvailableAccount(apiKeyId, sessionHash = null) {
 
   for (const accountId of sharedAccountIds) {
     const account = await getAccount(accountId)
-    if (account && account.isActive === 'true' && !isRateLimited(account)) {
+    if (
+      account &&
+      account.isActive === 'true' &&
+      !isRateLimited(account) &&
+      !isSubscriptionExpired(account)
+    ) {
       availableAccounts.push(account)
+    } else if (account && isSubscriptionExpired(account)) {
+      logger.debug(
+        `⏰ Skipping expired OpenAI account: ${account.name}, expired at ${account.subscriptionExpiresAt}`
+      )
     }
   }
 
@@ -1233,6 +1319,7 @@ async function updateCodexUsageSnapshot(accountId, usageSnapshot) {
 module.exports = {
   createAccount,
   getAccount,
+  getAccountOverview,
   updateAccount,
   deleteAccount,
   getAllAccounts,

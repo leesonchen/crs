@@ -11,8 +11,7 @@ const openaiResponsesRelayService = require('../services/openaiResponsesRelaySer
 const apiKeyService = require('../services/apiKeyService')
 const crypto = require('crypto')
 const ProxyHelper = require('../utils/proxyHelper')
-const bridgeService = require('../services/bridgeService')
-const ClaudeToOpenAIResponsesConverter = require('../services/claudeToOpenAIResponses')
+const { updateRateLimitCounters } = require('../utils/rateLimitHelper')
 
 // 创建代理 Agent（使用统一的代理工具）
 function createProxyAgent(proxy) {
@@ -160,6 +159,31 @@ function extractCodexUsageHeaders(headers) {
 
   const hasData = Object.values(snapshot).some((value) => value !== null)
   return hasData ? snapshot : null
+}
+
+async function applyRateLimitTracking(req, usageSummary, model, context = '') {
+  if (!req.rateLimitInfo) {
+    return
+  }
+
+  const label = context ? ` (${context})` : ''
+
+  try {
+    const { totalTokens, totalCost } = await updateRateLimitCounters(
+      req.rateLimitInfo,
+      usageSummary,
+      model
+    )
+
+    if (totalTokens > 0) {
+      logger.api(`📊 Updated rate limit token count${label}: +${totalTokens} tokens`)
+    }
+    if (typeof totalCost === 'number' && totalCost > 0) {
+      logger.api(`💰 Updated rate limit cost count${label}: +$${totalCost.toFixed(6)}`)
+    }
+  } catch (error) {
+    logger.error(`❌ Failed to update rate limit counters${label}:`, error)
+  }
 }
 
 // 使用统一调度器选择 OpenAI 账户
@@ -510,6 +534,7 @@ const handleResponses = async (req, res) => {
 
     // 如果有代理，添加代理配置
     if (proxyAgent) {
+      axiosConfig.httpAgent = proxyAgent
       axiosConfig.httpsAgent = proxyAgent
       axiosConfig.proxy = false
       logger.info(`🌐 Using proxy for OpenAI request: ${ProxyHelper.getProxyDescription(proxy)}`)
@@ -783,6 +808,18 @@ const handleResponses = async (req, res) => {
           logger.info(
             `📊 Recorded OpenAI non-stream usage - Input: ${totalInputTokens}(actual:${actualInputTokens}+cached:${cacheReadTokens}), Output: ${outputTokens}, Total: ${usageData.total_tokens || totalInputTokens + outputTokens}, Model: ${actualModel}`
           )
+
+          await applyRateLimitTracking(
+            req,
+            {
+              inputTokens: actualInputTokens,
+              outputTokens,
+              cacheCreateTokens: 0,
+              cacheReadTokens
+            },
+            actualModel,
+            'openai-non-stream'
+          )
         }
 
         // 返回响应
@@ -904,6 +941,18 @@ const handleResponses = async (req, res) => {
             `📊 Recorded OpenAI usage - Input: ${totalInputTokens}(actual:${actualInputTokens}+cached:${cacheReadTokens}), Output: ${outputTokens}, Total: ${usageData.total_tokens || totalInputTokens + outputTokens}, Model: ${modelToRecord} (actual: ${actualModel}, requested: ${requestedModel})`
           )
           usageReported = true
+
+          await applyRateLimitTracking(
+            req,
+            {
+              inputTokens: actualInputTokens,
+              outputTokens,
+              cacheCreateTokens: 0,
+              cacheReadTokens
+            },
+            modelToRecord,
+            'openai-stream'
+          )
         } catch (error) {
           logger.error('Failed to record OpenAI usage:', error)
         }
@@ -1073,3 +1122,4 @@ router.get('/key-info', authenticateApiKey, async (req, res) => {
 })
 
 module.exports = router
+module.exports.handleResponses = handleResponses

@@ -2,6 +2,11 @@ const axios = require('axios')
 const claudeConsoleAccountService = require('./claudeConsoleAccountService')
 const logger = require('../utils/logger')
 const config = require('../../config/config')
+const {
+  sanitizeUpstreamError,
+  sanitizeErrorMessage,
+  isAccountDisabledError
+} = require('../utils/errorSanitizer')
 
 class ClaudeConsoleRelayService {
   constructor() {
@@ -122,10 +127,15 @@ class ClaudeConsoleRelayService {
           'User-Agent': userAgent,
           ...filteredHeaders
         },
-        httpsAgent: proxyAgent,
         timeout: config.requestTimeout || 600000,
         signal: abortController.signal,
         validateStatus: () => true // 接受所有状态码
+      }
+
+      if (proxyAgent) {
+        requestConfig.httpAgent = proxyAgent
+        requestConfig.httpsAgent = proxyAgent
+        requestConfig.proxy = false
       }
 
       // 根据 API Key 格式选择认证方式
@@ -172,14 +182,49 @@ class ClaudeConsoleRelayService {
       logger.debug(
         `[DEBUG] Response data length: ${response.data ? (typeof response.data === 'string' ? response.data.length : JSON.stringify(response.data).length) : 0}`
       )
-      logger.debug(
-        `[DEBUG] Response data preview: ${typeof response.data === 'string' ? response.data.substring(0, 200) : JSON.stringify(response.data).substring(0, 200)}`
-      )
+
+      // 对于错误响应，记录原始错误和清理后的预览
+      if (response.status < 200 || response.status >= 300) {
+        // 记录原始错误响应（包含供应商信息，用于调试）
+        const rawData =
+          typeof response.data === 'string' ? response.data : JSON.stringify(response.data)
+        logger.error(
+          `📝 Upstream error response from ${account?.name || accountId}: ${rawData.substring(0, 500)}`
+        )
+
+        // 记录清理后的数据到error
+        try {
+          const responseData =
+            typeof response.data === 'string' ? JSON.parse(response.data) : response.data
+          const sanitizedData = sanitizeUpstreamError(responseData)
+          logger.error(`🧹 [SANITIZED] Error response to client: ${JSON.stringify(sanitizedData)}`)
+        } catch (e) {
+          const rawText =
+            typeof response.data === 'string' ? response.data : JSON.stringify(response.data)
+          const sanitizedText = sanitizeErrorMessage(rawText)
+          logger.error(`🧹 [SANITIZED] Error response to client: ${sanitizedText}`)
+        }
+      } else {
+        logger.debug(
+          `[DEBUG] Response data preview: ${typeof response.data === 'string' ? response.data.substring(0, 200) : JSON.stringify(response.data).substring(0, 200)}`
+        )
+      }
+
+      // 检查是否为账户禁用/不可用的 400 错误
+      const accountDisabledError = isAccountDisabledError(response.status, response.data)
 
       // 检查错误状态并相应处理
       if (response.status === 401) {
         logger.warn(`🚫 Unauthorized error detected for Claude Console account ${accountId}`)
         await claudeConsoleAccountService.markAccountUnauthorized(accountId)
+      } else if (accountDisabledError) {
+        logger.error(
+          `🚫 Account disabled error (400) detected for Claude Console account ${accountId}, marking as blocked`
+        )
+        // 传入完整的错误详情到 webhook
+        const errorDetails =
+          typeof response.data === 'string' ? response.data : JSON.stringify(response.data)
+        await claudeConsoleAccountService.markConsoleAccountBlocked(accountId, errorDetails)
       } else if (response.status === 429) {
         logger.warn(`🚫 Rate limit detected for Claude Console account ${accountId}`)
         // 收到429先检查是否因为超过了手动配置的每日额度
@@ -206,9 +251,30 @@ class ClaudeConsoleRelayService {
       // 更新最后使用时间
       await this._updateLastUsedTime(accountId)
 
-      const responseBody =
-        typeof response.data === 'string' ? response.data : JSON.stringify(response.data)
-      logger.debug(`[DEBUG] Final response body to return: ${responseBody}`)
+      // 准备响应体并清理错误信息（如果是错误响应）
+      let responseBody
+      if (response.status < 200 || response.status >= 300) {
+        // 错误响应，清理供应商信息
+        try {
+          const responseData =
+            typeof response.data === 'string' ? JSON.parse(response.data) : response.data
+          const sanitizedData = sanitizeUpstreamError(responseData)
+          responseBody = JSON.stringify(sanitizedData)
+          logger.debug(`🧹 Sanitized error response`)
+        } catch (parseError) {
+          // 如果无法解析为JSON，尝试清理文本
+          const rawText =
+            typeof response.data === 'string' ? response.data : JSON.stringify(response.data)
+          responseBody = sanitizeErrorMessage(rawText)
+          logger.debug(`🧹 Sanitized error text`)
+        }
+      } else {
+        // 成功响应，不需要清理
+        responseBody =
+          typeof response.data === 'string' ? response.data : JSON.stringify(response.data)
+      }
+
+      logger.debug(`[DEBUG] Final response body to return: ${responseBody.substring(0, 200)}...`)
 
       return {
         statusCode: response.status,
@@ -385,10 +451,15 @@ class ClaudeConsoleRelayService {
           'User-Agent': userAgent,
           ...filteredHeaders
         },
-        httpsAgent: proxyAgent,
         timeout: config.requestTimeout || 600000,
         responseType: 'stream',
         validateStatus: () => true // 接受所有状态码
+      }
+
+      if (proxyAgent) {
+        requestConfig.httpAgent = proxyAgent
+        requestConfig.httpsAgent = proxyAgent
+        requestConfig.proxy = false
       }
 
       // 根据 API Key 格式选择认证方式
@@ -420,44 +491,83 @@ class ClaudeConsoleRelayService {
               `❌ Claude Console API returned error status: ${response.status} | Account: ${account?.name || accountId}`
             )
 
-            if (response.status === 401) {
-              claudeConsoleAccountService.markAccountUnauthorized(accountId)
-            } else if (response.status === 429) {
-              claudeConsoleAccountService.markAccountRateLimited(accountId)
-              // 检查是否因为超过每日额度
-              claudeConsoleAccountService.checkQuotaUsage(accountId).catch((err) => {
-                logger.error('❌ Failed to check quota after 429 error:', err)
-              })
-            } else if (response.status === 529) {
-              claudeConsoleAccountService.markAccountOverloaded(accountId)
-            }
+            // 收集错误数据用于检测
+            let errorDataForCheck = ''
+            const errorChunks = []
 
-            // 设置错误响应的状态码和响应头
-            if (!responseStream.headersSent) {
-              const errorHeaders = {
-                'Content-Type': response.headers['content-type'] || 'application/json',
-                'Cache-Control': 'no-cache',
-                Connection: 'keep-alive'
-              }
-              // 避免 Transfer-Encoding 冲突，让 Express 自动处理
-              delete errorHeaders['Transfer-Encoding']
-              delete errorHeaders['Content-Length']
-              responseStream.writeHead(response.status, errorHeaders)
-            }
-
-            // 直接透传错误数据，不进行包装
             response.data.on('data', (chunk) => {
-              if (!responseStream.destroyed) {
-                responseStream.write(chunk)
-              }
+              errorChunks.push(chunk)
+              errorDataForCheck += chunk.toString()
             })
 
-            response.data.on('end', () => {
-              if (!responseStream.destroyed) {
-                responseStream.end()
+            response.data.on('end', async () => {
+              // 记录原始错误消息到日志（方便调试，包含供应商信息）
+              logger.error(
+                `📝 [Stream] Upstream error response from ${account?.name || accountId}: ${errorDataForCheck.substring(0, 500)}`
+              )
+
+              // 检查是否为账户禁用错误
+              const accountDisabledError = isAccountDisabledError(
+                response.status,
+                errorDataForCheck
+              )
+
+              if (response.status === 401) {
+                await claudeConsoleAccountService.markAccountUnauthorized(accountId)
+              } else if (accountDisabledError) {
+                logger.error(
+                  `🚫 [Stream] Account disabled error (400) detected for Claude Console account ${accountId}, marking as blocked`
+                )
+                // 传入完整的错误详情到 webhook
+                await claudeConsoleAccountService.markConsoleAccountBlocked(
+                  accountId,
+                  errorDataForCheck
+                )
+              } else if (response.status === 429) {
+                await claudeConsoleAccountService.markAccountRateLimited(accountId)
+                // 检查是否因为超过每日额度
+                claudeConsoleAccountService.checkQuotaUsage(accountId).catch((err) => {
+                  logger.error('❌ Failed to check quota after 429 error:', err)
+                })
+              } else if (response.status === 529) {
+                await claudeConsoleAccountService.markAccountOverloaded(accountId)
+              }
+
+              // 设置响应头
+              if (!responseStream.headersSent) {
+                responseStream.writeHead(response.status, {
+                  'Content-Type': 'application/json',
+                  'Cache-Control': 'no-cache'
+                })
+              }
+
+              // 清理并发送错误响应
+              try {
+                const fullErrorData = Buffer.concat(errorChunks).toString()
+                const errorJson = JSON.parse(fullErrorData)
+                const sanitizedError = sanitizeUpstreamError(errorJson)
+
+                // 记录清理后的错误消息（发送给客户端的，完整记录）
+                logger.error(
+                  `🧹 [Stream] [SANITIZED] Error response to client: ${JSON.stringify(sanitizedError)}`
+                )
+
+                if (!responseStream.destroyed) {
+                  responseStream.write(JSON.stringify(sanitizedError))
+                  responseStream.end()
+                }
+              } catch (parseError) {
+                const sanitizedText = sanitizeErrorMessage(errorDataForCheck)
+                logger.error(`🧹 [Stream] [SANITIZED] Error response to client: ${sanitizedText}`)
+
+                if (!responseStream.destroyed) {
+                  responseStream.write(sanitizedText)
+                  responseStream.end()
+                }
               }
               resolve() // 不抛出异常，正常完成流处理
             })
+
             return
           }
 
@@ -485,7 +595,9 @@ class ClaudeConsoleRelayService {
 
           let buffer = ''
           let finalUsageReported = false
-          const collectedUsageData = {}
+          const collectedUsageData = {
+            model: body.model || account?.defaultModel || null
+          }
 
           // 处理流数据
           response.data.on('data', (chunk) => {
@@ -532,9 +644,12 @@ class ClaudeConsoleRelayService {
 
                 // 解析SSE数据寻找usage信息
                 for (const line of lines) {
-                  if (line.startsWith('data: ') && line.length > 6) {
+                  if (line.startsWith('data:')) {
+                    const jsonStr = line.slice(5).trimStart()
+                    if (!jsonStr || jsonStr === '[DONE]') {
+                      continue
+                    }
                     try {
-                      const jsonStr = line.slice(6)
                       const data = JSON.parse(jsonStr)
 
                       // 收集usage数据
@@ -564,14 +679,58 @@ class ClaudeConsoleRelayService {
                         }
                       }
 
-                      if (
-                        data.type === 'message_delta' &&
-                        data.usage &&
-                        data.usage.output_tokens !== undefined
-                      ) {
-                        collectedUsageData.output_tokens = data.usage.output_tokens || 0
+                      if (data.type === 'message_delta' && data.usage) {
+                        // 提取所有usage字段，message_delta可能包含完整的usage信息
+                        if (data.usage.output_tokens !== undefined) {
+                          collectedUsageData.output_tokens = data.usage.output_tokens || 0
+                        }
 
-                        if (collectedUsageData.input_tokens !== undefined && !finalUsageReported) {
+                        // 提取input_tokens（如果存在）
+                        if (data.usage.input_tokens !== undefined) {
+                          collectedUsageData.input_tokens = data.usage.input_tokens || 0
+                        }
+
+                        // 提取cache相关的tokens
+                        if (data.usage.cache_creation_input_tokens !== undefined) {
+                          collectedUsageData.cache_creation_input_tokens =
+                            data.usage.cache_creation_input_tokens || 0
+                        }
+                        if (data.usage.cache_read_input_tokens !== undefined) {
+                          collectedUsageData.cache_read_input_tokens =
+                            data.usage.cache_read_input_tokens || 0
+                        }
+
+                        // 检查是否有详细的 cache_creation 对象
+                        if (
+                          data.usage.cache_creation &&
+                          typeof data.usage.cache_creation === 'object'
+                        ) {
+                          collectedUsageData.cache_creation = {
+                            ephemeral_5m_input_tokens:
+                              data.usage.cache_creation.ephemeral_5m_input_tokens || 0,
+                            ephemeral_1h_input_tokens:
+                              data.usage.cache_creation.ephemeral_1h_input_tokens || 0
+                          }
+                        }
+
+                        logger.info(
+                          '📊 [Console] Collected usage data from message_delta:',
+                          JSON.stringify(collectedUsageData)
+                        )
+
+                        // 如果已经收集到了完整数据，触发回调
+                        if (
+                          collectedUsageData.input_tokens !== undefined &&
+                          collectedUsageData.output_tokens !== undefined &&
+                          !finalUsageReported
+                        ) {
+                          if (!collectedUsageData.model) {
+                            collectedUsageData.model = body.model || account?.defaultModel || null
+                          }
+                          logger.info(
+                            '🎯 [Console] Complete usage data collected:',
+                            JSON.stringify(collectedUsageData)
+                          )
                           usageCallback({ ...collectedUsageData, accountId })
                           finalUsageReported = true
                         }
@@ -613,6 +772,41 @@ class ClaudeConsoleRelayService {
                   }
                 } else {
                   responseStream.write(buffer)
+                }
+              }
+
+              // 🔧 兜底逻辑：确保所有未保存的usage数据都不会丢失
+              if (!finalUsageReported) {
+                if (
+                  collectedUsageData.input_tokens !== undefined ||
+                  collectedUsageData.output_tokens !== undefined
+                ) {
+                  // 补全缺失的字段
+                  if (collectedUsageData.input_tokens === undefined) {
+                    collectedUsageData.input_tokens = 0
+                    logger.warn(
+                      '⚠️ [Console] message_delta missing input_tokens, setting to 0. This may indicate incomplete usage data.'
+                    )
+                  }
+                  if (collectedUsageData.output_tokens === undefined) {
+                    collectedUsageData.output_tokens = 0
+                    logger.warn(
+                      '⚠️ [Console] message_delta missing output_tokens, setting to 0. This may indicate incomplete usage data.'
+                    )
+                  }
+                  // 确保有 model 字段
+                  if (!collectedUsageData.model) {
+                    collectedUsageData.model = body.model || account?.defaultModel || null
+                  }
+                  logger.info(
+                    `📊 [Console] Saving incomplete usage data via fallback: ${JSON.stringify(collectedUsageData)}`
+                  )
+                  usageCallback({ ...collectedUsageData, accountId })
+                  finalUsageReported = true
+                } else {
+                  logger.warn(
+                    '⚠️ [Console] Stream completed but no usage data was captured! This indicates a problem with SSE parsing or API response format.'
+                  )
                 }
               }
 
@@ -952,11 +1146,15 @@ class ClaudeConsoleRelayService {
   async _updateLastUsedTime(accountId) {
     try {
       const client = require('../models/redis').getClientSafe()
-      await client.hset(
-        `claude_console_account:${accountId}`,
-        'lastUsedAt',
-        new Date().toISOString()
-      )
+      const accountKey = `claude_console_account:${accountId}`
+      const exists = await client.exists(accountKey)
+
+      if (!exists) {
+        logger.debug(`🔎 跳过更新已删除的Claude Console账号最近使用时间: ${accountId}`)
+        return
+      }
+
+      await client.hset(accountKey, 'lastUsedAt', new Date().toISOString())
     } catch (error) {
       logger.warn(
         `⚠️ Failed to update last used time for Claude Console account ${accountId}:`,

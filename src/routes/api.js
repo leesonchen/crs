@@ -6,49 +6,35 @@ const ccrRelayService = require('../services/ccrRelayService')
 const bedrockAccountService = require('../services/bedrockAccountService')
 const unifiedClaudeScheduler = require('../services/unifiedClaudeScheduler')
 const apiKeyService = require('../services/apiKeyService')
-const pricingService = require('../services/pricingService')
 const { authenticateApiKey } = require('../middleware/auth')
 const logger = require('../utils/logger')
-const redis = require('../models/redis')
 const { getEffectiveModel, parseVendorPrefixedModel } = require('../utils/modelHelper')
 const sessionHelper = require('../utils/sessionHelper')
-const bridgeService = require('../services/bridgeService') // 新增：Bridge Service
-const OpenAIResponsesToClaudeConverter = require('../services/openaiResponsesToClaude') // 新增：响应转换器
-
+const { updateRateLimitCounters } = require('../utils/rateLimitHelper')
+const { sanitizeUpstreamError } = require('../utils/errorSanitizer')
 const router = express.Router()
 
-// 🔧 客户端类型检测函数
-function detectClientType(userAgent) {
-  if (!userAgent || typeof userAgent !== 'string') {
-    return 'unknown'
+function queueRateLimitUpdate(rateLimitInfo, usageSummary, model, context = '') {
+  if (!rateLimitInfo) {
+    return Promise.resolve({ totalTokens: 0, totalCost: 0 })
   }
 
-  const ua = userAgent.toLowerCase()
+  const label = context ? ` (${context})` : ''
 
-  // 检测 Codex CLI
-  if (ua.includes('codex_cli')) {
-    return 'codex_cli'
-  }
-
-  // 检测 Claude CLI
-  if (ua.includes('claude-cli')) {
-    return 'claude_cli'
-  }
-
-  // 检测其他常见客户端
-  if (ua.includes('curl')) {
-    return 'curl'
-  }
-
-  if (ua.includes('python')) {
-    return 'python'
-  }
-
-  if (ua.includes('node')) {
-    return 'node'
-  }
-
-  return 'unknown'
+  return updateRateLimitCounters(rateLimitInfo, usageSummary, model)
+    .then(({ totalTokens, totalCost }) => {
+      if (totalTokens > 0) {
+        logger.api(`📊 Updated rate limit token count${label}: +${totalTokens} tokens`)
+      }
+      if (typeof totalCost === 'number' && totalCost > 0) {
+        logger.api(`💰 Updated rate limit cost count${label}: +$${totalCost.toFixed(6)}`)
+      }
+      return { totalTokens, totalCost }
+    })
+    .catch((error) => {
+      logger.error(`❌ Failed to update rate limit counters${label}:`, error)
+      return { totalTokens: 0, totalCost: 0 }
+    })
 }
 
 // 🔧 共享的消息处理函数
@@ -189,11 +175,32 @@ async function handleMessagesRequest(req, res) {
 
       // 使用统一调度选择账号（传递请求的模型）
       const requestedModel = req.body.model
-      const { accountId, accountType } = await unifiedClaudeScheduler.selectAccountForApiKey(
-        req.apiKey,
-        sessionHash,
-        requestedModel
-      )
+      let accountId
+      let accountType
+      try {
+        const selection = await unifiedClaudeScheduler.selectAccountForApiKey(
+          req.apiKey,
+          sessionHash,
+          requestedModel
+        )
+        ;({ accountId, accountType } = selection)
+      } catch (error) {
+        if (error.code === 'CLAUDE_DEDICATED_RATE_LIMITED') {
+          const limitMessage = claudeRelayService._buildStandardRateLimitMessage(
+            error.rateLimitEndAt
+          )
+          res.status(403)
+          res.setHeader('Content-Type', 'application/json')
+          res.end(
+            JSON.stringify({
+              error: 'upstream_rate_limited',
+              message: limitMessage
+            })
+          )
+          return
+        }
+        throw error
+      }
 
       // 🌉 桥接判断：检查是否需要桥接到其他平台
       if (accountType === 'openai' || accountType === 'openai-responses') {
@@ -320,35 +327,17 @@ async function handleMessagesRequest(req, res) {
                   logger.error('❌ Failed to record stream usage:', error)
                 })
 
-              // 更新时间窗口内的token计数和费用
-              if (req.rateLimitInfo) {
-                const totalTokens = inputTokens + outputTokens + cacheCreateTokens + cacheReadTokens
-
-                // 更新Token计数（向后兼容）
-                redis
-                  .getClient()
-                  .incrby(req.rateLimitInfo.tokenCountKey, totalTokens)
-                  .catch((error) => {
-                    logger.error('❌ Failed to update rate limit token count:', error)
-                  })
-                logger.api(`📊 Updated rate limit token count: +${totalTokens} tokens`)
-
-                // 计算并更新费用计数（新功能）
-                if (req.rateLimitInfo.costCountKey) {
-                  const costInfo = pricingService.calculateCost(usageData, model)
-                  if (costInfo.totalCost > 0) {
-                    redis
-                      .getClient()
-                      .incrbyfloat(req.rateLimitInfo.costCountKey, costInfo.totalCost)
-                      .catch((error) => {
-                        logger.error('❌ Failed to update rate limit cost count:', error)
-                      })
-                    logger.api(
-                      `💰 Updated rate limit cost count: +$${costInfo.totalCost.toFixed(6)}`
-                    )
-                  }
-                }
-              }
+              queueRateLimitUpdate(
+                req.rateLimitInfo,
+                {
+                  inputTokens,
+                  outputTokens,
+                  cacheCreateTokens,
+                  cacheReadTokens
+                },
+                model,
+                'claude-stream'
+              )
 
               usageDataCaptured = true
               logger.api(
@@ -429,35 +418,17 @@ async function handleMessagesRequest(req, res) {
                   logger.error('❌ Failed to record stream usage:', error)
                 })
 
-              // 更新时间窗口内的token计数和费用
-              if (req.rateLimitInfo) {
-                const totalTokens = inputTokens + outputTokens + cacheCreateTokens + cacheReadTokens
-
-                // 更新Token计数（向后兼容）
-                redis
-                  .getClient()
-                  .incrby(req.rateLimitInfo.tokenCountKey, totalTokens)
-                  .catch((error) => {
-                    logger.error('❌ Failed to update rate limit token count:', error)
-                  })
-                logger.api(`📊 Updated rate limit token count: +${totalTokens} tokens`)
-
-                // 计算并更新费用计数（新功能）
-                if (req.rateLimitInfo.costCountKey) {
-                  const costInfo = pricingService.calculateCost(usageData, model)
-                  if (costInfo.totalCost > 0) {
-                    redis
-                      .getClient()
-                      .incrbyfloat(req.rateLimitInfo.costCountKey, costInfo.totalCost)
-                      .catch((error) => {
-                        logger.error('❌ Failed to update rate limit cost count:', error)
-                      })
-                    logger.api(
-                      `💰 Updated rate limit cost count: +$${costInfo.totalCost.toFixed(6)}`
-                    )
-                  }
-                }
-              }
+              queueRateLimitUpdate(
+                req.rateLimitInfo,
+                {
+                  inputTokens,
+                  outputTokens,
+                  cacheCreateTokens,
+                  cacheReadTokens
+                },
+                model,
+                'claude-console-stream'
+              )
 
               usageDataCaptured = true
               logger.api(
@@ -497,33 +468,17 @@ async function handleMessagesRequest(req, res) {
                 logger.error('❌ Failed to record Bedrock stream usage:', error)
               })
 
-            // 更新时间窗口内的token计数和费用
-            if (req.rateLimitInfo) {
-              const totalTokens = inputTokens + outputTokens
-
-              // 更新Token计数（向后兼容）
-              redis
-                .getClient()
-                .incrby(req.rateLimitInfo.tokenCountKey, totalTokens)
-                .catch((error) => {
-                  logger.error('❌ Failed to update rate limit token count:', error)
-                })
-              logger.api(`📊 Updated rate limit token count: +${totalTokens} tokens`)
-
-              // 计算并更新费用计数（新功能）
-              if (req.rateLimitInfo.costCountKey) {
-                const costInfo = pricingService.calculateCost(result.usage, result.model)
-                if (costInfo.totalCost > 0) {
-                  redis
-                    .getClient()
-                    .incrbyfloat(req.rateLimitInfo.costCountKey, costInfo.totalCost)
-                    .catch((error) => {
-                      logger.error('❌ Failed to update rate limit cost count:', error)
-                    })
-                  logger.api(`💰 Updated rate limit cost count: +$${costInfo.totalCost.toFixed(6)}`)
-                }
-              }
-            }
+            queueRateLimitUpdate(
+              req.rateLimitInfo,
+              {
+                inputTokens,
+                outputTokens,
+                cacheCreateTokens: 0,
+                cacheReadTokens: 0
+              },
+              result.model,
+              'bedrock-stream'
+            )
 
             usageDataCaptured = true
             logger.api(
@@ -598,35 +553,17 @@ async function handleMessagesRequest(req, res) {
                   logger.error('❌ Failed to record CCR stream usage:', error)
                 })
 
-              // 更新时间窗口内的token计数和费用
-              if (req.rateLimitInfo) {
-                const totalTokens = inputTokens + outputTokens + cacheCreateTokens + cacheReadTokens
-
-                // 更新Token计数（向后兼容）
-                redis
-                  .getClient()
-                  .incrby(req.rateLimitInfo.tokenCountKey, totalTokens)
-                  .catch((error) => {
-                    logger.error('❌ Failed to update rate limit token count:', error)
-                  })
-                logger.api(`📊 Updated rate limit token count: +${totalTokens} tokens`)
-
-                // 计算并更新费用计数（新功能）
-                if (req.rateLimitInfo.costCountKey) {
-                  const costInfo = pricingService.calculateCost(usageData, model)
-                  if (costInfo.totalCost > 0) {
-                    redis
-                      .getClient()
-                      .incrbyfloat(req.rateLimitInfo.costCountKey, costInfo.totalCost)
-                      .catch((error) => {
-                        logger.error('❌ Failed to update rate limit cost count:', error)
-                      })
-                    logger.api(
-                      `💰 Updated rate limit cost count: +$${costInfo.totalCost.toFixed(6)}`
-                    )
-                  }
-                }
-              }
+              queueRateLimitUpdate(
+                req.rateLimitInfo,
+                {
+                  inputTokens,
+                  outputTokens,
+                  cacheCreateTokens,
+                  cacheReadTokens
+                },
+                model,
+                'ccr-stream'
+              )
 
               usageDataCaptured = true
               logger.api(
@@ -663,11 +600,27 @@ async function handleMessagesRequest(req, res) {
 
       // 使用统一调度选择账号（传递请求的模型）
       const requestedModel = req.body.model
-      const { accountId, accountType } = await unifiedClaudeScheduler.selectAccountForApiKey(
-        req.apiKey,
-        sessionHash,
-        requestedModel
-      )
+      let accountId
+      let accountType
+      try {
+        const selection = await unifiedClaudeScheduler.selectAccountForApiKey(
+          req.apiKey,
+          sessionHash,
+          requestedModel
+        )
+        ;({ accountId, accountType } = selection)
+      } catch (error) {
+        if (error.code === 'CLAUDE_DEDICATED_RATE_LIMITED') {
+          const limitMessage = claudeRelayService._buildStandardRateLimitMessage(
+            error.rateLimitEndAt
+          )
+          return res.status(403).json({
+            error: 'upstream_rate_limited',
+            message: limitMessage
+          })
+        }
+        throw error
+      }
 
       // 🌉 桥接判断：检查是否需要桥接到其他平台
       if (accountType === 'openai' || accountType === 'openai-responses') {
@@ -842,25 +795,17 @@ async function handleMessagesRequest(req, res) {
             responseAccountId
           )
 
-          // 更新时间窗口内的token计数和费用
-          if (req.rateLimitInfo) {
-            const totalTokens = inputTokens + outputTokens + cacheCreateTokens + cacheReadTokens
-
-            // 更新Token计数（向后兼容）
-            await redis.getClient().incrby(req.rateLimitInfo.tokenCountKey, totalTokens)
-            logger.api(`📊 Updated rate limit token count: +${totalTokens} tokens`)
-
-            // 计算并更新费用计数（新功能）
-            if (req.rateLimitInfo.costCountKey) {
-              const costInfo = pricingService.calculateCost(jsonData.usage, model)
-              if (costInfo.totalCost > 0) {
-                await redis
-                  .getClient()
-                  .incrbyfloat(req.rateLimitInfo.costCountKey, costInfo.totalCost)
-                logger.api(`💰 Updated rate limit cost count: +$${costInfo.totalCost.toFixed(6)}`)
-              }
-            }
-          }
+          await queueRateLimitUpdate(
+            req.rateLimitInfo,
+            {
+              inputTokens,
+              outputTokens,
+              cacheCreateTokens,
+              cacheReadTokens
+            },
+            model,
+            'claude-non-stream'
+          )
 
           usageRecorded = true
           logger.api(
@@ -968,40 +913,23 @@ router.post('/v1/messages', authenticateApiKey, handleMessagesRequest)
 // 🚀 Claude API messages 端点 - /claude/v1/messages (别名)
 router.post('/claude/v1/messages', authenticateApiKey, handleMessagesRequest)
 
-// 📋 模型列表端点 - Claude Code 客户端需要
+// 📋 模型列表端点 - 支持 Claude, OpenAI, Gemini
 router.get('/v1/models', authenticateApiKey, async (req, res) => {
   try {
-    // 返回支持的模型列表
-    const models = [
-      {
-        id: 'claude-3-5-sonnet-20241022',
-        object: 'model',
-        created: 1669599635,
-        owned_by: 'anthropic'
-      },
-      {
-        id: 'claude-3-5-haiku-20241022',
-        object: 'model',
-        created: 1669599635,
-        owned_by: 'anthropic'
-      },
-      {
-        id: 'claude-3-opus-20240229',
-        object: 'model',
-        created: 1669599635,
-        owned_by: 'anthropic'
-      },
-      {
-        id: 'claude-sonnet-4-20250514',
-        object: 'model',
-        created: 1669599635,
-        owned_by: 'anthropic'
-      }
-    ]
+    const modelService = require('../services/modelService')
+
+    // 从 modelService 获取所有支持的模型
+    const models = modelService.getAllModels()
+
+    // 可选：根据 API Key 的模型限制过滤
+    let filteredModels = models
+    if (req.apiKey.enableModelRestriction && req.apiKey.restrictedModels?.length > 0) {
+      filteredModels = models.filter((model) => req.apiKey.restrictedModels.includes(model.id))
+    }
 
     res.json({
       object: 'list',
-      data: models
+      data: filteredModels
     })
   } catch (error) {
     logger.error('❌ Models list error:', error)
@@ -1211,7 +1139,13 @@ router.post('/v1/messages/count_tokens', authenticateApiKey, async (req, res) =>
     // 尝试解析并返回JSON响应
     try {
       const jsonData = JSON.parse(response.body)
-      res.json(jsonData)
+      // 对于非 2xx 响应，清理供应商特定信息
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        const sanitizedData = sanitizeUpstreamError(jsonData)
+        res.json(sanitizedData)
+      } else {
+        res.json(jsonData)
+      }
     } catch (parseError) {
       res.send(response.body)
     }
