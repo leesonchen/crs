@@ -219,9 +219,7 @@ class OpenAIResponsesToClaudeConverter {
     const mergedMessages = this._mergeConsecutiveUserMessages(normalizedMessages)
     this._ensureExecutionDirective(mergedMessages)
 
-    const lastUser = [...mergedMessages]
-      .reverse()
-      .find((msg) => msg.role === 'user')
+    const lastUser = [...mergedMessages].reverse().find((msg) => msg.role === 'user')
 
     if (lastUser) {
       const aggregatedText = this._extractAllText(lastUser.content)
@@ -312,15 +310,7 @@ class OpenAIResponsesToClaudeConverter {
       return ''
     }
 
-    const candidateKeys = [
-      'text',
-      'content',
-      'message',
-      'input',
-      'prompt',
-      'value',
-      'string'
-    ]
+    const candidateKeys = ['text', 'content', 'message', 'input', 'prompt', 'value', 'string']
 
     for (const key of candidateKeys) {
       if (typeof content[key] === 'string' && content[key].trim()) {
@@ -516,12 +506,15 @@ class OpenAIResponsesToClaudeConverter {
   }
 
   convertNonStream(responseData) {
-    logger.info('🔄 [Bridge] Starting non-stream response conversion (OpenAI Responses → Claude):', {
-      responseDataKeys: Object.keys(responseData || {}),
-      hasResponse: !!(responseData?.response),
-      responseKeys: responseData?.response ? Object.keys(responseData.response) : [],
-      originalType: responseData?.type || 'unknown'
-    })
+    logger.info(
+      '🔄 [Bridge] Starting non-stream response conversion (OpenAI Responses → Claude):',
+      {
+        responseDataKeys: Object.keys(responseData || {}),
+        hasResponse: !!responseData?.response,
+        responseKeys: responseData?.response ? Object.keys(responseData.response) : [],
+        originalType: responseData?.type || 'unknown'
+      }
+    )
 
     const resp = responseData?.response || responseData || {}
     this.finalResponse = resp
@@ -568,9 +561,14 @@ class OpenAIResponsesToClaudeConverter {
       model: claudeResponse.model,
       stopReason: claudeResponse.stop_reason,
       contentBlockCount: claudeResponse.content.length,
-      totalContentLength: claudeResponse.content.reduce((sum, block) =>
-        sum + (block.text ? block.text.length : 0), 0),
-      hasUsage: !!(claudeResponse.usage && (claudeResponse.usage.input_tokens > 0 || claudeResponse.usage.output_tokens > 0)),
+      totalContentLength: claudeResponse.content.reduce(
+        (sum, block) => sum + (block.text ? block.text.length : 0),
+        0
+      ),
+      hasUsage: !!(
+        claudeResponse.usage &&
+        (claudeResponse.usage.input_tokens > 0 || claudeResponse.usage.output_tokens > 0)
+      ),
       usage: claudeResponse.usage
     })
 
@@ -698,14 +696,18 @@ class OpenAIResponsesToClaudeConverter {
         streamFinished: this.streamFinished
       },
       // 记录关键内容预览
-      contentPreview: event.content ?
-        (event.content.text ? event.content.text.substring(0, 50) + '...' : 'present') :
-        'none',
-      deltaPreview: event.delta ?
-        (typeof event.delta === 'string' ? event.delta.substring(0, 50) + '...' :
-         event.delta.text ? event.delta.text.substring(0, 50) + '...' :
-         JSON.stringify(event.delta).substring(0, 50) + '...') :
-        'none'
+      contentPreview: event.content
+        ? event.content.text
+          ? `${event.content.text.substring(0, 50)}...`
+          : 'present'
+        : 'none',
+      deltaPreview: event.delta
+        ? typeof event.delta === 'string'
+          ? `${event.delta.substring(0, 50)}...`
+          : event.delta.text
+            ? `${event.delta.text.substring(0, 50)}...`
+            : `${JSON.stringify(event.delta).substring(0, 50)}...`
+        : 'none'
     })
     this.debugEventCount += 1
 
@@ -747,7 +749,7 @@ class OpenAIResponsesToClaudeConverter {
           })
         ]
 
-      case 'message_delta':
+      case 'message_delta': {
         const events = []
 
         // 累积使用数据（智谱AI格式的usage通常在message_delta事件中）
@@ -777,8 +779,9 @@ class OpenAIResponsesToClaudeConverter {
           )
         }
         return events
+      }
 
-      case 'message_stop':
+      case 'message_stop': {
         logger.info('📥 [Bridge] Processing message_stop event for completion:', {
           isCodexClient: this._isCodexClient(),
           clientType: this.clientType,
@@ -791,7 +794,7 @@ class OpenAIResponsesToClaudeConverter {
         })
 
         // 对于智谱AI格式的message_stop事件，如果是Codex CLI，也需要发送双完成事件
-        // 这里使用��积的usage数据（如果有）
+        // 这里使用累积的usage数据（如果有）
         const accumulatedUsage = this._extractUsage({ usage: null })
         const completionPayload = {
           id: this.messageId,
@@ -800,6 +803,7 @@ class OpenAIResponsesToClaudeConverter {
         }
 
         return this._emitCompletion(completionPayload)
+      }
 
       // OpenAI Responses格式事件
       case 'response.started':
@@ -1262,7 +1266,10 @@ class OpenAIResponsesToClaudeConverter {
 
   _extractUsage(data) {
     // 如果有累积的使用数据，优先使用累积数据
-    if (this.accumulatedUsage && (this.accumulatedUsage.input_tokens > 0 || this.accumulatedUsage.output_tokens > 0)) {
+    if (
+      this.accumulatedUsage &&
+      (this.accumulatedUsage.input_tokens > 0 || this.accumulatedUsage.output_tokens > 0)
+    ) {
       logger.info('📊 [Bridge] Using accumulated usage data:', {
         accumulatedUsage: this.accumulatedUsage,
         fallbackUsage: data?.usage || data?.response?.usage || {}
@@ -1337,8 +1344,10 @@ class OpenAIResponsesToClaudeConverter {
    * @private
    */
   _isCodexClient() {
-    return this.clientType === 'codex_cli' ||
-           (this.clientType === 'unknown' && this.targetFormat === 'openai-responses')
+    return (
+      this.clientType === 'codex_cli' ||
+      (this.clientType === 'unknown' && this.targetFormat === 'openai-responses')
+    )
   }
 
   /**

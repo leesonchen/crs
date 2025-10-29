@@ -76,11 +76,14 @@ function detectClientType(userAgent) {
 
 // 🔧 共享的消息处理函数
 async function handleMessagesRequest(req, res) {
-  try {
-    const startTime = Date.now()
-    const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-    req.requestId = requestId // 为后续日志跟踪添加请求ID
+  const startTime = Date.now()
+  const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+  req.requestId = requestId // 为后续日志跟踪添加请求ID
 
+  // 设置客户端断开连接监听器
+  let clientDisconnected = false
+
+  try {
     // 🔍 客户端交互生命周期跟踪 - 连接建立
     logger.info('🔗 [Client] Connection established', {
       requestId,
@@ -94,15 +97,12 @@ async function handleMessagesRequest(req, res) {
       timestamp: new Date().toISOString(),
       requestHeaders: {
         'content-type': req.headers['content-type'],
-        'accept': req.headers['accept'],
-        'authorization': req.headers['authorization'] ? '[REDACTED]' : 'none',
+        accept: req.headers['accept'],
+        authorization: req.headers['authorization'] ? '[REDACTED]' : 'none',
         'x-api-key': req.headers['x-api-key'] ? '[REDACTED]' : 'none',
         'x-cr-api-key': req.headers['x-cr-api-key'] ? '[REDACTED]' : 'none'
       }
     })
-
-    // 设置客户端断开连接监听器
-    let clientDisconnected = false
     const handleClientDisconnect = () => {
       if (!clientDisconnected) {
         clientDisconnected = true

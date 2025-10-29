@@ -205,7 +205,10 @@ class ApiKeyService {
 
       // 通过哈希值直接查找API Key（性能优化）
       const keyData = await redis.findApiKeyByHash(hashedKey)
-      logger.info(`🔍 [Auth] Redis lookup result:`, keyData ? { id: keyData.id, found: true } : { found: false })
+      logger.info(
+        `🔍 [Auth] Redis lookup result:`,
+        keyData ? { id: keyData.id, found: true } : { found: false }
+      )
 
       if (!keyData) {
         return { valid: false, error: 'API key not found' }

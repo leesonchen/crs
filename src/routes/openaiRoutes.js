@@ -8,6 +8,8 @@ const unifiedOpenAIScheduler = require('../services/unifiedOpenAIScheduler')
 const openaiAccountService = require('../services/openaiAccountService')
 const openaiResponsesAccountService = require('../services/openaiResponsesAccountService')
 const openaiResponsesRelayService = require('../services/openaiResponsesRelayService')
+const bridgeService = require('../services/bridgeService') // Bridge Service
+const ClaudeToOpenAIResponsesConverter = require('../services/claudeToOpenAIResponses') // 转换器
 const apiKeyService = require('../services/apiKeyService')
 const crypto = require('crypto')
 const ProxyHelper = require('../utils/proxyHelper')
@@ -23,20 +25,23 @@ function createProxyAgent(proxy) {
  * @param {Object} req - Express 请求对象
  * @param {String} accountId - Claude 账户 ID
  * @param {String} accountType - 账户类型 ('claude-official' | 'claude-console')
- * @param {Object} res - Express 响应对象（用于流程模拟）
  * @returns {Promise<{fullAccount, claudeRequest}>}
  */
-async function prepareClaudeBridge(req, accountId, accountType, res = null) {
+async function prepareClaudeBridge(req, accountId, accountType) {
   // 检测客户端类型
-  const clientType = req.headers['user-agent'] ?
-    (req.headers['user-agent'].toLowerCase().includes('codex_cli') ? 'codex_cli' : 'unknown') :
-    'unknown'
+  const clientType = req.headers['user-agent']
+    ? req.headers['user-agent'].toLowerCase().includes('codex_cli')
+      ? 'codex_cli'
+      : 'unknown'
+    : 'unknown'
 
   // 从请求体中提取原始模型
   const requestedModel = req.body?.model || 'gpt-5'
 
   // 1. 使用 Bridge Service 进行桥接（OpenAI Responses → Claude）
-  const bridgeResult = await bridgeService.bridgeOpenAIToClaude(req.body, accountId, accountType, { clientType })
+  const bridgeResult = await bridgeService.bridgeOpenAIToClaude(req.body, accountId, accountType, {
+    clientType
+  })
 
   // 2. 设置响应转换器（Claude → OpenAI Responses）
   // 对于桥接模式，使用客户端最初请求的模型，简化架构：禁用流程模拟
@@ -44,7 +49,7 @@ async function prepareClaudeBridge(req, accountId, accountType, res = null) {
     defaultModel: requestedModel || 'gpt-5',
     // 简化架构：禁用流程模拟
     enableFlowSimulation: false,
-    clientType: clientType
+    clientType
   })
 
   // 简化架构：移除流程模拟逻辑，始终使用实时转换模式
@@ -437,7 +442,7 @@ const handleResponses = async (req, res) => {
       requestedModel
     ))
 
-      // 如果是 OpenAI-Responses 账户，直接使用中继服务
+    // 如果是 OpenAI-Responses 账户，直接使用中继服务
     if (accountType === 'openai-responses') {
       logger.info(`🔀 Using OpenAI-Responses relay service for account: ${account.name}`)
       return await openaiResponsesRelayService.handleRequest(req, res, account, apiKeyData)

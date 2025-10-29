@@ -41,7 +41,7 @@ class FlowTimingController {
    * @returns {Number} 延迟时间（毫秒）
    */
   calculateEventDelay(event, eventIndex, totalEvents) {
-    let baseDelay = this.baseDelay
+    let { baseDelay } = this
 
     switch (event.type) {
       case 'response.created':
@@ -62,7 +62,7 @@ class FlowTimingController {
         if (this.adaptiveTiming) {
           // 根据事件在推理序列中的位置调整延迟
           const reasoningProgress = eventIndex / totalEvents
-          baseDelay *= (1 + reasoningProgress * 0.5) // 逐渐加快
+          baseDelay *= 1 + reasoningProgress * 0.5 // 逐渐加快
         }
         break
 
@@ -168,16 +168,19 @@ class FlowTimingController {
 
           // 进度日志
           if (enableProgressLog && (i % progressInterval === 0 || i === events.length - 1)) {
-            const progress = ((i + 1) / events.length * 100).toFixed(1)
+            const progress = (((i + 1) / events.length) * 100).toFixed(1)
             const elapsed = Date.now() - startTime
             const rate = (i + 1) / (elapsed / 1000).toFixed(1)
 
-            logger.debug(`📊 [TimingController] Progress: ${progress}% (${i + 1}/${events.length})`, {
-              event: event.type,
-              delay: `${delay}ms`,
-              elapsed: `${elapsed}ms`,
-              rate: `${rate} events/sec`
-            })
+            logger.debug(
+              `📊 [TimingController] Progress: ${progress}% (${i + 1}/${events.length})`,
+              {
+                event: event.type,
+                delay: `${delay}ms`,
+                elapsed: `${elapsed}ms`,
+                rate: `${rate} events/sec`
+              }
+            )
           }
 
           // 进度回调
@@ -185,8 +188,8 @@ class FlowTimingController {
             onProgress({
               current: i + 1,
               total: events.length,
-              event: event,
-              progress: ((i + 1) / events.length * 100).toFixed(1)
+              event,
+              progress: (((i + 1) / events.length) * 100).toFixed(1)
             })
           }
 
@@ -194,7 +197,6 @@ class FlowTimingController {
           if (i < events.length - 1 && delay > 0) {
             await this.sleep(delay)
           }
-
         } catch (sendError) {
           errorCount++
           logger.error(`❌ [TimingController] Failed to send event:`, {
@@ -230,7 +232,6 @@ class FlowTimingController {
         errorCount,
         totalDuration
       }
-
     } catch (error) {
       logger.error(`❌ [TimingController] Event stream failed:`, error)
       throw error
@@ -344,7 +345,7 @@ class FlowTimingController {
    * @returns {Promise} Promise
    */
   sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms))
+    return new Promise((resolve) => setTimeout(resolve, ms))
   }
 
   /**

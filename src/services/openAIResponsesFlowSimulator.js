@@ -62,7 +62,7 @@ class OpenAIResponsesFlowSimulator {
       if (this.shouldSimulateReasoning(claudeResponse)) {
         const reasoningEvents = this.createReasoningFlow(claudeResponse)
         events.push(...reasoningEvents)
-        currentSequenceNumber = Math.max(...reasoningEvents.map(e => e.sequence_number))
+        currentSequenceNumber = Math.max(...reasoningEvents.map((e) => e.sequence_number))
       }
 
       // 8-10. 主要内容输出项
@@ -82,7 +82,6 @@ class OpenAIResponsesFlowSimulator {
       })
 
       return events
-
     } catch (error) {
       logger.error(`❌ [FlowSimulator] Flow simulation failed:`, error)
       throw error
@@ -133,11 +132,12 @@ class OpenAIResponsesFlowSimulator {
 
     // 检查是否是复杂任务或包含推理内容
     const content = this.extractMainContent(claudeResponse)
-    const hasComplexity = content.length > 500 ||
-                        content.includes('因为') ||
-                        content.includes('首先') ||
-                        content.includes('分析') ||
-                        content.includes('考虑')
+    const hasComplexity =
+      content.length > 500 ||
+      content.includes('因为') ||
+      content.includes('首先') ||
+      content.includes('分析') ||
+      content.includes('考虑')
 
     logger.debug(`🤔 [FlowSimulator] Reasoning simulation check`, {
       contentLength: content.length,
@@ -393,7 +393,7 @@ class OpenAIResponsesFlowSimulator {
 
     let inReasoningMode = false
     for (const line of lines) {
-      const hasMarker = reasoningMarkers.some(marker => line.includes(marker))
+      const hasMarker = reasoningMarkers.some((marker) => line.includes(marker))
 
       if (hasMarker) {
         inReasoningMode = true
@@ -419,8 +419,8 @@ class OpenAIResponsesFlowSimulator {
     if (claudeResponse.content) {
       if (Array.isArray(claudeResponse.content)) {
         return claudeResponse.content
-          .filter(item => item.type === 'text')
-          .map(item => item.text)
+          .filter((item) => item.type === 'text')
+          .map((item) => item.text)
           .join('\n')
       } else if (typeof claudeResponse.content === 'string') {
         return claudeResponse.content
@@ -491,10 +491,10 @@ class OpenAIResponsesFlowSimulator {
    */
   mapStopReason(claudeStopReason) {
     const mapping = {
-      'end_turn': 'end_turn',
-      'max_tokens': 'max_tokens',
-      'stop_sequence': 'stop_sequence',
-      'tool_use': 'tool_use'
+      end_turn: 'end_turn',
+      max_tokens: 'max_tokens',
+      stop_sequence: 'stop_sequence',
+      tool_use: 'tool_use'
     }
 
     return mapping[claudeStopReason] || 'end_turn'

@@ -306,7 +306,9 @@ class UnifiedOpenAIScheduler {
             await openaiAccountService.recordUsage(mappedAccount.accountId, 0)
             return {
               ...mappedAccount,
-              needsBridge: mappedAccount.accountType === 'claude-official' || mappedAccount.accountType === 'claude-console'
+              needsBridge:
+                mappedAccount.accountType === 'claude-official' ||
+                mappedAccount.accountType === 'claude-console'
             }
           } else {
             logger.warn(
@@ -367,7 +369,9 @@ class UnifiedOpenAIScheduler {
       return {
         accountId: selectedAccount.accountId,
         accountType: selectedAccount.accountType,
-        needsBridge: selectedAccount.accountType === 'claude-official' || selectedAccount.accountType === 'claude-console'
+        needsBridge:
+          selectedAccount.accountType === 'claude-official' ||
+          selectedAccount.accountType === 'claude-console'
       }
     } catch (error) {
       logger.error('❌ Failed to select account for API key:', error)
@@ -1090,7 +1094,9 @@ class UnifiedOpenAIScheduler {
       return {
         accountId: selectedAccount.accountId,
         accountType: selectedAccount.accountType,
-        needsBridge: selectedAccount.accountType === 'claude-official' || selectedAccount.accountType === 'claude-console'
+        needsBridge:
+          selectedAccount.accountType === 'claude-official' ||
+          selectedAccount.accountType === 'claude-console'
       }
     } catch (error) {
       logger.error(`❌ Failed to select account from group ${groupId}:`, error)

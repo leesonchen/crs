@@ -7696,8 +7696,17 @@ router.put('/openai-accounts/:id', authenticateAdmin, async (req, res) => {
     // 准备更新数据
     const updateData = { ...mappedUpdates }
 
+    // 处理模型映射
     if (updates.modelMapping !== undefined) {
-      updateData.modelMapping = normalizedModelMapping
+      try {
+        const normalizedModelMapping = parseClaudeModelMappingPayload(updates.modelMapping)
+        updateData.modelMapping = normalizedModelMapping
+      } catch (error) {
+        return res.status(400).json({
+          success: false,
+          message: error.message
+        })
+      }
     }
 
     // 处理敏感数据加密

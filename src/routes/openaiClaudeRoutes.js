@@ -234,7 +234,7 @@ async function handleChatCompletion(req, res, apiKeyData) {
       }
       throw error
     }
-    const { accountId } = accountSelection
+    const { accountId, accountType } = accountSelection
 
     // 获取该账号存储的 Claude Code headers
     const claudeCodeHeaders = await claudeCodeHeadersService.getAccountHeaders(accountId)
@@ -264,65 +264,51 @@ async function handleChatCompletion(req, res, apiKeyData) {
         }
       })
 
-      // 使用转换后的响应流 (使用 OAuth-only beta header，添加 Claude Code 必需的 headers)
-      await claudeRelayService.relayStreamRequestWithUsageCapture(
-        claudeRequest,
-        apiKeyData,
-        res,
-        claudeCodeHeaders,
-        (usage) => {
-          // 记录使用统计
-          if (usage && usage.input_tokens !== undefined && usage.output_tokens !== undefined) {
-            const model = usage.model || claudeRequest.model
-            const cacheCreateTokens =
-              (usage.cache_creation && typeof usage.cache_creation === 'object'
-                ? (usage.cache_creation.ephemeral_5m_input_tokens || 0) +
-                  (usage.cache_creation.ephemeral_1h_input_tokens || 0)
-                : usage.cache_creation_input_tokens || 0) || 0
-            const cacheReadTokens = usage.cache_read_input_tokens || 0
-
-            // 使用新的 recordUsageWithDetails 方法来支持详细的缓存数据
-            apiKeyService
-              .recordUsageWithDetails(
-                apiKeyData.id,
-                usage, // 直接传递整个 usage 对象，包含可能的 cache_creation 详细数据
-                model,
-                accountId
-              )
-              .catch((error) => {
-                logger.error('❌ Failed to record usage:', error)
-              })
-
-            queueRateLimitUpdate(
-              req.rateLimitInfo,
-              {
-                inputTokens: usage.input_tokens || 0,
-                outputTokens: usage.output_tokens || 0,
-                cacheCreateTokens,
-                cacheReadTokens
-              },
-              model,
-              'openai-claude-stream'
-            )
-          }
-        },
-        // 流转换器
-        (() => {
-          // 为每个请求创建独立的会话ID
-          const sessionId = `chatcmpl-${Math.random().toString(36).substring(2, 15)}${Math.random().toString(36).substring(2, 15)}`
-          return (chunk) => openaiToClaude.convertStreamChunk(chunk, req.body.model, sessionId)
-        })(),
-        {
-          betaHeader:
-            'oauth-2025-04-20,claude-code-20250219,interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14'
-        }
-      }
-
       // 流转换器（Claude→OpenAI）
       const streamTransformer = (() => {
         const sessionId = `chatcmpl-${Math.random().toString(36).substring(2, 15)}${Math.random().toString(36).substring(2, 15)}`
         return (chunk) => openaiToClaude.convertStreamChunk(chunk, req.body.model, sessionId)
       })()
+
+      // 使用转换后的响应流 (使用 OAuth-only beta header，添加 Claude Code 必需的 headers)
+
+      // 定义使用统计回调函数
+      const usageCallback = (usage) => {
+        // 记录使用统计
+        if (usage && usage.input_tokens !== undefined && usage.output_tokens !== undefined) {
+          const model = usage.model || claudeRequest.model
+          const cacheCreateTokens =
+            (usage.cache_creation && typeof usage.cache_creation === 'object'
+              ? (usage.cache_creation.ephemeral_5m_input_tokens || 0) +
+                (usage.cache_creation.ephemeral_1h_input_tokens || 0)
+              : usage.cache_creation_input_tokens || 0) || 0
+          const cacheReadTokens = usage.cache_read_input_tokens || 0
+
+          // 使用新的 recordUsageWithDetails 方法来支持详细的缓存数据
+          apiKeyService
+            .recordUsageWithDetails(
+              apiKeyData.id,
+              usage, // 直接传递整个 usage 对象，包含可能的 cache_creation 详细数据
+              model,
+              accountId
+            )
+            .catch((error) => {
+              logger.error('❌ Failed to record usage:', error)
+            })
+
+          queueRateLimitUpdate(
+            req.rateLimitInfo,
+            {
+              inputTokens: usage.input_tokens || 0,
+              outputTokens: usage.output_tokens || 0,
+              cacheCreateTokens,
+              cacheReadTokens
+            },
+            model,
+            'openai-claude-stream'
+          )
+        }
+      }
 
       // 按账号类型分发到对应Relay服务
       if (accountType === 'claude-official') {

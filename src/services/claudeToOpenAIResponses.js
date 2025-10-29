@@ -528,7 +528,7 @@ ${content}`
   _parseClaudeEvent(claudeChunk) {
     const lines = claudeChunk.trim().split('\n')
     let currentEventType = null
-    let events = []
+    const events = []
 
     logger.info(`🔧 [Claude→OpenAI] Parsing Claude chunk:`, {
       chunkLines: lines.length,
@@ -596,9 +596,9 @@ ${content}`
 
     logger.info(`🔍 [Converter] Parsed Claude events:`, {
       eventCount: events.length,
-      eventTypes: events.map(e => e.type),
+      eventTypes: events.map((e) => e.type),
       totalEventsInChunk: events.length,
-      allEvents: events.map(e => ({
+      allEvents: events.map((e) => ({
         type: e.type,
         dataPreview: JSON.stringify(e.data).slice(0, 50)
       }))
@@ -1045,12 +1045,14 @@ ${content}`
       this._session.pendingUsage = this._convertUsage(data.usage)
 
       // 🎯 关键修复：message_delta包含usage时，立即发送usage更新事件
-      const events = [{
-        type: 'response.delta',
-        delta: {
-          usage: this._session.pendingUsage
+      const events = [
+        {
+          type: 'response.delta',
+          delta: {
+            usage: this._session.pendingUsage
+          }
         }
-      }]
+      ]
 
       logger.info(`🔧 [Claude→OpenAI] Sending usage update from message_delta`, {
         inputTokens: this._session.pendingUsage.input_tokens,
@@ -1196,7 +1198,8 @@ ${content}`
         // 📝 记录转发给 Codex CLI 的内容（前20个字符）
         if (event.type === 'response.output_text.delta' && event.delta?.text) {
           const forwardedText = event.delta.text
-          const textPreview = forwardedText.substring(0, 20) + (forwardedText.length > 20 ? '...' : '')
+          const textPreview =
+            forwardedText.substring(0, 20) + (forwardedText.length > 20 ? '...' : '')
           logger.info(`📤 [Claude→OpenAI] Forwarding text to Codex CLI: "${textPreview}"`, {
             textLength: forwardedText.length,
             eventType: event.type,
@@ -1206,15 +1209,18 @@ ${content}`
 
         if (event.type === 'response.completed' && event.response?.output?.length > 0) {
           const totalText = event.response.output
-            .filter(item => item.content?.[0]?.text)
-            .map(item => item.content[0].text)
+            .filter((item) => item.content?.[0]?.text)
+            .map((item) => item.content[0].text)
             .join('')
           const textPreview = totalText.substring(0, 20) + (totalText.length > 20 ? '...' : '')
-          logger.info(`📤 [Claude→OpenAI] Forwarding completed response to Codex CLI: "${textPreview}"`, {
-            totalLength: totalText.length,
-            outputItems: event.response.output.length,
-            responseId: event.response.id
-          })
+          logger.info(
+            `📤 [Claude→OpenAI] Forwarding completed response to Codex CLI: "${textPreview}"`,
+            {
+              totalLength: totalText.length,
+              outputItems: event.response.output.length,
+              responseId: event.response.id
+            }
+          )
         }
 
         return `data: ${JSON.stringify(event)}\n\n`

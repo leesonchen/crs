@@ -570,8 +570,8 @@ class OpenAIResponsesRelayService {
     let rateLimitDetected = false
     let rateLimitResetsInSeconds = null
     let streamEnded = false
-    let eventDebugCount = 0
-    let allSSEEvents = [] // 记录所有SSE事件用于完整调试
+    const eventDebugCount = 0
+    const allSSEEvents = [] // 记录所有SSE事件用于完整调试
 
     // 解析 SSE 事件以捕获 usage 数据和 model - 支持多种供应商格式
     const parseSSEForUsage = (data) => {
@@ -595,9 +595,21 @@ class OpenAIResponsesRelayService {
               eventNumber: allSSEEvents.length + 1,
               type: eventData.type,
               vendor: detectedVendor,
-              hasUsage: !!(eventData.response?.usage || eventData.usage || eventData.message?.usage),
-              hasModel: !!(eventData.response?.model || eventData.model || eventData.message?.model),
-              hasContent: !!(eventData.content || eventData.delta || eventData.response?.output_text),
+              hasUsage: !!(
+                eventData.response?.usage ||
+                eventData.usage ||
+                eventData.message?.usage
+              ),
+              hasModel: !!(
+                eventData.response?.model ||
+                eventData.model ||
+                eventData.message?.model
+              ),
+              hasContent: !!(
+                eventData.content ||
+                eventData.delta ||
+                eventData.response?.output_text
+              ),
               keys: Object.keys(eventData),
               // 记录完整事件内容用于深度调试
               fullContent: eventData
@@ -667,7 +679,10 @@ class OpenAIResponsesRelayService {
               }
               if (eventData.usage) {
                 usageData = { ...usageData, ...eventData.usage } // 合并usage数据
-                logger.debug('📊 Captured incremental usage data from message_delta:', eventData.usage)
+                logger.debug(
+                  '📊 Captured incremental usage data from message_delta:',
+                  eventData.usage
+                )
               }
               // 检查 stop_reason 表示流结束
               if (eventData.delta?.stop_reason) {
@@ -688,9 +703,11 @@ class OpenAIResponsesRelayService {
             }
 
             // 检查是否是流完成事件（各种格式）
-            if (eventData.type === 'message_stop' ||
-                eventData.type === 'response.completed' ||
-                (eventData.type === 'message_delta' && eventData.delta?.stop_reason)) {
+            if (
+              eventData.type === 'message_stop' ||
+              eventData.type === 'response.completed' ||
+              (eventData.type === 'message_delta' && eventData.delta?.stop_reason)
+            ) {
               logger.debug(`📊 Stream completion detected via event: ${eventData.type}`)
             }
 
@@ -732,9 +749,9 @@ class OpenAIResponsesRelayService {
             transformType: typeof transform,
             chunkLength: chunkStr.length,
             chunkPreview: chunkStr.slice(0, 100) + (chunkStr.length > 100 ? '...' : ''),
-            accountType: accountType,
-            forceNonStream: forceNonStream,
-            streamEnded: streamEnded,
+            accountType,
+            forceNonStream,
+            streamEnded,
             resDestroyed: res.destroyed
           })
 
@@ -744,7 +761,9 @@ class OpenAIResponsesRelayService {
             logger.info('🔧 [Bridge] Stream transformer result:', {
               hasConverted: !!converted,
               convertedLength: converted ? converted.length : 0,
-              convertedPreview: converted ? converted.slice(0, 100) + (converted.length > 100 ? '...' : '') : 'null'
+              convertedPreview: converted
+                ? converted.slice(0, 100) + (converted.length > 100 ? '...' : '')
+                : 'null'
             })
             if (converted) {
               res.write(converted)
@@ -758,7 +777,7 @@ class OpenAIResponsesRelayService {
             logger.warn('⚠️ [Bridge] No stream transformer available, forwarding raw chunk:', {
               transformType: typeof transform,
               hasTransform: !!transform,
-              accountType: accountType
+              accountType
             })
             res.write(chunk)
             if (typeof res.flush === 'function') {
@@ -940,7 +959,10 @@ class OpenAIResponsesRelayService {
         }
       } else if (!res.destroyed) {
         // 检查是否是流程模拟模式，如果是则不立即结束响应流
-        const isFlowSimulationActive = req._bridgeConverter && req._bridgeConverter._simulationState && req._bridgeConverter._simulationState.isActive
+        const isFlowSimulationActive =
+          req._bridgeConverter &&
+          req._bridgeConverter._simulationState &&
+          req._bridgeConverter._simulationState.isActive
         if (!isFlowSimulationActive) {
           res.end()
         } else {
@@ -949,27 +971,29 @@ class OpenAIResponsesRelayService {
       }
 
       // 记录完整的SSE事件序列总结
-      const vendorsDetected = [...new Set(allSSEEvents.map(e => e.vendor))]
+      const vendorsDetected = [...new Set(allSSEEvents.map((e) => e.vendor))]
       logger.info('📊 [SSE] Complete event sequence summary:', {
         accountId: account.id,
         totalEvents: allSSEEvents.length,
         detectedVendors: vendorsDetected,
-        eventTypes: allSSEEvents.map(e => e.type),
+        eventTypes: allSSEEvents.map((e) => e.type),
         hasUsage: !!usageData,
         actualModel: actualModel || 'unknown',
         requestedModel: requestedModel || 'unknown',
-        eventsWithUsage: allSSEEvents.filter(e => e.hasUsage).length,
-        eventsWithModel: allSSEEvents.filter(e => e.hasModel).length,
-        eventsWithContent: allSSEEvents.filter(e => e.hasContent).length,
-        completionEvent: allSSEEvents.find(e =>
-          e.type === 'response.completed' ||
-          e.type === 'message_stop' ||
-          (e.type === 'message_delta' && e.fullContent.delta?.stop_reason)
-        )?.type || 'none',
-        vendorDistribution: vendorsDetected.map(vendor => ({
+        eventsWithUsage: allSSEEvents.filter((e) => e.hasUsage).length,
+        eventsWithModel: allSSEEvents.filter((e) => e.hasModel).length,
+        eventsWithContent: allSSEEvents.filter((e) => e.hasContent).length,
+        completionEvent:
+          allSSEEvents.find(
+            (e) =>
+              e.type === 'response.completed' ||
+              e.type === 'message_stop' ||
+              (e.type === 'message_delta' && e.fullContent.delta?.stop_reason)
+          )?.type || 'none',
+        vendorDistribution: vendorsDetected.map((vendor) => ({
           vendor,
-          count: allSSEEvents.filter(e => e.vendor === vendor).length,
-          types: [...new Set(allSSEEvents.filter(e => e.vendor === vendor).map(e => e.type))]
+          count: allSSEEvents.filter((e) => e.vendor === vendor).length,
+          types: [...new Set(allSSEEvents.filter((e) => e.vendor === vendor).map((e) => e.type))]
         }))
       })
 
@@ -977,7 +1001,7 @@ class OpenAIResponsesRelayService {
       if (process.env.NODE_ENV === 'development' || process.env.DEBUG_SSE_EVENTS === 'true') {
         logger.debug('📊 [SSE] Detailed event contents:', {
           accountId: account.id,
-          events: allSSEEvents.map(e => ({
+          events: allSSEEvents.map((e) => ({
             eventNumber: e.eventNumber,
             type: e.type,
             keys: e.keys,
@@ -1309,12 +1333,14 @@ class OpenAIResponsesRelayService {
     }
 
     // 智谱AI格式特征 (类似Claude格式)
-    if (eventData.type === 'message_start' ||
-        eventData.type === 'content_block' ||
-        eventData.type === 'content_block_start' ||
-        eventData.type === 'content_block_stop' ||
-        eventData.type === 'message_stop' ||
-        eventData.type === 'message_delta') {
+    if (
+      eventData.type === 'message_start' ||
+      eventData.type === 'content_block' ||
+      eventData.type === 'content_block_start' ||
+      eventData.type === 'content_block_stop' ||
+      eventData.type === 'message_stop' ||
+      eventData.type === 'message_delta'
+    ) {
       return 'zhipuai-claude'
     }
 
@@ -1351,9 +1377,10 @@ class OpenAIResponsesRelayService {
 
     // OpenAI Responses 格式
     if (eventData.delta && eventData.delta.output_text) {
-      contentPreview = typeof eventData.delta.output_text === 'string'
-        ? eventData.delta.output_text.substring(0, 50)
-        : JSON.stringify(eventData.delta.output_text).substring(0, 50)
+      contentPreview =
+        typeof eventData.delta.output_text === 'string'
+          ? eventData.delta.output_text.substring(0, 50)
+          : JSON.stringify(eventData.delta.output_text).substring(0, 50)
     } else if (eventData.response && eventData.response.output_text) {
       contentPreview = Array.isArray(eventData.response.output_text)
         ? eventData.response.output_text.join('').substring(0, 50)
@@ -1379,9 +1406,10 @@ class OpenAIResponsesRelayService {
     else if (eventData.text) {
       contentPreview = eventData.text.substring(0, 50)
     } else if (eventData.content) {
-      contentPreview = typeof eventData.content === 'string'
-        ? eventData.content.substring(0, 50)
-        : JSON.stringify(eventData.content).substring(0, 50)
+      contentPreview =
+        typeof eventData.content === 'string'
+          ? eventData.content.substring(0, 50)
+          : JSON.stringify(eventData.content).substring(0, 50)
     }
 
     return contentPreview || 'no_content'
