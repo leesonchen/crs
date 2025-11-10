@@ -14,18 +14,40 @@
           <!-- 筛选器组 -->
           <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
             <!-- 排序选择器 -->
-            <div class="group relative min-w-[160px]">
-              <div
-                class="absolute -inset-0.5 rounded-lg bg-gradient-to-r from-indigo-500 to-blue-500 opacity-0 blur transition duration-300 group-hover:opacity-20"
-              ></div>
-              <CustomDropdown
-                v-model="accountSortBy"
-                icon="fa-sort-amount-down"
-                icon-color="text-indigo-500"
-                :options="sortOptions"
-                placeholder="选择排序"
-                @change="sortAccounts()"
-              />
+            <div class="flex items-center gap-2">
+              <div class="group relative min-w-[160px]">
+                <div
+                  class="absolute -inset-0.5 rounded-lg bg-gradient-to-r from-indigo-500 to-blue-500 opacity-0 blur transition duration-300 group-hover:opacity-20"
+                ></div>
+                <CustomDropdown
+                  v-model="accountSortBy"
+                  icon="fa-sort-amount-down"
+                  icon-color="text-indigo-500"
+                  :options="sortOptions"
+                  placeholder="选择排序"
+                  @change="sortAccounts()"
+                />
+              </div>
+              <!-- 排序方向切换按钮 -->
+              <button
+                class="h-10 rounded-lg border border-gray-200 bg-white px-3 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                :title="
+                  accountsSortOrder === 'asc'
+                    ? '当前：升序，点击切换为降序'
+                    : '当前：降序，点击切换为升序'
+                "
+                @click="toggleSortOrder"
+              >
+                <i
+                  :class="[
+                    'fas text-sm',
+                    accountsSortOrder === 'asc' ? 'fa-sort-up' : 'fa-sort-down'
+                  ]"
+                />
+                <span class="ml-1 text-xs font-medium">
+                  {{ accountsSortOrder === 'asc' ? '升序' : '降序' }}
+                </span>
+              </button>
             </div>
 
             <!-- 平台筛选器 -->
@@ -79,6 +101,21 @@
                   <i class="fas fa-times text-xs" />
                 </button>
               </div>
+            </div>
+
+            <!-- 调度状态筛选器 -->
+            <div class="group relative min-w-[140px]">
+              <div
+                class="absolute -inset-0.5 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 opacity-0 blur transition duration-300 group-hover:opacity-20"
+              ></div>
+              <CustomDropdown
+                v-model="schedulingFilter"
+                icon="fa-cog"
+                icon-color="text-emerald-500"
+                :options="schedulingOptions"
+                placeholder="调度状态"
+                @change="filterByScheduling"
+              />
             </div>
           </div>
 
@@ -1791,6 +1828,7 @@ const apiKeys = ref([])
 const accountGroups = ref([])
 const groupFilter = ref('all')
 const platformFilter = ref('all')
+const schedulingFilter = ref('all') // 新增：调度状态筛选
 const searchKeyword = ref('')
 const PAGE_SIZE_STORAGE_KEY = 'accountsPageSize'
 const getInitialPageSize = () => {
@@ -1861,6 +1899,13 @@ const platformOptions = ref([
   { value: 'openai-responses', label: 'OpenAI-Responses', icon: 'fa-server' },
   { value: 'ccr', label: 'CCR', icon: 'fa-code-branch' },
   { value: 'droid', label: 'Droid', icon: 'fa-robot' }
+])
+
+const schedulingOptions = ref([
+  { value: 'all', label: '所有账户', icon: 'fa-globe' },
+  { value: 'schedulable', label: '仅可调度', icon: 'fa-play-circle' },
+  { value: 'enabled', label: '仅启用', icon: 'fa-check-circle' },
+  { value: 'disabled', label: '仅禁用', icon: 'fa-pause-circle' }
 ])
 
 const groupOptions = computed(() => {
@@ -1999,6 +2044,22 @@ const closeAccountUsageModal = () => {
 // 计算排序后的账户列表
 const sortedAccounts = computed(() => {
   let sourceAccounts = accounts.value
+
+  // 调度状态筛选
+  if (schedulingFilter.value !== 'all') {
+    sourceAccounts = sourceAccounts.filter((account) => {
+      switch (schedulingFilter.value) {
+        case 'schedulable':
+          return account.isActive && account.schedulable
+        case 'enabled':
+          return account.isActive
+        case 'disabled':
+          return !account.isActive || account.schedulable === false
+        default:
+          return true
+      }
+    })
+  }
 
   const keyword = searchKeyword.value.trim()
   if (keyword) {
@@ -2599,6 +2660,11 @@ const clearCache = () => {
   accountGroupMap.value.clear()
 }
 
+// 切换排序方向
+const toggleSortOrder = () => {
+  accountsSortOrder.value = accountsSortOrder.value === 'asc' ? 'desc' : 'asc'
+}
+
 // 按平台筛选账户
 const filterByPlatform = () => {
   currentPage.value = 1
@@ -2609,6 +2675,12 @@ const filterByPlatform = () => {
 const filterByGroup = () => {
   currentPage.value = 1
   loadAccounts()
+}
+
+// 按调度状态筛选账户
+const filterByScheduling = () => {
+  currentPage.value = 1
+  // 调度状态筛选是前端筛选，不需要重新加载数据
 }
 
 // 规范化代理配置，支持字符串与对象
