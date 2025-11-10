@@ -146,18 +146,7 @@ class Application {
       // 📝 请求日志（使用自定义logger而不是morgan）
       this.app.use(requestLogger)
 
-      // 🐛 HTTP调试拦截器（仅在启用调试时生效）
-      if (process.env.DEBUG_HTTP_TRAFFIC === 'true') {
-        try {
-          const { debugInterceptor } = require('./middleware/debugInterceptor')
-          this.app.use(debugInterceptor)
-          logger.info('🐛 HTTP调试拦截器已启用 - 请求/响应全文日志输出到 logs/http-debug-*.log；会话全文输出到 logs/http-conversation-*.log')
-        } catch (error) {
-          logger.warn('⚠️ 无法加载HTTP调试拦截器:', error.message)
-        }
-      }
-
-      // 🔧 基础中间件
+      // 🔧 基础中间件 - 移到前面确保能解析请求体
       this.app.use(
         express.json({
           limit: '10mb',
@@ -170,6 +159,36 @@ class Application {
         })
       )
       this.app.use(express.urlencoded({ extended: true, limit: '10mb' }))
+
+      // 🐛 增强版HTTP调试拦截器（仅在启用调试时生效）
+      // ⚠️ 必须在body-parser之后才能捕获解析后的请求体
+      if (process.env.DEBUG_HTTP_TRAFFIC === 'true') {
+        try {
+          const { debugInterceptor } = require('./middleware/debugInterceptor')
+          this.app.use(debugInterceptor)
+          logger.info('🐛 增强版HTTP调试拦截器已启用！', {
+            type: 'debug-enabled',
+            features: [
+              '详细的客户端请求信息记录',
+              '完整的请求/响应内容捕获',
+              '性能监控和耗时统计',
+              '敏感信息自动脱敏',
+              '主日志中的请求摘要',
+              '多级日志文件输出'
+            ],
+            logFiles: [
+              'logs/http-debug-enhanced-*.log - 增强版HTTP调试日志',
+              'logs/client-requests-*.log - 客户端请求详情日志',
+              'logs/http-conversation-*.log - 对话内容日志'
+            ]
+          })
+          logger.info('📋 调试功能说明: 每次客户端请求都会在主日志中看到🔍 CLIENT REQUEST开头���摘要信息，详细内容请查看专门的调试日志文件')
+        } catch (error) {
+          logger.warn('⚠️ 无法加载增强版HTTP调试拦截器:', error.message)
+          logger.warn('请检查 debugInterceptor.js 文件是否存在且语法正确')
+        }
+      }
+
       this.app.use(securityMiddleware)
 
       // 🎯 信任代理
