@@ -78,7 +78,7 @@ async function createApiKey() {
 
       // 如果API方法失败，尝试使用Redis直接创建
       const Redis = require('ioredis')
-      const config = require('../config/config')
+      const _configFile = require('../config/config')
       const redis = new Redis({
         host: 'localhost',
         port: 6379,
@@ -152,7 +152,7 @@ async function testApiKey(apiKey) {
   try {
     console.log('\n🧪 测试API Key...')
 
-    const response = await httpClient.get('/health', {
+    await httpClient.get('/health', {
       headers: {
         'x-api-key': apiKey
       }

@@ -570,7 +570,7 @@ class OpenAIResponsesRelayService {
     let rateLimitDetected = false
     let rateLimitResetsInSeconds = null
     let streamEnded = false
-    const eventDebugCount = 0
+    const _eventDebugCount = 0
     const allSSEEvents = [] // 记录所有SSE事件用于完整调试
 
     // 解析 SSE 事件以捕获 usage 数据和 model - 支持多种供应商格式

@@ -33,7 +33,7 @@ const ProxyHelper = require('../utils/proxyHelper')
 const router = express.Router()
 
 // 🔧 桥接配置工具函数
-function parseBooleanFlag(value, defaultValue = false) {
+function _parseBooleanFlag(value, defaultValue = false) {
   if (value === undefined || value === null) {
     return defaultValue
   }

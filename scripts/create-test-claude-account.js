@@ -5,7 +5,7 @@
  * 用于测试桥接功能
  */
 
-const crypto = require('crypto')
+const _crypto = require('crypto')
 const Redis = require('ioredis')
 
 async function createTestClaudeAccount() {
@@ -144,7 +144,7 @@ async function main() {
     console.log('')
 
     // 创建测试账户
-    const accountId = await createTestClaudeAccount()
+    await createTestClaudeAccount()
     console.log('')
 
     // 再次列出账户确认

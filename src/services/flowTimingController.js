@@ -41,6 +41,7 @@ class FlowTimingController {
    * @returns {Number} 延迟时间（毫秒）
    */
   calculateEventDelay(event, eventIndex, totalEvents) {
+    // eslint-disable-next-line prefer-destructuring
     let { baseDelay } = this
 
     switch (event.type) {
@@ -107,6 +108,7 @@ class FlowTimingController {
         break
 
       default:
+        // eslint-disable-next-line prefer-destructuring
         baseDelay = this.baseDelay
         break
     }

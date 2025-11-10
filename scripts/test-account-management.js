@@ -114,7 +114,7 @@ class AccountManagementTester {
 
     try {
       // 获取管理员 token
-      const adminToken = await this.testUtils.getAdminToken()
+      await this.testUtils.getAdminToken()
       console.log('✅ Admin authentication successful')
 
       // 验证服务连接
@@ -155,7 +155,7 @@ class AccountManagementTester {
   /**
    * 停用所有账户
    */
-  async disableAllAccounts(accounts) {
+  async disableAllAccounts(_accounts) {
     console.log('🔄 Disabling all accounts...')
 
     try {

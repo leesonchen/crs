@@ -268,7 +268,7 @@ class OpenAIResponsesFlowSimulator {
     // 文本增量事件
     const textDeltas = this.splitIntoDeltas(contentText, this.config.contentChunkCount)
 
-    textDeltas.forEach((delta, index) => {
+    textDeltas.forEach((delta, _index) => {
       events.push({
         type: 'response.output_text.delta',
         delta: { type: 'text', text: delta },

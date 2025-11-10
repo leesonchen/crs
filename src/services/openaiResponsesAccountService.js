@@ -172,7 +172,6 @@ class OpenAIResponsesAccountService {
         updates.modelMapping = JSON.stringify(updates.modelMapping)
       } else if (typeof updates.modelMapping === 'string') {
         // 如果已经是字符串，保持不变
-        updates.modelMapping = updates.modelMapping
       } else {
         updates.modelMapping = ''
       }

@@ -1100,7 +1100,7 @@ ${content}`
     }
 
     // 构建输出数组，包含所有已完成的文本块
-    for (const [key, block] of this._session.blocks.entries()) {
+    for (const [_key, block] of this._session.blocks.entries()) {
       if (block.completed && block.type === 'text' && block.textBuffer) {
         completed.response.output.push({
           type: 'message',
@@ -1311,7 +1311,7 @@ ${content}`
     }
 
     // 构建输出数组，包含所有已完成的文本块
-    for (const [key, block] of this._session.blocks.entries()) {
+    for (const [_key, block] of this._session.blocks.entries()) {
       if (block.completed && block.type === 'text' && block.textBuffer) {
         completed.response.output.push({
           type: 'message',

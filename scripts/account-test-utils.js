@@ -262,7 +262,7 @@ class AccountTestUtils {
   /**
    * 测试API调用
    */
-  async _testAPICalls(accountType, account) {
+  async _testAPICalls(accountType, _account) {
     const tests = []
 
     try {
@@ -296,7 +296,7 @@ class AccountTestUtils {
   /**
    * 测试桥接调用
    */
-  async _testBridgeCalls(accountType, account) {
+  async _testBridgeCalls(accountType, _account) {
     const tests = []
 
     try {

@@ -269,6 +269,7 @@ async function getOpenAIAuthToken(apiKeyData, sessionId = null, requestedModel =
             : account.accessToken
         } catch (decryptError) {
           logger.warn(`Failed to decrypt Claude ${result.accountType} accessToken:`, decryptError)
+          // eslint-disable-next-line prefer-destructuring
           accessToken = account.accessToken // 使用原始值作为回退
         }
       }

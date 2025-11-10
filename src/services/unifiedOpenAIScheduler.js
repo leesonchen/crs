@@ -514,8 +514,8 @@ class UnifiedOpenAIScheduler {
     // 注意：移除了"没有OpenAI账户可用"的前提条件限制
     try {
       // 检查系统级桥接配置是否启用
-      const redis = require('../models/redis')
-      const client = redis.getClientSafe()
+      const redisModel = require('../models/redis')
+      const client = redisModel.getClientSafe()
       const bridgeConfigStr = await client.get('system:bridge_config')
 
       let bridgeEnabled = false

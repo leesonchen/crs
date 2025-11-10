@@ -712,8 +712,8 @@ class UnifiedClaudeScheduler {
       logger.info('🌉 No Claude accounts available, checking for OpenAI bridge configuration...')
 
       // 检查系统级桥接配置
-      const redis = require('../models/redis')
-      const client = redis.getClientSafe()
+      const redisModel = require('../models/redis')
+      const client = redisModel.getClientSafe()
       const bridgeConfigStr = await client.get('system:bridge_config')
 
       let openaiToClaudeEnabled = false
