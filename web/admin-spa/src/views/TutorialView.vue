@@ -2070,8 +2070,7 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted } from 'vue'
-import { apiClient } from '@/config/api'
+import { computed, ref } from 'vue'
 
 // 当前系统选择
 const activeTutorialSystem = ref('windows')

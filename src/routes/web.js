@@ -30,43 +30,25 @@ router.post('/auth/login', async (req, res) => {
     }
 
     // 从Redis获取管理员信息
-    let adminData = await redis.getSession('admin_credentials')
+    const adminData = await redis.getSession('admin_credentials')
 
-    // 如果Redis中没有管理员凭据，尝试从init.json重新加载
+    // 检查管理员凭据是否存在
     if (!adminData || Object.keys(adminData).length === 0) {
-      const initFilePath = path.join(__dirname, '../../data/init.json')
+      logger.warn('⚠️ No admin credentials found in Redis')
+      logger.info('💡 If you need to set up admin credentials, use the secure setup tool')
+      return res.status(401).json({
+        error: 'Invalid credentials',
+        message: 'Administrator credentials not found. Please contact system administrator.'
+      })
+    }
 
-      if (fs.existsSync(initFilePath)) {
-        try {
-          const initData = JSON.parse(fs.readFileSync(initFilePath, 'utf8'))
-          const saltRounds = 10
-          const passwordHash = await bcrypt.hash(initData.adminPassword, saltRounds)
-
-          adminData = {
-            username: initData.adminUsername,
-            passwordHash,
-            createdAt: initData.initializedAt || new Date().toISOString(),
-            lastLogin: null,
-            updatedAt: initData.updatedAt || null
-          }
-
-          // 重新存储到Redis，不设置过期时间
-          await redis.getClient().hset('session:admin_credentials', adminData)
-
-          logger.info('✅ Admin credentials reloaded from init.json')
-        } catch (error) {
-          logger.error('❌ Failed to reload admin credentials:', error)
-          return res.status(401).json({
-            error: 'Invalid credentials',
-            message: 'Invalid username or password'
-          })
-        }
-      } else {
-        return res.status(401).json({
-          error: 'Invalid credentials',
-          message: 'Invalid username or password'
-        })
-      }
+    // 检查是否包含密码哈希
+    if (!adminData.passwordHash) {
+      logger.warn('⚠️ Admin credentials found but no password hash')
+      return res.status(401).json({
+        error: 'Invalid credentials',
+        message: 'Administrator credentials are incomplete'
+      })
     }
 
     // 验证用户名和密码
@@ -93,8 +75,12 @@ router.post('/auth/login', async (req, res) => {
 
     await redis.setSession(sessionId, sessionData, config.security.adminSessionTimeout)
 
-    // 不再更新 Redis 中的最后登录时间，因为 Redis 只是缓存
-    // init.json 是唯一真实数据源
+    // 更新管理员凭据的最后登录时间
+    const updatedAdminData = {
+      ...adminData,
+      lastLogin: new Date().toISOString()
+    }
+    await redis.setSession('admin_credentials', updatedAdminData)
 
     logger.success(`🔐 Admin login successful: ${username}`)
 
@@ -194,45 +180,51 @@ router.post('/auth/change-password', async (req, res) => {
     const updatedUsername =
       newUsername && newUsername.trim() ? newUsername.trim() : adminData.username
 
-    // 先更新 init.json（唯一真实数据源）
-    const initFilePath = path.join(__dirname, '../../data/init.json')
-    if (!fs.existsSync(initFilePath)) {
-      return res.status(500).json({
-        error: 'Configuration file not found',
-        message: 'init.json file is missing'
-      })
-    }
-
     try {
-      const initData = JSON.parse(fs.readFileSync(initFilePath, 'utf8'))
-      // const oldData = { ...initData }; // 备份旧数据
-
-      // 更新 init.json
-      initData.adminUsername = updatedUsername
-      initData.adminPassword = newPassword // 保存明文密码到init.json
-      initData.updatedAt = new Date().toISOString()
-
-      // 先写入文件（如果失败则不会影响 Redis）
-      fs.writeFileSync(initFilePath, JSON.stringify(initData, null, 2))
-
-      // 文件写入成功后，更新 Redis 缓存
+      // 直接更新 Redis 缓存（安全存储）
       const saltRounds = 10
       const newPasswordHash = await bcrypt.hash(newPassword, saltRounds)
 
       const updatedAdminData = {
         username: updatedUsername,
         passwordHash: newPasswordHash,
+        saltRounds,
         createdAt: adminData.createdAt,
         lastLogin: adminData.lastLogin,
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
+        version: '2.0.0',
+        lastPasswordChange: new Date().toISOString()
       }
 
       await redis.setSession('admin_credentials', updatedAdminData)
-    } catch (fileError) {
-      logger.error('❌ Failed to update init.json:', fileError)
+
+      // 可选：更新 init.json（仅配置信息，不包含明文密码）
+      const initFilePath = path.join(__dirname, '../../data/init.json')
+      if (fs.existsSync(initFilePath)) {
+        try {
+          const initData = JSON.parse(fs.readFileSync(initFilePath, 'utf8'))
+
+          // 只更新用户名和安全信息，不保存明文密码
+          initData.adminUsername = updatedUsername
+          initData.updatedAt = new Date().toISOString()
+          initData.lastPasswordChange = new Date().toISOString()
+          initData.securityNote = '此文件不存储明文密码，仅用于配置和审计'
+          initData.instructions = '如需重置密码，请使用安全重置工具'
+
+          fs.writeFileSync(initFilePath, JSON.stringify(initData, null, 2))
+          logger.info('📝 init.json 配置信息已更新（不包含明文密码）')
+        } catch (configError) {
+          // 配置文件更新失败不影响主要功能
+          logger.warn('⚠️ init.json 配置更新失败，但密码修改成功:', configError.message)
+        }
+      }
+
+      logger.success(`🔐 Admin credentials updated for user: ${updatedUsername}`)
+    } catch (updateError) {
+      logger.error('❌ Failed to update admin credentials:', updateError)
       return res.status(500).json({
         error: 'Update failed',
-        message: 'Failed to update configuration file'
+        message: 'Failed to update admin credentials'
       })
     }
 

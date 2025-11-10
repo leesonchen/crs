@@ -392,9 +392,20 @@ class Application {
     }
   }
 
-  // 🔧 初始化管理员凭据（总是从 init.json 加载，确保数据一致性）
+  // 🔧 初始化管理员凭据（安全版本：优先使用Redis，兼容init.json迁移）
   async initializeAdmin() {
     try {
+      // 首先检查Redis中是否已有管理员凭据
+      const existingCredentials = await redis.getSession('admin_credentials')
+      if (existingCredentials && Object.keys(existingCredentials).length > 0) {
+        // Redis中已有凭据，直接使用
+        logger.success('✅ Admin credentials loaded from Redis (secure storage)')
+        logger.info(`📋 Admin username: ${existingCredentials.username}`)
+        return
+      }
+
+      logger.info('🔍 No admin credentials found in Redis, checking init.json...')
+
       const initFilePath = path.join(__dirname, '..', 'data', 'init.json')
 
       if (!fs.existsSync(initFilePath)) {
@@ -402,26 +413,37 @@ class Application {
         return
       }
 
-      // 从 init.json 读取管理员凭据（作为唯一真实数据源）
+      // 从 init.json 读取管理员凭据
       const initData = JSON.parse(fs.readFileSync(initFilePath, 'utf8'))
 
-      // 将明文密码哈希化
+      // 检查是否包含明文密码（向后兼容）
+      if (!initData.adminPassword) {
+        logger.warn('⚠️ init.json does not contain plaintext password. Admin credentials are missing or already migrated.')
+        logger.info('💡 If you need to reset admin password, use the secure password reset tool.')
+        return
+      }
+
+      // 将明文密码哈希化（迁移过程）
       const saltRounds = 10
       const passwordHash = await bcrypt.hash(initData.adminPassword, saltRounds)
 
-      // 存储到Redis（每次启动都覆盖，确保与 init.json 同步）
+      // 存储到Redis
       const adminCredentials = {
         username: initData.adminUsername,
         passwordHash,
         createdAt: initData.initializedAt || new Date().toISOString(),
         lastLogin: null,
-        updatedAt: initData.updatedAt || null
+        updatedAt: initData.updatedAt || null,
+        version: '2.0.0',
+        migrationDate: new Date().toISOString()
       }
 
       await redis.setSession('admin_credentials', adminCredentials)
 
-      logger.success('✅ Admin credentials loaded from init.json (single source of truth)')
+      logger.success('✅ Admin credentials migrated from init.json to Redis (secure storage)')
       logger.info(`📋 Admin username: ${adminCredentials.username}`)
+      logger.warn('⚠️ For security, remove adminPassword from init.json after successful migration')
+
     } catch (error) {
       logger.error('❌ Failed to initialize admin credentials:', {
         error: error.message,
