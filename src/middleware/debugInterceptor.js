@@ -319,7 +319,9 @@ function debugInterceptor(req, res, next) {
         if (remainingSize > 0) {
           responseChunks.push(chunkBuffer.slice(0, remainingSize))
           totalResponseSize = MAX_RESPONSE_SIZE
-          clientRequestLogger.info(`⚠️ 响应体已截断 (${requestId}): 达到 ${MAX_RESPONSE_SIZE / 1024 / 1024}MB 限制`)
+          clientRequestLogger.info(
+            `⚠️ 响应体已截断 (${requestId}): 达到 ${MAX_RESPONSE_SIZE / 1024 / 1024}MB 限制`
+          )
         }
         return
       }
