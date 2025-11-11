@@ -3,10 +3,12 @@ const logger = require('../utils/logger')
 /**
  * 浏览器/Chrome插件兜底中间件
  * 专门处理第三方插件的兼容性问题
+ * 根据请求类型智能选择合适的User-Agent
  */
 const browserFallbackMiddleware = (req, res, next) => {
   const userAgent = req.headers['user-agent'] || ''
   const origin = req.headers['origin'] || ''
+  const url = req.url || ''
 
   const extractHeader = (value) => {
     let candidate = value
@@ -45,29 +47,71 @@ const browserFallbackMiddleware = (req, res, next) => {
     req.isBrowserFallback = true
     req.originalUserAgent = userAgent
 
-    // 🆕 关键修改：伪装成claude-cli请求以绕过客户端限制
-    req.headers['user-agent'] = 'claude-cli/1.0.110 (external, cli, browser-fallback)'
+    // 🎯 根据请求路径智能选择User-Agent
+    let targetUserAgent
+    let detectedType = 'unknown'
+
+    // OpenAI 相关路径
+    if (
+      url.includes('/openai/') ||
+      url.includes('/api/v1/chat') ||
+      url.includes('/v1/chat/completions')
+    ) {
+      targetUserAgent = 'codex-cli/1.0.0 (external, cli, browser-fallback)'
+      detectedType = 'OpenAI/Codex'
+    }
+    // Claude 相关路径
+    else if (
+      url.includes('/claude/') ||
+      url.includes('/api/v1/messages') ||
+      url.includes('/v1/messages/count_tokens')
+    ) {
+      targetUserAgent = 'claude-cli/1.0.110 (external, cli, browser-fallback)'
+      detectedType = 'Claude'
+    }
+    // Gemini 相关路径
+    else if (url.includes('/gemini/')) {
+      targetUserAgent = 'gemini-cli/1.0.0 (external, cli, browser-fallback)'
+      detectedType = 'Gemini'
+    }
+    // 默认使用Claude
+    else {
+      targetUserAgent = 'claude-cli/1.0.110 (external, cli, browser-fallback)'
+      detectedType = 'Claude'
+    }
+
+    // 修改User-Agent
+    req.headers['user-agent'] = targetUserAgent
 
     // 确保设置正确的认证头
     if (!req.headers['authorization'] && apiKeyHeader) {
       req.headers['authorization'] = `Bearer ${apiKeyHeader}`
     }
 
-    // 添加必要的Anthropic头
-    if (!req.headers['anthropic-version']) {
-      req.headers['anthropic-version'] = '2023-06-01'
+    // 根据检测到的类型添加特定headers
+    if (detectedType === 'Claude') {
+      // 添加必要的Anthropic头
+      if (!req.headers['anthropic-version']) {
+        req.headers['anthropic-version'] = '2023-06-01'
+      }
+      if (!req.headers['anthropic-dangerous-direct-browser-access']) {
+        req.headers['anthropic-dangerous-direct-browser-access'] = 'true'
+      }
+    } else if (detectedType === 'OpenAI/Codex' || detectedType === 'default(Codex)') {
+      // 添加OpenAI特定headers
+      if (!req.headers['openai-version']) {
+        req.headers['openai-version'] = '2024-02-15-preview'
+      }
     }
-
-    if (!req.headers['anthropic-dangerous-direct-browser-access']) {
-      req.headers['anthropic-dangerous-direct-browser-access'] = 'true'
-    }
+    // Gemini通常不需要特殊headers
 
     logger.api(
       `🔧 Browser fallback activated for ${isChromeExtension ? 'Chrome extension' : 'browser'} request`
     )
     logger.api(`   Original User-Agent: "${req.originalUserAgent}"`)
-    logger.api(`   Origin: "${origin}"`)
+    logger.api(`   Detected type: ${detectedType}`)
     logger.api(`   Modified User-Agent: "${req.headers['user-agent']}"`)
+    logger.api(`   Request path: "${url}"`)
   }
 
   next()

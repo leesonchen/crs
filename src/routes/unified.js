@@ -13,7 +13,7 @@ const router = express.Router()
 // 🔍 根据模型名称检测后端类型
 function detectBackendFromModel(modelName) {
   if (!modelName) {
-    return 'claude' // 默认 Claude
+    return null // 无法判断时返回 null
   }
 
   // 首先尝试使用 modelService 查找模型的 provider
@@ -57,13 +57,47 @@ function detectBackendFromModel(modelName) {
     return 'gemini'
   }
 
-  // 默认使用 Claude
-  return 'claude'
+  // 无法从模型名判断，返回 null
+  return null
 }
 
 // 🚀 智能后端路由处理器
 async function routeToBackend(req, res, requestedModel) {
-  const backend = detectBackendFromModel(requestedModel)
+  let backend = detectBackendFromModel(requestedModel)
+  const url = req.url || ''
+
+  // 🔍 当无法从模型名判断时，根据URL路径进行补充判断
+  if (backend === null) {
+    if (
+      url.includes('/openai/') ||
+      url.includes('/api/v1/chat') ||
+      url.includes('/v1/chat/completions')
+    ) {
+      backend = 'openai'
+      logger.info(
+        `🔍 Cannot detect backend from model "${requestedModel}", URL indicates OpenAI path`
+      )
+    } else if (
+      url.includes('/claude/') ||
+      url.includes('/api/v1/messages') ||
+      url.includes('/v1/messages/count_tokens')
+    ) {
+      backend = 'claude'
+      logger.info(
+        `🔍 Cannot detect backend from model "${requestedModel}", URL indicates Claude path`
+      )
+    } else if (url.includes('/gemini/')) {
+      backend = 'gemini'
+      logger.info(
+        `🔍 Cannot detect backend from model "${requestedModel}", URL indicates Gemini path`
+      )
+    } else {
+      backend = 'claude' // 最后的默认回退
+      logger.info(
+        `🔍 Cannot detect backend from model "${requestedModel}" and URL, defaulting to Claude`
+      )
+    }
+  }
 
   logger.info(`🔀 Routing request - Model: ${requestedModel}, Backend: ${backend}`)
 
