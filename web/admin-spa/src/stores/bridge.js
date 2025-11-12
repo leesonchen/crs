@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { apiClient } from '@/config/api'
 import { showToast } from '@/utils/toast'
 
@@ -11,12 +11,12 @@ export const useBridgeStore = defineStore('bridge', () => {
   // 双向桥接配置数据结构
   const bridgeConfig = ref({
     openaiToClaude: {
-      enabled: true,
+      enabled: false, // ✅ 初始值设为 false，避免误导
       defaultModel: 'claude-3-5-sonnet-20241022',
       modelMapping: {}
     },
     claudeToOpenai: {
-      enabled: false,
+      enabled: false, // ✅ 初始值设为 false，与后端默认保持一致
       defaultModel: 'gpt-5',
       modelMapping: {}
     },
@@ -25,32 +25,51 @@ export const useBridgeStore = defineStore('bridge', () => {
     updatedBy: null
   })
 
+  // 监听配置变化
+  watch(
+    bridgeConfig,
+    () => {
+      // 监听桥接配置变化，便于调试
+    },
+    { deep: true, immediate: true }
+  )
+
   // 加载桥接配置
   async function loadBridgeConfig() {
     loading.value = true
     try {
       const response = await apiClient.get('/admin/bridge/config')
-      if (response.success && response.config) {
-        // 直接使用后端返回的双向数据结构
-        bridgeConfig.value = {
+
+      if (response.success && response.data) {
+        // 处理后端返回的桥接配置
+        const newConfig = {
           openaiToClaude: {
-            enabled: response.config.openaiToClaude?.enabled ?? true,
-            defaultModel:
-              response.config.openaiToClaude?.defaultModel ?? 'claude-3-5-sonnet-20241022',
-            modelMapping: response.config.openaiToClaude?.modelMapping ?? {}
+            enabled:
+              response.data.openaiToClaude?.enabled !== undefined
+                ? response.data.openaiToClaude.enabled
+                : false,
+            defaultModel: response.data.openaiToClaude?.defaultModel ?? 'claude-3-5-sonnet-20241022',
+            modelMapping: response.data.openaiToClaude?.modelMapping ?? {}
           },
           claudeToOpenai: {
-            enabled: response.config.claudeToOpenai?.enabled ?? false,
-            defaultModel: response.config.claudeToOpenai?.defaultModel ?? 'gpt-5',
-            modelMapping: response.config.claudeToOpenai?.modelMapping ?? {}
+            enabled:
+              response.data.claudeToOpenai?.enabled !== undefined
+                ? response.data.claudeToOpenai.enabled
+                : false,
+            defaultModel: response.data.claudeToOpenai?.defaultModel ?? 'gpt-5',
+            modelMapping: response.data.claudeToOpenai?.modelMapping ?? {}
           },
-          createdAt: response.config.createdAt || null,
-          updatedAt: response.config.updatedAt || null,
-          updatedBy: response.config.updatedBy || null
+          createdAt: response.data.createdAt || null,
+          updatedAt: response.data.updatedAt || null,
+          updatedBy: response.data.updatedBy || null
         }
+
+        // 更新状态
+        bridgeConfig.value = newConfig
+      } else {
+        showToast('API响应格式异常', 'error')
       }
     } catch (error) {
-      console.error('Failed to load bridge config:', error)
       showToast('加载桥接配置失败', 'error')
       throw error
     } finally {
@@ -74,22 +93,27 @@ export const useBridgeStore = defineStore('bridge', () => {
         // 更新本地状态
         bridgeConfig.value = {
           openaiToClaude: {
-            enabled: response.config.openaiToClaude?.enabled ?? true,
-            defaultModel:
-              response.config.openaiToClaude?.defaultModel ?? 'claude-3-5-sonnet-20241022',
-            modelMapping: response.config.openaiToClaude?.modelMapping ?? {}
+            enabled:
+              response.data.openaiToClaude?.enabled !== undefined
+                ? response.data.openaiToClaude.enabled
+                : false,
+            defaultModel: response.data.openaiToClaude?.defaultModel ?? 'claude-3-5-sonnet-20241022',
+            modelMapping: response.data.openaiToClaude?.modelMapping ?? {}
           },
           claudeToOpenai: {
-            enabled: response.config.claudeToOpenai?.enabled ?? false,
-            defaultModel: response.config.claudeToOpenai?.defaultModel ?? 'gpt-5',
-            modelMapping: response.config.claudeToOpenai?.modelMapping ?? {}
+            enabled:
+              response.data.claudeToOpenai?.enabled !== undefined
+                ? response.data.claudeToOpenai.enabled
+                : false,
+            defaultModel: response.data.claudeToOpenai?.defaultModel ?? 'gpt-5',
+            modelMapping: response.data.claudeToOpenai?.modelMapping ?? {}
           },
-          createdAt: response.config.createdAt || null,
-          updatedAt: response.config.updatedAt || null,
-          updatedBy: response.config.updatedBy || null
+          createdAt: response.data.createdAt || null,
+          updatedAt: response.data.updatedAt || null,
+          updatedBy: response.data.updatedBy || null
         }
         showToast('桥接配置已保存', 'success')
-        return { success: true, config: response.config }
+        return { success: true, config: response.data }
       } else {
         showToast(response.message || '保存失败', 'error')
         return { success: false, message: response.message }

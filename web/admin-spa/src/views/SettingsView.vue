@@ -2034,6 +2034,15 @@ const { loading, saving, oemSettings } = storeToRefs(settingsStore)
 const bridgeStore = useBridgeStore()
 const { saving: bridgeSaving, bridgeConfig } = storeToRefs(bridgeStore)
 
+// 监听桥接配置变化
+watch(
+  bridgeConfig,
+  () => {
+    // 监听桥接配置变化，便于调试
+  },
+  { deep: true, immediate: true }
+)
+
 // 组件refs
 const iconFileInput = ref()
 
@@ -2310,7 +2319,7 @@ const loadWebhookConfig = async () => {
     if (error.name === 'AbortError') return
     if (!isMounted.value) return
     showToast('获取webhook配置失败', 'error')
-    console.error(error)
+    // console.error(error)
   }
 }
 
@@ -2337,7 +2346,7 @@ const saveWebhookConfig = async () => {
     if (error.name === 'AbortError') return
     if (!isMounted.value) return
     showToast('保存配置失败', 'error')
-    console.error(error)
+    // console.error(error)
   }
 }
 
@@ -2473,7 +2482,7 @@ const savePlatform = async () => {
     if (error.name === 'AbortError') return
     if (!isMounted.value) return
     showToast(error.message || '操作失败', 'error')
-    console.error(error)
+    // console.error(error)
   } finally {
     if (isMounted.value) {
       savingPlatform.value = false
@@ -2535,7 +2544,7 @@ const deletePlatform = async (id) => {
     if (error.name === 'AbortError') return
     if (!isMounted.value) return
     showToast('删除失败', 'error')
-    console.error(error)
+    // console.error(error)
   }
 }
 
@@ -2559,7 +2568,7 @@ const togglePlatform = async (id) => {
     if (error.name === 'AbortError') return
     if (!isMounted.value) return
     showToast('操作失败', 'error')
-    console.error(error)
+    // console.error(error)
   }
 }
 
@@ -2609,7 +2618,7 @@ const testPlatform = async (platform) => {
     if (error.name === 'AbortError') return
     if (!isMounted.value) return
     showToast(error.error || error.message || '测试失败', 'error')
-    console.error(error)
+    // console.error(error)
   }
 }
 
@@ -2632,7 +2641,7 @@ const testPlatformForm = async () => {
     if (error.name === 'AbortError') return
     if (!isMounted.value) return
     showToast(error.error || error.message || '测试失败', 'error')
-    console.error(error)
+    // console.error(error)
   } finally {
     if (isMounted.value) {
       testingConnection.value = false
@@ -2661,7 +2670,7 @@ const sendTestNotification = async () => {
     const errorMessage =
       error?.response?.data?.message || error?.response?.data?.error || error?.message || '发送失败'
     showToast(errorMessage, 'error')
-    console.error(error)
+    // console.error(error)
   }
 }
 
@@ -2854,7 +2863,7 @@ const removeIcon = () => {
 
 // 处理图标加载错误
 const handleIconError = () => {
-  console.warn('Icon failed to load')
+  // console.warn('Icon failed to load')
 }
 
 // 格式化日期时间
@@ -2870,7 +2879,7 @@ const loadBridgeConfig = async () => {
   } catch (error) {
     if (!isMounted.value) return
     // Store已经处理了toast，这里只需要处理未捕获的错误
-    console.error('Failed to load bridge config:', error)
+    // console.error('Failed to load bridge config:', error)
   }
 }
 
@@ -2884,7 +2893,7 @@ const saveBridgeConfig = async () => {
     }
   } catch (error) {
     if (!isMounted.value) return
-    console.error('Failed to save bridge config:', error)
+    // console.error('Failed to save bridge config:', error)
   }
 }
 
