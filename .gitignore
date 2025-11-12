@@ -249,6 +249,7 @@ web/apiStats/
 
 # Admin SPA build files
 web/admin-spa/dist/
+web/admin-spa/assets/
 /update_dist.sh
 test_anyrouter.sh
 /web/admin-spa/dist1
