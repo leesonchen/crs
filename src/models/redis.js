@@ -1133,7 +1133,13 @@ class RedisClient {
   async setSession(sessionId, sessionData, ttl = 86400) {
     const key = `session:${sessionId}`
     await this.client.hset(key, sessionData)
-    await this.client.expire(key, ttl)
+
+    // 特殊处理：管理员凭据永不过期
+    if (sessionId === 'admin_credentials' || sessionId === 'admin_credentials_backup') {
+      await this.client.persist(key) // 移除TTL，设置为永不过期
+    } else {
+      await this.client.expire(key, ttl)
+    }
   }
 
   async getSession(sessionId) {

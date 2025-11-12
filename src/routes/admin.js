@@ -9318,7 +9318,7 @@ router.put('/bridge/config', authenticateAdmin, async (req, res) => {
     res.json({
       success: true,
       message: 'Bridge configuration updated successfully',
-      config: newConfig
+      data: newConfig
     })
   } catch (error) {
     logger.error('❌ Failed to update bridge config:', error)
