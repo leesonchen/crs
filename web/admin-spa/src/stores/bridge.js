@@ -48,7 +48,8 @@ export const useBridgeStore = defineStore('bridge', () => {
               response.data.openaiToClaude?.enabled !== undefined
                 ? response.data.openaiToClaude.enabled
                 : false,
-            defaultModel: response.data.openaiToClaude?.defaultModel ?? 'claude-3-5-sonnet-20241022',
+            defaultModel:
+              response.data.openaiToClaude?.defaultModel ?? 'claude-3-5-sonnet-20241022',
             modelMapping: response.data.openaiToClaude?.modelMapping ?? {}
           },
           claudeToOpenai: {
@@ -97,7 +98,8 @@ export const useBridgeStore = defineStore('bridge', () => {
               response.data.openaiToClaude?.enabled !== undefined
                 ? response.data.openaiToClaude.enabled
                 : false,
-            defaultModel: response.data.openaiToClaude?.defaultModel ?? 'claude-3-5-sonnet-20241022',
+            defaultModel:
+              response.data.openaiToClaude?.defaultModel ?? 'claude-3-5-sonnet-20241022',
             modelMapping: response.data.openaiToClaude?.modelMapping ?? {}
           },
           claudeToOpenai: {
