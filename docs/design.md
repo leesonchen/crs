@@ -247,15 +247,220 @@ usage:daily:{keyId}:{date} → Hash
 ```
 
 **账户存储**:
+
+#### Claude官方账户
 ```
-claude:account:{accountId} → Hash
+claude_account:{accountId} → Hash
 {
+  # 基础信息
+  id: "uuid",
+  platform: "claude-official",
   name: "账户名称",
+  description: "描述",
   email: "user@example.com",
   status: "active",
   isActive: "true",
   subscriptionInfo: {...},
-  lastUsedAt: "2025-01-01T10:00:00Z"
+  lastUsedAt: "2025-01-01T10:00:00Z",
+
+  # OAuth认证数据（加密存储）
+  encryptedData: "encrypted_oauth_tokens",
+  refreshToken: "encrypted_refresh_token",
+  accessToken: "encrypted_access_token",
+  tokenExpiresAt: "2025-01-01T11:00:00Z",
+
+  # 模型支持配置
+  supportedModels: "[\"claude-sonnet-4-20250514\", \"claude-3-5-haiku-20241022\"]",
+  modelMapping: "{\"claude-sonnet-4-20250514\": \"claude-sonnet-4-20250514\"}",
+
+  # 调度控制
+  priority: "50",
+  schedulable: "true",
+  accountType: "shared",
+
+  # 使用统计
+  totalUsedTokens: "150000",
+  lastResetDate: "2025-11-12",
+
+  # 时间戳
+  createdAt: "2025-01-01T00:00:00.000Z",
+  updatedAt: "2025-11-12T10:30:00.000Z"
+}
+```
+
+#### Claude Console账户
+```
+claude_console_account:{accountId} → Hash
+{
+  # 基础信息
+  id: "uuid",
+  platform: "claude-console",
+  name: "Console账户",
+  description: "描述",
+  apiUrl: "https://console-api.anthropic.com",
+  status: "active",
+  isActive: "true",
+  accountType: "shared",
+
+  # 认证数据（加密存储）
+  apiKey: "encrypted_api_key",
+
+  # 模型支持配置 - **统一使用映射表格式**
+  # supportedModels: 对象格式（映射表），键为源模型，值为目标模型
+  supportedModels: "{\"claude-sonnet-4-20250514\": \"claude-sonnet-4-20250514\", \"claude-3-5-haiku-20241022\": \"claude-3-5-haiku-20241022\"}",
+
+  # 请求配置
+  userAgent: "claude-cli/1.0.69",
+  priority: "50",
+  rateLimitDuration: "60",
+  proxy: "",
+
+  # 调度控制
+  schedulable: "true",
+  subscriptionExpiresAt: "2025-12-31T23:59:59.000Z",
+
+  # 额度管理
+  dailyQuota: "100.00",
+  dailyUsage: "15.50",
+  lastResetDate: "2025-11-12",
+  quotaResetTime: "00:00",
+  quotaStoppedAt: "",
+
+  # 状态管理
+  errorMessage: "",
+  rateLimitedAt: "",
+  rateLimitStatus: "",
+
+  # 时间戳
+  createdAt: "2025-01-01T00:00:00.000Z",
+  lastUsedAt: ""
+}
+```
+
+#### OpenAI Responses账户
+```
+openai_responses_account:{accountId} → Hash
+{
+  # 基础信息
+  id: "uuid",
+  platform: "openai-responses",
+  name: "OpenAI账户",
+  description: "描述",
+  baseApi: "https://api.openai.com",
+  status: "active",
+  isActive: "true",
+  accountType: "shared",
+
+  # 认证数据（加密存储）
+  apiKey: "encrypted_api_key",
+
+  # ✅ 模型支持配置 - **统一使用映射表格式**
+  # supportedModels: 对象格式（映射表），键为源模型，值为目标模型
+  supportedModels: "{\"gpt-4o\": \"gpt-4o\", \"gpt-4o-mini\": \"gpt-4o-mini\", \"gpt-5\": \"claude-sonnet-4-20250514\", \"o3-mini\": \"claude-3-5-haiku-20241022\"}",
+
+  # 请求配置
+  userAgent: "",
+  priority: "50",
+  proxy: "",
+
+  # 调度控制
+  schedulable: "true",
+  subscriptionExpiresAt: "2025-12-31T23:59:59.000Z",
+
+  # 额度管理
+  dailyQuota: "100.00",
+  dailyUsage: "25.30",
+  lastResetDate: "2025-11-12",
+  quotaResetTime: "00:00",
+  quotaStoppedAt: "",
+  rateLimitDuration: "60",
+
+  # 状态管理
+  errorMessage: "",
+  rateLimitedAt: "",
+  rateLimitStatus: "",
+
+  # 时间戳
+  createdAt: "2025-01-01T00:00:00.000Z",
+  lastUsedAt: ""
+}
+```
+
+#### Gemini账户
+```
+gemini_account:{accountId} → Hash
+{
+  # 基础信息
+  id: "uuid",
+  platform: "gemini",
+  name: "Gemini账户",
+  description: "描述",
+  apiUrl: "https://generativelanguage.googleapis.com",
+  status: "active",
+  isActive: "true",
+  accountType: "shared",
+
+  # OAuth认证数据（加密存储）
+  encryptedData: "encrypted_google_tokens",
+  refreshToken: "encrypted_refresh_token",
+  accessToken: "encrypted_access_token",
+  tokenExpiresAt: "2025-01-01T11:00:00Z",
+
+  # 模型支持配置 - **统一使用映射表格式**
+  # supportedModels: 对象格式（映射表），键为源模型，值为目标模型
+  supportedModels: "{\"gemini-1.5-pro\": \"gemini-1.5-pro\", \"gemini-1.5-flash\": \"gemini-1.5-flash\"}",
+
+  # 请求配置
+  userAgent: "",
+  priority: "50",
+  proxy: "",
+
+  # 调度控制
+  schedulable: "true",
+  subscriptionExpiresAt: "2025-12-31T23:59:59.000Z",
+
+  # 时间戳
+  createdAt: "2025-01-01T00:00:00.000Z",
+  lastUsedAt: ""
+}
+```
+
+#### AWS Bedrock账户
+```
+bedrock_account:{accountId} → Hash
+{
+  # 基础信息
+  id: "uuid",
+  platform: "bedrock",
+  name: "Bedrock账户",
+  description: "描述",
+  region: "us-east-1",
+  status: "active",
+  isActive: "true",
+  accountType: "shared",
+
+  # AWS认证数据（加密存储）
+  awsCredentials: "encrypted_aws_credentials",
+  accessKeyId: "encrypted_access_key",
+  secretAccessKey: "encrypted_secret_key",
+  sessionToken: "encrypted_session_token",
+
+  # 模型配置
+  defaultModel: "anthropic.claude-3-5-sonnet-20241022-v1:0",
+  smallFastModel: "anthropic.claude-3-haiku-20240307-v1:0",
+
+  # 模型支持配置 - **统一使用映射表格式**
+  # supportedModels: 对象格式（映射表），键为源模型，值为目标模型
+  supportedModels: "{\"anthropic.claude-3-5-sonnet-20241022-v1:0\": \"anthropic.claude-3-5-sonnet-20241022-v1:0\", \"anthropic.claude-3-haiku-20240307-v1:0\": \"anthropic.claude-3-haiku-20240307-v1:0\"}",
+
+  # 调度控制
+  priority: "50",
+  schedulable: "true",
+  subscriptionExpiresAt: "2025-12-31T23:59:59.000Z",
+
+  # 时间戳
+  createdAt: "2025-01-01T00:00:00.000Z",
+  lastUsedAt: ""
 }
 ```
 

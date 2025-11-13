@@ -1821,9 +1821,10 @@ const { showConfirmModal, confirmOptions, showConfirm, handleConfirm, handleCanc
 // 数据状态
 const accounts = ref([])
 const accountsLoading = ref(false)
-const accountSortBy = ref('name')
+const accountSortBy = ref('lastUsed')
 const accountsSortBy = ref('')
-const accountsSortOrder = ref('asc')
+const accountsSortOrder = ref('desc')
+const hasSetDefaultSort = ref(false) // 是否已设置默认排序
 const apiKeys = ref([])
 const accountGroups = ref([])
 const groupFilter = ref('all')
@@ -2547,6 +2548,15 @@ const loadAccounts = async (forceReload = false) => {
     showToast('加载账户失败', 'error')
   } finally {
     accountsLoading.value = false
+    // 如果是首次加载数据，设置默认排序
+    if (!hasSetDefaultSort.value) {
+      // 设置实际排序字段和方向
+      accountsSortBy.value = 'lastUsed'
+      accountsSortOrder.value = 'desc'
+      // 更新UI显示的排序选择器
+      accountSortBy.value = 'lastUsed'
+      hasSetDefaultSort.value = true
+    }
   }
 }
 

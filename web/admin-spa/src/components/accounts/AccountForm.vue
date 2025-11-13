@@ -3630,12 +3630,7 @@ const form = ref({
 
 // 模型限制配置
 const modelRestrictionMode = ref('whitelist') // 'whitelist' 或 'mapping'
-const allowedModels = ref([
-  // 默认勾选所有 Sonnet 和 Haiku 模型
-  'claude-sonnet-4-20250514',
-  'claude-sonnet-4-5-20250929',
-  'claude-3-5-haiku-20241022'
-]) // 白名单模式下选中的模型列表
+const allowedModels = ref([]) // 白名单模式下选中的模型列表，初始化为空
 
 // 常用模型列表
 const commonModels = [
@@ -3656,19 +3651,7 @@ const modelMappings = ref([])
 
 // 初始化模型映射表
 const initModelMappings = () => {
-  // OpenAI / OpenAI-Responses 使用账户级模型映射
-  if (
-    props.account &&
-    (props.account.platform === 'openai' || props.account.platform === 'openai-responses') &&
-    props.account.modelMapping
-  ) {
-    const mm = props.account.modelMapping
-    if (typeof mm === 'object' && !Array.isArray(mm)) {
-      modelMappings.value = Object.entries(mm).map(([from, to]) => ({ from, to }))
-      return
-    }
-  }
-
+  // 优先使用supportedModels字段（更通用且避免watch重置问题）
   if (props.account?.supportedModels) {
     // 如果是对象格式（新的映射表）
     if (
@@ -3676,21 +3659,38 @@ const initModelMappings = () => {
       !Array.isArray(props.account.supportedModels)
     ) {
       const entries = Object.entries(props.account.supportedModels)
+      console.log('🔍 [DEBUG] 初始化 - supportedModels数据:', {
+        supportedModels: props.account.supportedModels,
+        entries: entries
+      })
 
       // 判断是白名单模式还是映射模式
-      // 如果所有映射都是"映射到自己"，则视为白名单模式
-      const isWhitelist = entries.every(([from, to]) => from === to)
+      const isEmptyObject = entries.length === 0
+      const isWhitelist = !isEmptyObject && entries.every(([from, to]) => from === to)
+      console.log('🔍 [DEBUG] 初始化 - 模式判断:', {
+        isEmptyObject,
+        isWhitelist,
+        length: entries.length
+      })
+
       if (isWhitelist) {
         modelRestrictionMode.value = 'whitelist'
         // 白名单模式：设置 allowedModels（显示勾选的模型）
         allowedModels.value = entries.map(([from]) => from)
         // 同时保留 modelMappings（以便用户切换到映射模式时有初始数据）
         modelMappings.value = entries.map(([from, to]) => ({ from, to }))
+        console.log('🔍 [DEBUG] 初始化 - 白名单模式:', {
+          allowedModels: allowedModels.value,
+          modelMappings: modelMappings.value
+        })
       } else {
         modelRestrictionMode.value = 'mapping'
         // 映射模式：设置 modelMappings（显示映射表）
         modelMappings.value = entries.map(([from, to]) => ({ from, to }))
         // 不填充 allowedModels，因为映射模式不使用白名单复选框
+        console.log('🔍 [DEBUG] 初始化 - 映射模式:', {
+          modelMappings: modelMappings.value
+        })
       }
     } else if (Array.isArray(props.account.supportedModels)) {
       // 如果是数组格式（旧格式），转换为白名单模式
@@ -3701,6 +3701,24 @@ const initModelMappings = () => {
         from: model,
         to: model
       }))
+    }
+  } else {
+    // 没有supportedModels数据时，根据账户类型设置合理的默认值
+    if (props.account?.platform === 'openai-responses' || props.account?.platform === 'openai') {
+      // OpenAI类型账户默认使用映射模式
+      modelRestrictionMode.value = 'mapping'
+      modelMappings.value = []
+      allowedModels.value = [] // 清��白名单
+    } else {
+      // 其他账户（Claude Console等）默认使用白名单模式
+      modelRestrictionMode.value = 'whitelist'
+      allowedModels.value = [
+        // 默认勾选所有 Sonnet 和 Haiku 模型
+        'claude-sonnet-4-20250514',
+        'claude-sonnet-4-5-20250929',
+        'claude-3-5-haiku-20241022'
+      ]
+      modelMappings.value = []
     }
   }
 }
@@ -4470,6 +4488,8 @@ const createAccount = async () => {
       data.needsImmediateRefresh = true
       data.requireRefreshSuccess = true // 必须刷新成功才能创建账户
       data.priority = form.value.priority || 50
+      // 模型映射配置 - 与Claude Console保持一致
+      data.supportedModels = convertMappingsToObject() || {}
     } else if (form.value.platform === 'droid') {
       data.priority = form.value.priority || 50
       data.endpointType = form.value.endpointType || 'anthropic'
@@ -4514,11 +4534,8 @@ const createAccount = async () => {
       data.rateLimitDuration = 60 // 默认值60，不从用户输入获取
       data.dailyQuota = form.value.dailyQuota || 0
       data.quotaResetTime = form.value.quotaResetTime || '00:00'
-      // 模型映射配置
-      const mapping = convertMappingsToObject()
-      if (mapping) {
-        data.modelMapping = mapping
-      }
+      // 模型映射配置 - 与Claude Console保持一致
+      data.supportedModels = convertMappingsToObject() || {}
     } else if (form.value.platform === 'bedrock') {
       // Bedrock 账户特定数据 - 构造 awsCredentials 对象
       data.awsCredentials = {
@@ -4791,13 +4808,8 @@ const updateAccount = async () => {
     // OpenAI 账号优先级更新
     if (props.account.platform === 'openai') {
       data.priority = form.value.priority || 50
-      // 模型映射配置（编辑）
-      const mapping = convertMappingsToObject()
-      if (mapping) {
-        data.modelMapping = mapping
-      } else {
-        data.modelMapping = null
-      }
+      // 模型映射配置（编辑） - 与Claude Console保持一致
+      data.supportedModels = convertMappingsToObject() || {}
     }
 
     // Gemini 账号优先级更新
@@ -4832,13 +4844,8 @@ const updateAccount = async () => {
       // 编辑时不上传 rateLimitDuration，保持原值
       data.dailyQuota = form.value.dailyQuota || 0
       data.quotaResetTime = form.value.quotaResetTime || '00:00'
-      // 模型映射配置（编辑）
-      const mapping = convertMappingsToObject()
-      if (mapping) {
-        data.modelMapping = mapping
-      } else {
-        data.modelMapping = null
-      }
+      // 模型映射配置（编辑） - 与Claude Console保持一致
+      data.supportedModels = convertMappingsToObject() || {}
     }
 
     // Bedrock 特定更新
@@ -5069,7 +5076,7 @@ const handleApiKeyRefresh = async () => {
       await refresher()
       return
     } catch (error) {
-      console.error('刷新账户列表失败:', error)
+      // 忽略刷新错误，由上层函数处理
     }
   }
 }
@@ -5303,6 +5310,10 @@ const convertMappingsToObject = () => {
     allowedModels.value.forEach((model) => {
       mapping[model] = model
     })
+    console.log('🔍 [DEBUG] 白名单模式转换:', {
+      allowedModels: allowedModels.value,
+      result: mapping
+    })
   } else {
     // 映射模式：使用手动配置的映射表
     modelMappings.value.forEach((item) => {
@@ -5310,9 +5321,13 @@ const convertMappingsToObject = () => {
         mapping[item.from] = item.to
       }
     })
+    console.log('🔍 [DEBUG] 映射模式转换:', {
+      modelMappings: modelMappings.value,
+      result: mapping
+    })
   }
 
-  return Object.keys(mapping).length > 0 ? mapping : null
+  return mapping // 始终返回对象（即使为空），与Claude Console保持一致
 }
 
 // 监听账户变化，更新表单
@@ -5320,7 +5335,6 @@ watch(
   () => props.account,
   (newAccount) => {
     if (newAccount) {
-      initModelMappings()
       // 重新初始化代理配置
       const proxyConfig = normalizeProxyFormState(newAccount.proxy)
       const normalizedAuthMethod =

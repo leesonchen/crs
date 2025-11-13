@@ -56,46 +56,18 @@ async function prepareClaudeBridge(req, accountId, accountType) {
 
   req._bridgeConverter = toOpenAI
   req._bridgeStreamTransform = (chunkStr) => {
-    logger.info(`🔧 [Bridge] Converting stream chunk for ${clientType}:`, {
-      chunkPreview: chunkStr.slice(0, 100) + (chunkStr.length > 100 ? '...' : ''),
-      chunkLength: chunkStr.length,
-      hasConverter: !!toOpenAI
-    })
-    const result = toOpenAI.convertStreamChunk(chunkStr)
-    logger.info(`🔧 [Bridge] Stream chunk conversion result:`, {
-      hasResult: !!result,
-      resultLength: result ? result.length : 0,
-      resultPreview: result ? result.slice(0, 100) + (result.length > 100 ? '...' : '') : 'null'
-    })
-    return result
+    return toOpenAI.convertStreamChunk(chunkStr)
   }
   req._bridgeStreamFinalize = () => {
-    logger.info(`🔧 [Bridge] Finalizing stream for ${clientType}`)
-    const result = toOpenAI.finalizeStream()
-    logger.info(`🔧 [Bridge] Stream finalize completed:`, { result })
-    return result
+    return toOpenAI.finalizeStream()
   }
   req._bridgeNonStreamConvert = (responseData) => {
-    logger.info(`🔧 [Bridge] Converting non-stream response for ${clientType}:`, {
-      hasData: !!responseData,
-      dataType: typeof responseData
-    })
-    const result = toOpenAI.convertNonStream(responseData)
-    logger.info(`🔧 [Bridge] Non-stream conversion completed:`, {
-      hasResult: !!result,
-      resultType: typeof result
-    })
-    return result
+    return toOpenAI.convertNonStream(responseData)
   }
 
-  // 添加转换器设置成功的调试日志
-  logger.info(`🔧 [Bridge] Response converter configured for ${clientType}:`, {
+  logger.debug(`🔧 Bridge converter configured for ${clientType}`, {
     clientType,
-    requestedModel,
-    hasStreamTransform: typeof req._bridgeStreamTransform === 'function',
-    hasStreamFinalize: typeof req._bridgeStreamFinalize === 'function',
-    hasNonStreamConvert: typeof req._bridgeNonStreamConvert === 'function',
-    converterType: 'ClaudeToOpenAIResponsesConverter'
+    requestedModel
   })
 
   logger.info(
@@ -405,10 +377,8 @@ const handleResponses = async (req, res) => {
 
     const isStream = req.body?.stream !== false // 默认为流式（兼容现有行为）
 
-    // 判断是否为 Codex CLI 的请求
-    const isCodexCLI =
-      req.body?.instructions?.startsWith('You are a coding agent running in the Codex CLI') ||
-      req.body?.instructions?.startsWith('You are Codex')
+    // 判断是否为 Codex CLI 的请求 - 基于 User-Agent 而不是请求体
+    const isCodexCLI = (req.headers['user-agent'] || '').toLowerCase().includes('codex_cli')
 
     // 如果不是 Codex CLI 请求，则进行适配
     if (!isCodexCLI) {

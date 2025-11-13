@@ -21,10 +21,11 @@ const ProxyHelper = require('../utils/proxyHelper')
 const logger = require('../utils/logger')
 const apiKeyService = require('./apiKeyService')
 const unifiedOpenAIScheduler = require('./unifiedOpenAIScheduler')
+const openaiResponsesAccountService = require('./openaiResponsesAccountService')
 const config = require('../../config/config')
 const crypto = require('crypto')
 
-// 账户服务映射（根据 accountType 动态加载）
+// 账户服务映射（简化后仍保留，供其他函数使用）
 function getAccountService(accountType) {
   if (accountType === 'openai') {
     return require('./openaiAccountService')
@@ -103,6 +104,51 @@ class OpenAIResponsesRelayService {
         hasProxy: !!fullAccount.proxy
       })
 
+      // 🔄 模型映射处理（与 Claude Console 架构保持一致）
+      const originalModel = req.body?.model
+      let mappedModel = originalModel
+      let requestBody = req.body
+
+      // 简化：既然已通过路由层进入此方法，即为 OpenAI-Responses 服务
+      logger.debug(`🔄 Starting model mapping process:`, {
+        accountId: fullAccount.id,
+        accountType,
+        originalModel
+      })
+
+      // ✅ 简化判断：直接检查原始模型是否存在
+      if (originalModel) {
+        try {
+          // 直接使用 OpenAI-Responses 账户服务
+          if (
+            fullAccount.supportedModels &&
+            typeof fullAccount.supportedModels === 'object' &&
+            !Array.isArray(fullAccount.supportedModels)
+          ) {
+            const newModel = openaiResponsesAccountService.getMappedModel(
+              fullAccount.supportedModels,
+              originalModel
+            )
+            if (newModel && newModel !== originalModel) {
+              logger.debug(`🔄 Mapping model from ${originalModel} to ${newModel}`, {
+                accountId: fullAccount.id,
+                accountName: fullAccount.name
+              })
+              mappedModel = newModel
+              // 创建修改后的请求体副本
+              requestBody = {
+                ...req.body,
+                model: newModel
+              }
+            }
+          }
+        } catch (mappingError) {
+          logger.warn(`⚠️ [Relay] Model mapping failed for ${originalModel}:`, mappingError)
+          // 映射失败时使用原始模型
+          requestBody = req.body
+        }
+      }
+
       // 创建 AbortController 用于取消请求
       abortController = new AbortController()
 
@@ -162,9 +208,9 @@ class OpenAIResponsesRelayService {
         method: req.method,
         url: targetUrl,
         headers,
-        data: req.body,
+        data: requestBody,
         timeout: this.defaultTimeout,
-        responseType: req.body?.stream ? 'stream' : 'json',
+        responseType: requestBody?.stream ? 'stream' : 'json',
         validateStatus: () => true, // 允许处理所有状态码
         signal: abortController.signal
       }
@@ -188,8 +234,10 @@ class OpenAIResponsesRelayService {
         accountName: account.name,
         targetUrl,
         method: req.method,
-        stream: req.body?.stream || false,
-        model: req.body?.model || 'unknown',
+        stream: requestBody?.stream || false,
+        originalModel: originalModel || 'unknown',
+        finalModel: mappedModel || 'unknown',
+        modelMapped: mappedModel !== originalModel,
         userAgent: headers['User-Agent'] || 'not set'
       })
 
@@ -743,42 +791,15 @@ class OpenAIResponsesRelayService {
         if (!forceNonStream && !res.destroyed && !streamEnded) {
           const transform = req._bridgeStreamTransform
 
-          // 添加转换器检查的调试日志
-          logger.info('🔍 [Bridge] Checking stream transformer:', {
-            hasTransform: !!transform,
-            transformType: typeof transform,
-            chunkLength: chunkStr.length,
-            chunkPreview: chunkStr.slice(0, 100) + (chunkStr.length > 100 ? '...' : ''),
-            accountType,
-            forceNonStream,
-            streamEnded,
-            resDestroyed: res.destroyed
-          })
-
           if (typeof transform === 'function') {
-            logger.info('🔧 [Bridge] Calling stream transformer function...')
             const converted = transform(chunkStr)
-            logger.info('🔧 [Bridge] Stream transformer result:', {
-              hasConverted: !!converted,
-              convertedLength: converted ? converted.length : 0,
-              convertedPreview: converted
-                ? converted.slice(0, 100) + (converted.length > 100 ? '...' : '')
-                : 'null'
-            })
             if (converted) {
               res.write(converted)
               if (typeof res.flush === 'function') {
                 res.flush()
               }
-            } else {
-              logger.warn('⚠️ [Bridge] Stream transformer returned null/undefined, no data written')
             }
           } else {
-            logger.warn('⚠️ [Bridge] No stream transformer available, forwarding raw chunk:', {
-              transformType: typeof transform,
-              hasTransform: !!transform,
-              accountType
-            })
             res.write(chunk)
             if (typeof res.flush === 'function') {
               res.flush()

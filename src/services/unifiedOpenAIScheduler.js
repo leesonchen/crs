@@ -232,21 +232,24 @@ class UnifiedOpenAIScheduler {
             }
           }
 
-          // 专属账户：可选的模型检查（只有明确配置了supportedModels且不为空才检查）
+          // 专属账户：可选的模型检查（只有明确配置了supportedModels（映射表）且不为空才检查）
           // OpenAI-Responses 账户默认支持所有模型
           if (
             accountType === 'openai' &&
             requestedModel &&
             boundAccount.supportedModels &&
-            boundAccount.supportedModels.length > 0
+            typeof boundAccount.supportedModels === 'object'
           ) {
-            const modelSupported = boundAccount.supportedModels.includes(requestedModel)
-            if (!modelSupported) {
-              const errorMsg = `Dedicated account ${boundAccount.name} does not support model ${requestedModel}`
-              logger.warn(`⚠️ ${errorMsg}`)
-              const error = new Error(errorMsg)
-              error.statusCode = 400 // Bad Request - 请求参数错误
-              throw error
+            const supportedModelKeys = Object.keys(boundAccount.supportedModels)
+            if (supportedModelKeys.length > 0) {
+              const modelSupported = supportedModelKeys.includes(requestedModel)
+              if (!modelSupported) {
+                const errorMsg = `Dedicated account ${boundAccount.name} does not support model ${requestedModel}`
+                logger.warn(`⚠️ ${errorMsg}`)
+                const error = new Error(errorMsg)
+                error.statusCode = 400 // Bad Request - 请求参数错误
+                throw error
+              }
             }
           }
 
@@ -432,15 +435,22 @@ class UnifiedOpenAIScheduler {
           }
         }
 
-        // 检查模型支持（仅在明确设置了supportedModels且不为空时才检查）
-        // 如果没有设置supportedModels或为空数组，则支持所有模型
-        if (requestedModel && account.supportedModels && account.supportedModels.length > 0) {
-          const modelSupported = account.supportedModels.includes(requestedModel)
-          if (!modelSupported) {
-            logger.debug(
-              `⏭️ Skipping OpenAI account ${account.name} - doesn't support model ${requestedModel}`
-            )
-            continue
+        // 检查模型支持（仅在明确设置了supportedModels（映射表）且不为空时才检查）
+        // 如果没有设置supportedModels或为空对象，则支持所有模型
+        if (
+          requestedModel &&
+          account.supportedModels &&
+          typeof account.supportedModels === 'object'
+        ) {
+          const supportedModelKeys = Object.keys(account.supportedModels)
+          if (supportedModelKeys.length > 0) {
+            const modelSupported = supportedModelKeys.includes(requestedModel)
+            if (!modelSupported) {
+              logger.debug(
+                `⏭️ Skipping OpenAI account ${account.name} - doesn't support model ${requestedModel}`
+              )
+              continue
+            }
           }
         }
 
@@ -460,8 +470,7 @@ class UnifiedOpenAIScheduler {
       if (
         (account.isActive === true || account.isActive === 'true') &&
         account.status !== 'error' &&
-        account.status !== 'rateLimited' &&
-        (account.accountType === 'shared' || !account.accountType)
+        account.status !== 'rateLimited'
       ) {
         const hasRateLimitFlag = this._hasRateLimitFlag(account.rateLimitStatus)
         const schedulable = this._isSchedulable(account.schedulable)
@@ -525,8 +534,7 @@ class UnifiedOpenAIScheduler {
       }
 
       if (bridgeEnabled) {
-        logger.info(`🌉 System bridge config enabled, checking Claude bridge candidates`)
-        logger.info(`🔍 Requested model: ${requestedModel}`)
+        logger.debug(`🌉 System bridge config enabled, checking Claude bridge candidates`)
 
         // 导入 Claude 相关服务
         const claudeAccountService = require('./claudeAccountService')
@@ -544,52 +552,27 @@ class UnifiedOpenAIScheduler {
 
         // 将请求的OpenAI模型映射到Claude模型
         const mappedModel = requestedModel ? systemMapping[requestedModel] || defaultModel : null
-        logger.info(`🔄 System-level model mapping: ${requestedModel} → ${mappedModel}`)
-        logger.info(`📋 System mapping config: ${JSON.stringify(systemMapping)}`)
-        logger.info(`🎯 Default model: ${defaultModel}`)
 
         // 检查是否有启用的 Claude 账户支持桥接
         const claudeAccounts = await claudeAccountService.getAllAccounts()
-        logger.info(
-          `🔍 Found ${claudeAccounts.length} Claude accounts to check for bridge eligibility`
-        )
 
         for (const account of claudeAccounts) {
-          // 🔧 claudeAccountService.getAllAccounts() 已经解析了JSON字段，直接使用
-          logger.info(
-            `🔎 Checking Claude account: ${account.name} (active: ${account.isActive}, status: ${account.status}, schedulable: ${account.schedulable})`
-          )
-          logger.info(
-            `📋 Account openaiModelMapping: ${JSON.stringify(account.openaiModelMapping)}`
-          )
-          logger.info(`📋 Account supportedModels: ${JSON.stringify(account.supportedModels)}`)
-
           if (account.isActive && account.status !== 'error' && account.schedulable !== false) {
-            logger.info(`✅ Account ${account.name} passed basic eligibility check`)
-
             // 桥接调度时，只检查映射后的 Claude 模型是否被支持
-            // 不再检查原始 OpenAI 模型，因为系统级映射已经处理了模型转换
-            logger.info(
-              `🔍 Account ${account.name} bridge candidate - checking mapped model support`
-            )
-
             // 检查账户是否支持映射后的 Claude 模型
             let supportsMappedModel = true
-            if (mappedModel && account.supportedModels && account.supportedModels.length > 0) {
-              supportsMappedModel = account.supportedModels.includes(mappedModel)
-              logger.info(
-                `🔍 Account ${account.name} supports mapped model ${mappedModel}: ${supportsMappedModel}`
-              )
-            } else {
-              logger.info(
-                `🔍 Account ${account.name} has no supportedModels restriction, auto-supports mapped model ${mappedModel}`
-              )
+            if (
+              mappedModel &&
+              account.supportedModels &&
+              typeof account.supportedModels === 'object'
+            ) {
+              const supportedModelKeys = Object.keys(account.supportedModels)
+              if (supportedModelKeys.length > 0) {
+                supportsMappedModel = supportedModelKeys.includes(mappedModel)
+              }
             }
 
             if (supportsMappedModel) {
-              logger.info(
-                `🌉 ✅ Found Claude bridge candidate: ${account.name} (supports ${requestedModel} → ${mappedModel})`
-              )
               availableAccounts.push({
                 ...account,
                 accountId: account.id,
@@ -597,13 +580,7 @@ class UnifiedOpenAIScheduler {
                 priority: parseInt(account.priority) || 60, // 桥接账户优先级略低
                 lastUsedAt: account.lastUsedAt || '0'
               })
-            } else {
-              logger.info(
-                `❌ Account ${account.name} rejected: does not support mapped model ${mappedModel}`
-              )
             }
-          } else {
-            logger.info(`❌ Account ${account.name} failed basic eligibility check`)
           }
         }
 
@@ -613,21 +590,18 @@ class UnifiedOpenAIScheduler {
           if (account.isActive && account.status !== 'error' && account.schedulable !== false) {
             // 检查账户是否支持映射后的 Claude 模型
             let supportsMappedModel = true
-            if (mappedModel && account.supportedModels && account.supportedModels.length > 0) {
-              supportsMappedModel = account.supportedModels.includes(mappedModel)
-              logger.info(
-                `🔍 Claude Console account ${account.name} supports mapped model ${mappedModel}: ${supportsMappedModel}`
-              )
-            } else {
-              logger.info(
-                `🔍 Claude Console account ${account.name} has no supportedModels restriction, auto-supports mapped model ${mappedModel}`
-              )
+            if (
+              mappedModel &&
+              account.supportedModels &&
+              typeof account.supportedModels === 'object'
+            ) {
+              const supportedModelKeys = Object.keys(account.supportedModels)
+              if (supportedModelKeys.length > 0) {
+                supportsMappedModel = supportedModelKeys.includes(mappedModel)
+              }
             }
 
             if (supportsMappedModel) {
-              logger.info(
-                `🌉 ✅ Found Claude Console bridge candidate: ${account.name} (supports ${requestedModel} → ${mappedModel})`
-              )
               availableAccounts.push({
                 ...account,
                 accountId: account.id,
@@ -635,25 +609,12 @@ class UnifiedOpenAIScheduler {
                 priority: parseInt(account.priority) || 60, // 桥接账户优先级略低
                 lastUsedAt: account.lastUsedAt || '0'
               })
-            } else {
-              logger.info(
-                `❌ Claude Console account ${account.name} rejected: does not support mapped model ${mappedModel}`
-              )
             }
-          } else {
-            logger.info(`❌ Claude Console account ${account.name} failed basic eligibility check`)
           }
         }
       } else {
         logger.debug(`🌉 System bridge config disabled, skipping Claude bridge candidates`)
       }
-
-      logger.info(
-        `📊 Bridge check completed. Total available accounts: ${availableAccounts.length}`
-      )
-      logger.info(
-        `📋 Available account types: ${availableAccounts.map((acc) => `${acc.accountType}(${acc.name || acc.accountId})`).join(', ')}`
-      )
     } catch (error) {
       logger.warn(`⚠️ Failed to check bridge configuration:`, error)
       // 桥接配置检查失败不应该影响正常的 OpenAI 账户调度
@@ -1033,15 +994,22 @@ class UnifiedOpenAIScheduler {
             continue
           }
 
-          // 检查模型支持（仅在明确设置了supportedModels且不为空时才检查）
-          // 如果没有设置supportedModels或为空数组，则支持所有模型
-          if (requestedModel && account.supportedModels && account.supportedModels.length > 0) {
-            const modelSupported = account.supportedModels.includes(requestedModel)
-            if (!modelSupported) {
-              logger.debug(
-                `⏭️ Skipping group member OpenAI account ${account.name} - doesn't support model ${requestedModel}`
-              )
-              continue
+          // 检查模型支持（仅在明确设置了supportedModels（映射表）且不为空时才检查）
+          // 如果没有设置supportedModels或为空对象，则支持所有模型
+          if (
+            requestedModel &&
+            account.supportedModels &&
+            typeof account.supportedModels === 'object'
+          ) {
+            const supportedModelKeys = Object.keys(account.supportedModels)
+            if (supportedModelKeys.length > 0) {
+              const modelSupported = supportedModelKeys.includes(requestedModel)
+              if (!modelSupported) {
+                logger.debug(
+                  `⏭️ Skipping group member OpenAI account ${account.name} - doesn't support model ${requestedModel}`
+                )
+                continue
+              }
             }
           }
 

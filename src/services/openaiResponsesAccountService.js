@@ -50,7 +50,7 @@ class OpenAIResponsesAccountService {
       dailyQuota = 0, // 每日额度限制（美元），0表示不限制
       quotaResetTime = '00:00', // 额度重置时间（HH:mm格式）
       rateLimitDuration = 60, // 限流时间（分钟）
-      modelMapping = null // 模型映射配置（用于同平台模型降级）
+      supportedModels = [] // 支持的模型列表或映射表，空数组/对象表示支持所有
     } = options
 
     // 验证必填字段
@@ -62,6 +62,9 @@ class OpenAIResponsesAccountService {
     const normalizedBaseApi = baseApi.endsWith('/') ? baseApi.slice(0, -1) : baseApi
 
     const accountId = uuidv4()
+
+    // 处理 supportedModels，确保向后兼容
+    const processedModels = this._processModelMapping(supportedModels)
 
     const accountData = {
       id: accountId,
@@ -95,13 +98,8 @@ class OpenAIResponsesAccountService {
       lastResetDate: redis.getDateStringInTimezone(),
       quotaResetTime,
       quotaStoppedAt: '',
-      // 模型映射
-      modelMapping:
-        modelMapping && typeof modelMapping === 'object'
-          ? JSON.stringify(modelMapping)
-          : modelMapping && typeof modelMapping === 'string'
-            ? modelMapping
-            : ''
+      // ✅ 模型映射：使用supportedModels字段（与Claude Console保持一致）
+      supportedModels: JSON.stringify(processedModels)
     }
 
     // 保存到 Redis
@@ -137,13 +135,15 @@ class OpenAIResponsesAccountService {
       }
     }
 
-    // 解析 modelMapping 字段（用于模型降级）
-    if (accountData.modelMapping) {
+    // 解析 supportedModels 字段（与Claude Console保持一致）
+    if (accountData.supportedModels) {
       try {
-        accountData.modelMapping = JSON.parse(accountData.modelMapping)
+        accountData.supportedModels = JSON.parse(accountData.supportedModels || '{}')
       } catch (e) {
-        accountData.modelMapping = null
+        accountData.supportedModels = {}
       }
+    } else {
+      accountData.supportedModels = {}
     }
 
     return accountData
@@ -166,15 +166,11 @@ class OpenAIResponsesAccountService {
       updates.proxy = updates.proxy ? JSON.stringify(updates.proxy) : ''
     }
 
-    // 处理模型映射
-    if (updates.modelMapping !== undefined) {
-      if (typeof updates.modelMapping === 'object' && updates.modelMapping !== null) {
-        updates.modelMapping = JSON.stringify(updates.modelMapping)
-      } else if (typeof updates.modelMapping === 'string') {
-        // 如果已经是字符串，保持不变
-      } else {
-        updates.modelMapping = ''
-      }
+    // 处理 supportedModels 字段（与Claude Console保持一致）
+    if (updates.supportedModels !== undefined) {
+      // 处理 supportedModels，确保向后兼容
+      const processedModels = this._processModelMapping(updates.supportedModels)
+      updates.supportedModels = JSON.stringify(processedModels)
     }
 
     // 规范化 baseApi
@@ -296,13 +292,15 @@ class OpenAIResponsesAccountService {
                   minutesRemaining: 0
                 }
 
-            // 解析 modelMapping 字段（用于模型降级）
-            if (accountData.modelMapping) {
+            // 解析 supportedModels 字段（与Claude Console保持一致）
+            if (accountData.supportedModels) {
               try {
-                accountData.modelMapping = JSON.parse(accountData.modelMapping)
+                accountData.supportedModels = JSON.parse(accountData.supportedModels || '[]')
               } catch (e) {
-                accountData.modelMapping = null
+                accountData.supportedModels = []
               }
+            } else {
+              accountData.supportedModels = []
             }
 
             // 转换 schedulable 字段为布尔值（前端需要布尔值来判断）
@@ -685,6 +683,80 @@ class OpenAIResponsesAccountService {
     if (accountData.accountType === 'shared') {
       await client.sadd(this.SHARED_ACCOUNTS_KEY, accountId)
     }
+  }
+
+  // 🔄 处理模型映射，确保向后兼容（与Claude Console完全一致）
+  _processModelMapping(supportedModels) {
+    // 如果是空值，返回空对象（支持所有模型）
+    if (!supportedModels || (Array.isArray(supportedModels) && supportedModels.length === 0)) {
+      return {}
+    }
+
+    // 如果已经是对象格式（新的映射表格式），直接返回
+    if (typeof supportedModels === 'object' && !Array.isArray(supportedModels)) {
+      return supportedModels
+    }
+
+    // 如果是数组格式（旧格式），转换为映射表
+    if (Array.isArray(supportedModels)) {
+      const mapping = {}
+      supportedModels.forEach((model) => {
+        if (model && typeof model === 'string') {
+          mapping[model] = model // 映射到自身
+        }
+      })
+      return mapping
+    }
+
+    // 其他情况返回空对象
+    return {}
+  }
+
+  // 🔍 检查模型是否支持（用于调度，与Claude Console完全一致）
+  isModelSupported(supportedModels, requestedModel) {
+    // 如果映射表为空，支持所有模型
+    if (!supportedModels || Object.keys(supportedModels).length === 0) {
+      return true
+    }
+
+    // 检查请求的模型是否在映射表的键中（精确匹配）
+    if (Object.prototype.hasOwnProperty.call(supportedModels, requestedModel)) {
+      return true
+    }
+
+    // 尝试大小写不敏感匹配
+    const requestedModelLower = requestedModel.toLowerCase()
+    for (const key of Object.keys(supportedModels)) {
+      if (key.toLowerCase() === requestedModelLower) {
+        return true
+      }
+    }
+
+    return false
+  }
+
+  // 🔄 获取映射后的模型名称（与Claude Console完全一致）
+  getMappedModel(supportedModels, requestedModel) {
+    // 如果映射表为空，返回原模型
+    if (!supportedModels || Object.keys(supportedModels).length === 0) {
+      return requestedModel
+    }
+
+    // 精确匹配
+    if (supportedModels[requestedModel]) {
+      return supportedModels[requestedModel]
+    }
+
+    // 大小写不敏感匹配
+    const requestedModelLower = requestedModel.toLowerCase()
+    for (const [key, value] of Object.entries(supportedModels)) {
+      if (key.toLowerCase() === requestedModelLower) {
+        return value
+      }
+    }
+
+    // 如果不存在则返回原模型
+    return requestedModel
   }
 }
 
