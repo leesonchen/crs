@@ -924,12 +924,91 @@ class OpenAIResponsesRelayService {
           logger.error('Failed to record usage:', error)
         }
       } else {
-        // 如果没有捕获到usage数据，记录警告以便调试
-        logger.warn('⚠️ No usage data captured from stream', {
+        // 如果没有捕获到usage数据，使用备用统计机制
+        logger.warn('⚠️ No usage data captured from stream, using fallback estimation', {
           accountId: account.id,
           actualModel: actualModel || 'unknown',
           requestedModel: requestedModel || 'unknown'
         })
+
+        try {
+          // 估算输入token（基于请求内容）
+          let estimatedInputTokens = 0
+          if (req.body) {
+            const messages = req.body.messages || []
+            for (const message of messages) {
+              if (message.content) {
+                if (typeof message.content === 'string') {
+                  estimatedInputTokens += Math.ceil(message.content.length / 4)
+                } else if (Array.isArray(message.content)) {
+                  for (const part of message.content) {
+                    if (typeof part.text === 'string') {
+                      estimatedInputTokens += Math.ceil(part.text.length / 4)
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+          // 从流式响应中提取内容用于估算输出token
+          let estimatedOutputTokens = 0
+          for (const event of allSSEEvents) {
+            if (event.hasContent && event.fullContent) {
+              const content = this._extractFullContent(event.fullContent)
+              if (content) {
+                estimatedOutputTokens += Math.ceil(content.length / 4)
+              }
+            }
+          }
+
+          // 如果仍然没有内容，使用默认值
+          if (estimatedInputTokens === 0 && estimatedOutputTokens === 0) {
+            estimatedInputTokens = 100 // 默认输入token
+            estimatedOutputTokens = 50  // 默认输出token
+          }
+
+          const modelToRecord = actualModel || requestedModel || 'unknown'
+
+          await apiKeyService.recordUsage(
+            apiKeyData.id,
+            estimatedInputTokens,
+            estimatedOutputTokens,
+            0, // cache_create_tokens
+            0, // cache_read_tokens
+            modelToRecord,
+            account.id
+          )
+
+          logger.info(
+            `📊 Fallback usage estimation recorded - Input: ${estimatedInputTokens}, Output: ${estimatedOutputTokens}, Model: ${modelToRecord}`
+          )
+
+          // 更新账户的使用统计
+          const accountService = getAccountService(accountType)
+          if (accountService.updateAccountUsage) {
+            await accountService.updateAccountUsage(account.id, estimatedInputTokens + estimatedOutputTokens)
+          }
+
+          // 更新账户使用额度（如果设置了额度限制）
+          if (parseFloat(account.dailyQuota) > 0) {
+            const CostCalculator = require('../utils/costCalculator')
+            const costInfo = CostCalculator.calculateCost(
+              {
+                input_tokens: estimatedInputTokens,
+                output_tokens: estimatedOutputTokens,
+                cache_creation_input_tokens: 0,
+                cache_read_input_tokens: 0
+              },
+              modelToRecord
+            )
+            if (accountService.updateUsageQuota) {
+              await accountService.updateUsageQuota(account.id, costInfo.costs.total)
+            }
+          }
+        } catch (fallbackError) {
+          logger.error('Failed to record fallback usage:', fallbackError)
+        }
       }
 
       // 如果在流式响应中检测到限流
@@ -1163,6 +1242,103 @@ class OpenAIResponsesRelayService {
         }
       } catch (error) {
         logger.error('Failed to record usage:', error)
+      }
+    } else {
+      // 如果没有捕获到usage数据，使用备用统计机制
+      logger.warn('⚠️ No usage data captured from normal response, using fallback estimation', {
+        accountId: account.id,
+        actualModel: actualModel || 'unknown',
+        requestedModel: requestedModel || 'unknown'
+      })
+
+      try {
+        // 估算输入token（基于请求内容）
+        let estimatedInputTokens = 0
+        if (req.body) {
+          const messages = req.body.messages || []
+          for (const message of messages) {
+            if (message.content) {
+              if (typeof message.content === 'string') {
+                estimatedInputTokens += Math.ceil(message.content.length / 4)
+              } else if (Array.isArray(message.content)) {
+                for (const part of message.content) {
+                  if (typeof part.text === 'string') {
+                    estimatedInputTokens += Math.ceil(part.text.length / 4)
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // 估算输出token（基于响应内容）
+        let estimatedOutputTokens = 0
+        if (responseData?.response?.output_text) {
+          const outputText = responseData.response.output_text
+          if (typeof outputText === 'string') {
+            estimatedOutputTokens = Math.ceil(outputText.length / 4)
+          } else if (Array.isArray(outputText)) {
+            for (const item of outputText) {
+              if (typeof item === 'string') {
+                estimatedOutputTokens += Math.ceil(item.length / 4)
+              } else if (item.text) {
+                estimatedOutputTokens += Math.ceil(String(item.text).length / 4)
+              }
+            }
+          }
+        } else if (responseData?.choices?.[0]?.message?.content) {
+          const content = responseData.choices[0].message.content
+          estimatedOutputTokens = Math.ceil(String(content).length / 4)
+        } else if (responseData?.content) {
+          estimatedOutputTokens = Math.ceil(String(responseData.content).length / 4)
+        }
+
+        // 如果仍然没有内容，使用默认值
+        if (estimatedInputTokens === 0 && estimatedOutputTokens === 0) {
+          estimatedInputTokens = 100 // 默认输入token
+          estimatedOutputTokens = 50  // 默认输出token
+        }
+
+        const modelToRecord = actualModel || requestedModel || 'unknown'
+
+        await apiKeyService.recordUsage(
+          apiKeyData.id,
+          estimatedInputTokens,
+          estimatedOutputTokens,
+          0, // cache_create_tokens
+          0, // cache_read_tokens
+          modelToRecord,
+          account.id
+        )
+
+        logger.info(
+          `📊 Fallback usage estimation recorded (non-stream) - Input: ${estimatedInputTokens}, Output: ${estimatedOutputTokens}, Model: ${modelToRecord}`
+        )
+
+        // 更新账户的使用统计
+        const accountService = getAccountService(accountType)
+        if (accountService.updateAccountUsage) {
+          await accountService.updateAccountUsage(account.id, estimatedInputTokens + estimatedOutputTokens)
+        }
+
+        // 更新账户使用额度（如果设置了额度限制）
+        if (parseFloat(account.dailyQuota) > 0) {
+          const CostCalculator = require('../utils/costCalculator')
+          const costInfo = CostCalculator.calculateCost(
+            {
+              input_tokens: estimatedInputTokens,
+              output_tokens: estimatedOutputTokens,
+              cache_creation_input_tokens: 0,
+              cache_read_input_tokens: 0
+            },
+            modelToRecord
+          )
+          if (accountService.updateUsageQuota) {
+            await accountService.updateUsageQuota(account.id, costInfo.costs.total)
+          }
+        }
+      } catch (fallbackError) {
+        logger.error('Failed to record fallback usage:', fallbackError)
       }
     }
 
@@ -1434,6 +1610,58 @@ class OpenAIResponsesRelayService {
     }
 
     return contentPreview || 'no_content'
+  }
+
+  // 🔍 提取完整事件内容（用于备用统计）
+  _extractFullContent(eventData) {
+    let content = ''
+
+    // OpenAI Responses 格式
+    if (eventData.delta && eventData.delta.output_text) {
+      if (typeof eventData.delta.output_text === 'string') {
+        content += eventData.delta.output_text
+      } else if (Array.isArray(eventData.delta.output_text)) {
+        content += eventData.delta.output_text.join('')
+      } else {
+        content += JSON.stringify(eventData.delta.output_text)
+      }
+    } else if (eventData.response && eventData.response.output_text) {
+      if (typeof eventData.response.output_text === 'string') {
+        content += eventData.response.output_text
+      } else if (Array.isArray(eventData.response.output_text)) {
+        content += eventData.response.output_text.join('')
+      } else {
+        content += JSON.stringify(eventData.response.output_text)
+      }
+    }
+
+    // Claude/智谱AI 格式
+    else if (eventData.content && eventData.content.text) {
+      content += eventData.content.text
+    } else if (eventData.delta && eventData.delta.text) {
+      content += eventData.delta.text
+    } else if (eventData.content && typeof eventData.content === 'string') {
+      content += eventData.content
+    }
+
+    // Gemini 格式
+    else if (eventData.candidate && eventData.candidate.content) {
+      const text = eventData.candidate.content.parts?.[0]?.text || ''
+      content += text
+    }
+
+    // 通用内容提取
+    else if (eventData.text) {
+      content += eventData.text
+    } else if (eventData.content) {
+      if (typeof eventData.content === 'string') {
+        content += eventData.content
+      } else {
+        content += JSON.stringify(eventData.content)
+      }
+    }
+
+    return content
   }
 
   // 估算费用（简化版本，实际应该根据不同的定价模型）
