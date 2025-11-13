@@ -8628,6 +8628,71 @@ router.post('/openai-responses-accounts/:id/reset-usage', authenticateAdmin, asy
   }
 })
 
+// 📊 获取模型定价信息
+router.get('/model-pricing', authenticateAdmin, async (req, res) => {
+  try {
+    // 获取所有模型价格数据
+    const allPricing = pricingService.pricingData || {}
+
+    // 按平台分类并格式化
+    const categorizedPricing = {
+      claude: [],
+      openai: [],
+      gemini: [],
+      other: []
+    }
+
+    const { lastUpdated } = pricingService
+
+    // 遍历所有模型并分类
+    for (const [modelName, pricing] of Object.entries(allPricing)) {
+      const formattedModel = {
+        name: modelName,
+        inputPrice: pricing.input_cost_per_token ? pricing.input_cost_per_token * 1000000 : 0,
+        outputPrice: pricing.output_cost_per_token ? pricing.output_cost_per_token * 1000000 : 0,
+        cacheCreatePrice: pricing.cache_creation_input_token_cost
+          ? pricing.cache_creation_input_token_cost * 1000000
+          : 0,
+        cacheReadPrice: pricing.cache_read_input_token_cost
+          ? pricing.cache_read_input_token_cost * 1000000
+          : 0
+      }
+
+      // 按模型名称分类
+      const modelLower = modelName.toLowerCase()
+      if (modelLower.includes('claude')) {
+        categorizedPricing.claude.push(formattedModel)
+      } else if (modelLower.includes('gpt') || modelLower.includes('o1')) {
+        categorizedPricing.openai.push(formattedModel)
+      } else if (modelLower.includes('gemini')) {
+        categorizedPricing.gemini.push(formattedModel)
+      } else {
+        categorizedPricing.other.push(formattedModel)
+      }
+    }
+
+    // 按价格从高到低排序每个分类
+    const sortByPrice = (a, b) => b.outputPrice - a.outputPrice
+    categorizedPricing.claude.sort(sortByPrice)
+    categorizedPricing.openai.sort(sortByPrice)
+    categorizedPricing.gemini.sort(sortByPrice)
+    categorizedPricing.other.sort(sortByPrice)
+
+    return res.json({
+      success: true,
+      data: categorizedPricing,
+      lastUpdated: lastUpdated ? lastUpdated.toISOString() : null,
+      totalModels: Object.keys(allPricing).length
+    })
+  } catch (error) {
+    logger.error('❌ Failed to get model pricing:', error)
+    return res.status(500).json({
+      error: 'Failed to get model pricing',
+      message: error.message
+    })
+  }
+})
+
 // 🤖 Droid 账户管理
 
 // 生成 Droid OAuth 授权链接
@@ -9325,6 +9390,103 @@ router.put('/bridge/config', authenticateAdmin, async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to update bridge configuration',
+      message: error.message
+    })
+  }
+})
+
+// 📋 获取使用明细列表（使用详细记录数据）
+router.get('/usage-details', authenticateAdmin, async (req, res) => {
+  try {
+    const { limit = 200, apiKeyId } = req.query
+
+    logger.info(`📋 Fetching usage details: limit=${limit}, apiKeyId=${apiKeyId || 'all'}`)
+
+    // 如果指定了 apiKeyId，只查询该 key 的记录
+    if (apiKeyId) {
+      const records = await redis.getUsageRecords(apiKeyId, parseInt(limit))
+
+      // 获取 API Key 名称
+      let apiKeyName = apiKeyId
+      try {
+        const apiKey = await apiKeyService.getApiKeyById(apiKeyId)
+        if (apiKey) {
+          apiKeyName = apiKey.name || apiKeyId
+        }
+      } catch (e) {
+        // 忽略错误
+      }
+
+      // 格式化返回数据
+      const formattedRecords = records.map((record) => ({
+        timestamp: record.timestamp, // ISO 8601 格式: 2025-10-05T18:23:45.123Z
+        apiKey: apiKeyName,
+        apiKeyId,
+        account: record.accountId || 'N/A',
+        model: record.model,
+        inputTokens: record.inputTokens,
+        outputTokens: record.outputTokens,
+        cacheCreateTokens: record.cacheCreateTokens || 0,
+        cacheReadTokens: record.cacheReadTokens || 0,
+        totalTokens: record.totalTokens,
+        cost: record.cost ? `$${record.cost.toFixed(6)}` : '$0.000000',
+        costValue: record.cost || 0,
+        requests: 1 // 单次请求
+      }))
+
+      return res.json({
+        success: true,
+        data: {
+          records: formattedRecords,
+          total: formattedRecords.length,
+          apiKeyId
+        }
+      })
+    }
+
+    // 未指定 apiKeyId，返回所有 API Key 的最新记录
+    const allKeys = await apiKeyService.getAllApiKeys()
+    const allRecords = []
+
+    for (const key of allKeys) {
+      const records = await redis.getUsageRecords(key.id, 50) // 每个key取50条
+
+      records.forEach((record) => {
+        allRecords.push({
+          timestamp: record.timestamp,
+          apiKey: key.name || key.id,
+          apiKeyId: key.id,
+          account: record.accountId || 'N/A',
+          model: record.model,
+          inputTokens: record.inputTokens,
+          outputTokens: record.outputTokens,
+          cacheCreateTokens: record.cacheCreateTokens || 0,
+          cacheReadTokens: record.cacheReadTokens || 0,
+          totalTokens: record.totalTokens,
+          cost: record.cost ? `$${record.cost.toFixed(6)}` : '$0.000000',
+          costValue: record.cost || 0,
+          requests: 1
+        })
+      })
+    }
+
+    // 按时间倒序排序
+    allRecords.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+
+    // 取前 limit 条
+    const limitedRecords = allRecords.slice(0, parseInt(limit))
+
+    return res.json({
+      success: true,
+      data: {
+        records: limitedRecords,
+        total: limitedRecords.length
+      }
+    })
+  } catch (error) {
+    logger.error('❌ Failed to get usage details:', error)
+    return res.status(500).json({
+      error: 'Failed to get usage details',
       message: error.message
     })
   }

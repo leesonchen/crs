@@ -55,15 +55,9 @@ async function prepareClaudeBridge(req, accountId, accountType) {
   // 简化架构：移除流程模拟逻辑，始终使用实时转换模式
 
   req._bridgeConverter = toOpenAI
-  req._bridgeStreamTransform = (chunkStr) => {
-    return toOpenAI.convertStreamChunk(chunkStr)
-  }
-  req._bridgeStreamFinalize = () => {
-    return toOpenAI.finalizeStream()
-  }
-  req._bridgeNonStreamConvert = (responseData) => {
-    return toOpenAI.convertNonStream(responseData)
-  }
+  req._bridgeStreamTransform = (chunkStr) => toOpenAI.convertStreamChunk(chunkStr)
+  req._bridgeStreamFinalize = () => toOpenAI.finalizeStream()
+  req._bridgeNonStreamConvert = (responseData) => toOpenAI.convertNonStream(responseData)
 
   logger.debug(`🔧 Bridge converter configured for ${clientType}`, {
     clientType,
