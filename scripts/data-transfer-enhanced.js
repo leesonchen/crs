@@ -86,6 +86,31 @@ function decryptGeminiData(encryptedData) {
   }
 }
 
+// OpenAI 账户解密函数
+function decryptOpenAIData(encryptedData) {
+  if (!encryptedData || !config.security.encryptionKey) {
+    return encryptedData
+  }
+
+  try {
+    if (encryptedData.includes(':')) {
+      const parts = encryptedData.split(':')
+      const key = crypto.scryptSync(config.security.encryptionKey, 'openai-responses-salt', 32)
+      const iv = Buffer.from(parts[0], 'hex')
+      const encrypted = parts[1]
+
+      const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv)
+      let decrypted = decipher.update(encrypted, 'hex', 'utf8')
+      decrypted += decipher.final('utf8')
+      return decrypted
+    }
+    return encryptedData
+  } catch (error) {
+    logger.warn(`⚠️  Failed to decrypt OpenAI data: ${error.message}`)
+    return encryptedData
+  }
+}
+
 // API Key 哈希函数（与apiKeyService保持一致）
 function hashApiKey(apiKey) {
   if (!apiKey || !config.security.encryptionKey) {
@@ -135,6 +160,21 @@ function encryptGeminiData(data) {
   }
 
   const key = crypto.scryptSync(config.security.encryptionKey, 'gemini-account-salt', 32)
+  const iv = crypto.randomBytes(16)
+
+  const cipher = crypto.createCipheriv('aes-256-cbc', key, iv)
+  let encrypted = cipher.update(data, 'utf8', 'hex')
+  encrypted += cipher.final('hex')
+
+  return `${iv.toString('hex')}:${encrypted}`
+}
+
+function encryptOpenAIData(data) {
+  if (!data || !config.security.encryptionKey) {
+    return data
+  }
+
+  const key = crypto.scryptSync(config.security.encryptionKey, 'openai-responses-salt', 32)
   const iv = crypto.randomBytes(16)
 
   const cipher = crypto.createCipheriv('aes-256-cbc', key, iv)
@@ -375,6 +415,15 @@ function sanitizeData(data, type) {
       }
       break
 
+    case 'openai_account':
+      if (sanitized.apiKey) {
+        sanitized.apiKey = '[REDACTED]'
+      }
+      if (sanitized.proxyPassword) {
+        sanitized.proxyPassword = '[REDACTED]'
+      }
+      break
+
     case 'admin':
       if (sanitized.password) {
         sanitized.password = '[REDACTED]'
@@ -445,7 +494,7 @@ async function exportData() {
     // 导出 Claude 账户
     if (types.includes('all') || types.includes('accounts')) {
       logger.info('📤 Exporting Claude accounts...')
-      const keys = await redis.client.keys('claude:account:*')
+      const keys = await redis.client.keys('claude*account:*')
       logger.info(`Found ${keys.length} Claude account keys in Redis`)
       const accounts = []
 
@@ -484,9 +533,46 @@ async function exportData() {
       exportDataObj.data.claudeAccounts = accounts
       logger.success(`✅ Exported ${accounts.length} Claude accounts`)
 
+      // 导出 OpenAI 账户
+      logger.info('📤 Exporting OpenAI accounts...')
+      const openaiKeys = await redis.client.keys('openai*account:*')
+      logger.info(`Found ${openaiKeys.length} OpenAI account keys in Redis`)
+      const openaiAccounts = []
+
+      for (const key of openaiKeys) {
+        const data = await redis.client.hgetall(key)
+
+        if (data && Object.keys(data).length > 0) {
+          // 解密敏感字段（如果需要）
+          if (shouldDecrypt && !shouldSanitize) {
+            if (data.apiKey) {
+              try {
+                // 使用类似OpenAIResponsesAccountService的解密逻辑
+                const decrypted = decryptOpenAIData(data.apiKey)
+                data.apiKey = decrypted
+              } catch (error) {
+                logger.warn(`Failed to decrypt API key for ${key}: ${error.message}`)
+              }
+            }
+            if (data.proxy && typeof data.proxy === 'string') {
+              try {
+                data.proxy = JSON.parse(data.proxy)
+              } catch (e) {
+                data.proxy = null
+              }
+            }
+          }
+
+          openaiAccounts.push(shouldSanitize ? sanitizeData(data, 'openai_account') : data)
+        }
+      }
+
+      exportDataObj.data.openaiAccounts = openaiAccounts
+      logger.success(`✅ Exported ${openaiAccounts.length} OpenAI accounts`)
+
       // 导出 Gemini 账户
       logger.info('📤 Exporting Gemini accounts...')
-      const geminiKeys = await redis.client.keys('gemini_account:*')
+      const geminiKeys = await redis.client.keys('*gemini*account*')
       logger.info(`Found ${geminiKeys.length} Gemini account keys in Redis`)
       const geminiAccounts = []
 
@@ -624,6 +710,9 @@ async function exportData() {
     if (exportDataObj.data.claudeAccounts) {
       console.log(`Claude Accounts: ${exportDataObj.data.claudeAccounts.length}`)
     }
+    if (exportDataObj.data.openaiAccounts) {
+      console.log(`OpenAI Accounts: ${exportDataObj.data.openaiAccounts.length}`)
+    }
     if (exportDataObj.data.geminiAccounts) {
       console.log(`Gemini Accounts: ${exportDataObj.data.geminiAccounts.length}`)
     }
@@ -751,6 +840,9 @@ async function importData() {
     }
     if (importDataObj.data.claudeAccounts) {
       console.log(`Claude Accounts to import: ${importDataObj.data.claudeAccounts.length}`)
+    }
+    if (importDataObj.data.openaiAccounts) {
+      console.log(`OpenAI Accounts to import: ${importDataObj.data.openaiAccounts.length}`)
     }
     if (importDataObj.data.geminiAccounts) {
       console.log(`Gemini Accounts to import: ${importDataObj.data.geminiAccounts.length}`)
@@ -924,6 +1016,57 @@ async function importData() {
           stats.imported++
         } catch (error) {
           logger.error(`❌ Failed to import Claude account ${account.id}:`, error.message)
+          stats.errors++
+        }
+      }
+    }
+
+    // 导入 OpenAI 账户
+    if (importDataObj.data.openaiAccounts) {
+      logger.info('\n📥 Importing OpenAI accounts...')
+      for (const account of importDataObj.data.openaiAccounts) {
+        try {
+          const exists = await redis.client.exists(`openai_responses_account:${account.id}`)
+
+          if (exists && !forceOverwrite) {
+            if (skipConflicts) {
+              logger.warn(`⏭️  Skipped existing OpenAI account: ${account.name} (${account.id})`)
+              stats.skipped++
+              continue
+            } else {
+              const overwrite = await askConfirmation(
+                `OpenAI account "${account.name}" (${account.id}) exists. Overwrite?`
+              )
+              if (!overwrite) {
+                stats.skipped++
+                continue
+              }
+            }
+          }
+
+          // 复制账户数据以避免修改原始数据
+          const accountData = { ...account }
+
+          // 如果数据已解密且不是脱敏数据，需要重新加密
+          if (importDataObj.metadata.decrypted && !importDataObj.metadata.sanitized) {
+            logger.info(`🔐 Re-encrypting sensitive data for OpenAI account: ${account.name}`)
+
+            if (accountData.apiKey) {
+              accountData.apiKey = encryptOpenAIData(accountData.apiKey)
+            }
+          }
+
+          // 使用 hset 存储到哈希表
+          const pipeline = redis.client.pipeline()
+          for (const [field, value] of Object.entries(accountData)) {
+            pipeline.hset(`openai_responses_account:${account.id}`, field, value)
+          }
+          await pipeline.exec()
+
+          logger.success(`✅ Imported OpenAI account: ${account.name} (${account.id})`)
+          stats.imported++
+        } catch (error) {
+          logger.error(`❌ Failed to import OpenAI account ${account.id}:`, error.message)
           stats.errors++
         }
       }
