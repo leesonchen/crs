@@ -334,8 +334,7 @@ async function exportData() {
     // 导出 Claude 账户
     if (types.includes('all') || types.includes('accounts')) {
       logger.info('📤 Exporting Claude accounts...')
-      // 注意：Claude 账户使用 claude:account: 前缀，不是 claude_account:
-      const keys = await redis.client.keys('claude:account:*')
+      const keys = await redis.client.keys('claude*account:*')
       logger.info(`Found ${keys.length} Claude account keys in Redis`)
       const accounts = []
 
@@ -361,7 +360,7 @@ async function exportData() {
 
       // 导出 Gemini 账户
       logger.info('📤 Exporting Gemini accounts...')
-      const geminiKeys = await redis.client.keys('gemini_account:*')
+      const geminiKeys = await redis.client.keys('gemini*account:*')
       logger.info(`Found ${geminiKeys.length} Gemini account keys in Redis`)
       const geminiAccounts = []
 
