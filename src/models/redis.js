@@ -1567,6 +1567,12 @@ class RedisClient {
             // 没有设置过期时间的键
             if (key.startsWith('oauth:')) {
               pipeline.expire(key, 600) // OAuth会话设置10分钟过期
+            } else if (
+              key === 'session:admin_credentials' ||
+              key === 'session:admin_credentials_backup'
+            ) {
+              // 跳过管理员凭据，保持永不过期
+              continue
             } else {
               pipeline.expire(key, 86400) // 其他设置1天过期
             }

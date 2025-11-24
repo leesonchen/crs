@@ -8,6 +8,7 @@ const geminiAccountService = require('../services/geminiAccountService')
 const droidAccountService = require('../services/droidAccountService')
 const openaiAccountService = require('../services/openaiAccountService')
 const openaiResponsesAccountService = require('../services/openaiResponsesAccountService')
+const openaiChatAccountService = require('../services/openaiChatAccountService')
 const azureOpenaiAccountService = require('../services/azureOpenaiAccountService')
 const accountGroupService = require('../services/accountGroupService')
 const redis = require('../models/redis')
@@ -8271,6 +8272,230 @@ router.post('/claude-code-version/clear', authenticateAdmin, async (req, res) =>
     res.status(500).json({
       success: false,
       message: 'Failed to clear cache',
+      error: error.message
+    })
+  }
+})
+
+// ==================== OpenAI-Chat 账户管理 API ====================
+
+// 获取所有 OpenAI-Chat 账户
+router.get('/openai-chat-accounts', authenticateAdmin, async (req, res) => {
+  try {
+    const { platform, groupId } = req.query
+    let accounts = await openaiChatAccountService.getAllAccounts(true)
+
+    // 根据查询参数进行筛选
+    if (platform && platform !== 'openai-chat') {
+      accounts = []
+    }
+
+    // 根据分组ID筛选
+    if (groupId) {
+      const group = await accountGroupService.getGroup(groupId)
+      if (group && group.platform === 'openai-chat') {
+        const memberIds = await accountGroupService.getGroupMembers(groupId)
+        accounts = accounts.filter((acc) => memberIds.includes(acc.id))
+      } else {
+        accounts = []
+      }
+    }
+
+    // 获取所有分组信息
+    const allGroups = await accountGroupService.getAllGroups()
+
+    // 获取所有API keys用于统计绑定数量
+    const apiKeys = await apiKeyService.getAllApiKeys()
+
+    // 格式化账户数据，添加分组信息
+    const accountsWithStats = await Promise.all(
+      accounts.map(async (account) => {
+        const groupInfos = []
+
+        // 查找包含此账户的分组并计算绑定数量
+        for (const group of allGroups) {
+          if (group.platform === 'openai-chat') {
+            const members = await accountGroupService.getGroupMembers(group.id)
+            if (members.includes(account.id)) {
+              const boundApiKeysCount = apiKeys.filter(
+                (key) => key.openaiAccountId === `chat:${account.id}`
+              ).length
+
+              groupInfos.push({
+                groupId: group.id,
+                groupName: group.name,
+                boundApiKeysCount,
+                platform: group.platform
+              })
+            }
+          }
+        }
+
+        // 格式化过期时间
+        const formattedAccount = {
+          ...account,
+          expiresAt: account.subscriptionExpiresAt || null
+        }
+
+        return {
+          ...formattedAccount,
+          groupInfos,
+          accountStats: {
+            totalBoundApiKeys: groupInfos.reduce((sum, g) => sum + g.boundApiKeysCount, 0)
+          }
+        }
+      })
+    )
+
+    res.json({ success: true, data: accountsWithStats })
+  } catch (error) {
+    logger.error('Failed to get OpenAI-Chat accounts:', error)
+    res.status(500).json({ success: false, message: error.message })
+  }
+})
+
+// 创建 OpenAI-Chat 账户
+router.post('/openai-chat-accounts', authenticateAdmin, async (req, res) => {
+  try {
+    const account = await openaiChatAccountService.createAccount(req.body)
+    const formattedAccount = formatAccountExpiry(account)
+    res.json({ success: true, data: formattedAccount })
+  } catch (error) {
+    logger.error('Failed to create OpenAI-Chat account:', error)
+    res.status(500).json({
+      success: false,
+      error: error.message
+    })
+  }
+})
+
+// 更新 OpenAI-Chat 账户
+router.put('/openai-chat-accounts/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const { id } = req.params
+
+    // 过滤掉不能更新的字段
+    const allowedUpdates = {
+      name: req.body.name,
+      description: req.body.description,
+      baseApi: req.body.baseApi,
+      apiKey: req.body.apiKey,
+      userAgent: req.body.userAgent,
+      priority: req.body.priority,
+      proxy: req.body.proxy,
+      isActive: req.body.isActive,
+      accountType: req.body.accountType,
+      schedulable: req.body.schedulable,
+      subscriptionExpiresAt: req.body.subscriptionExpiresAt,
+      supportedModels: req.body.supportedModels
+    }
+
+    const result = await openaiChatAccountService.updateAccount(id, allowedUpdates)
+    if (result && result.success !== false) {
+      const account = await openaiChatAccountService.getAccount(id)
+      const formattedAccount = formatAccountExpiry(account)
+      res.json({ success: true, data: formattedAccount })
+    } else {
+      res.status(500).json({
+        success: false,
+        error: 'Failed to update OpenAI-Chat account'
+      })
+    }
+  } catch (error) {
+    logger.error('Failed to update OpenAI-Chat account:', error)
+    res.status(500).json({
+      success: false,
+      error: error.message
+    })
+  }
+})
+
+// 删除 OpenAI-Chat 账户
+router.delete('/openai-chat-accounts/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const { id } = req.params
+    await openaiChatAccountService.deleteAccount(id)
+    res.json({ success: true, message: 'OpenAI-Chat account deleted successfully' })
+  } catch (error) {
+    logger.error('Failed to delete OpenAI-Chat account:', error)
+    res.status(500).json({
+      success: false,
+      error: error.message
+    })
+  }
+})
+
+// 切换 OpenAI-Chat 账户调度状态
+router.post('/openai-chat-accounts/:id/toggle-schedulable', authenticateAdmin, async (req, res) => {
+  try {
+    const { id } = req.params
+    const result = await openaiChatAccountService.toggleSchedulable(id)
+    res.json(result)
+  } catch (error) {
+    logger.error('Failed to toggle OpenAI-Chat account schedulable:', error)
+    res.status(500).json({
+      success: false,
+      error: error.message
+    })
+  }
+})
+
+// 切换 OpenAI-Chat 账户启用状态
+router.put('/openai-chat-accounts/:id/toggle', authenticateAdmin, async (req, res) => {
+  try {
+    const { id } = req.params
+    const { action } = req.body
+
+    const updates = {}
+    if (action === 'enable') {
+      updates.isActive = 'true'
+      updates.status = 'active'
+    } else if (action === 'disable') {
+      updates.isActive = 'false'
+      updates.status = 'inactive'
+    }
+
+    await openaiChatAccountService.updateAccount(id, updates)
+    const account = await openaiChatAccountService.getAccount(id)
+    res.json({ success: true, data: account })
+  } catch (error) {
+    logger.error('Failed to toggle OpenAI-Chat account:', error)
+    res.status(500).json({ success: false, error: error.message })
+  }
+})
+
+// 重置 OpenAI-Chat 账户状态
+router.post('/openai-chat-accounts/:id/reset-status', authenticateAdmin, async (req, res) => {
+  try {
+    const { id } = req.params
+    const result = await openaiChatAccountService.resetAccountStatus(id)
+    res.json(result)
+  } catch (error) {
+    logger.error('Failed to reset OpenAI-Chat account status:', error)
+    res.status(500).json({
+      success: false,
+      error: error.message
+    })
+  }
+})
+
+// 重置 OpenAI-Chat 账户额度使用
+router.post('/openai-chat-accounts/:id/reset-usage', authenticateAdmin, async (req, res) => {
+  try {
+    const { id } = req.params
+    // OpenAI-Chat 账户没有额度限制，这里只是重置使用统计
+    await openaiChatAccountService.updateAccount(id, {
+      totalUsedTokens: '0',
+      lastUsedAt: ''
+    })
+    res.json({
+      success: true,
+      message: 'Usage statistics reset successfully'
+    })
+  } catch (error) {
+    logger.error('Failed to reset OpenAI-Chat account usage:', error)
+    res.status(500).json({
+      success: false,
       error: error.message
     })
   }
