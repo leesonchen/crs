@@ -1,0 +1,5580 @@
+{
+  "metadata": {
+    "version": "2.0",
+    "exportDate": "2025-11-24T10:58:47.288Z",
+    "sanitized": false,
+    "decrypted": true,
+    "types": [
+      "all"
+    ]
+  },
+  "data": {
+    "apiKeys": [
+      {
+        "id": "key_1760962170647",
+        "name": "Stream Test Key",
+        "description": "For testing streaming responses",
+        "apiKey": "cf4449136ce2bec5b856596c23c4c87a91645df11eac11026ca62ac461c6d2eb",
+        "createdAt": "2025-10-20T12:09:30.647Z",
+        "updatedAt": "2025-10-20T12:09:30.647Z",
+        "isActive": "false",
+        "dailyQuota": "1000",
+        "usedToday": "0",
+        "lastUsedAt": "",
+        "expiresAt": "",
+        "isDeleted": "true",
+        "deletedAt": "2025-11-13T10:45:10.865Z",
+        "deletedBy": "xingchen",
+        "deletedByType": "admin",
+        "usageStats": {
+          "total": {},
+          "daily": {},
+          "monthly": {},
+          "hourly": {},
+          "models": {}
+        }
+      },
+      {
+        "id": "8c9e09be-bf17-4a2f-a454-c00dee92e2f2",
+        "name": "high",
+        "description": "",
+        "apiKey": "fe7a0b400074777175f460c8270a3e1b51aed8d3b9b7f711c35a5f7a7c2ec117",
+        "tokenLimit": "0",
+        "concurrencyLimit": "0",
+        "rateLimitWindow": "0",
+        "rateLimitRequests": "0",
+        "rateLimitCost": "0",
+        "isActive": "false",
+        "claudeAccountId": "",
+        "claudeConsoleAccountId": "72a9ffd6-ecc8-4e61-88a9-617e55e7292f",
+        "geminiAccountId": "",
+        "openaiAccountId": "",
+        "azureOpenaiAccountId": "",
+        "bedrockAccountId": "",
+        "permissions": "all",
+        "enableModelRestriction": "false",
+        "restrictedModels": "[]",
+        "enableClientRestriction": "false",
+        "allowedClients": "[]",
+        "dailyCostLimit": "0",
+        "totalCostLimit": "0",
+        "weeklyOpusCostLimit": "0",
+        "tags": "[]",
+        "activationDays": "0",
+        "expirationMode": "fixed",
+        "isActivated": "true",
+        "activatedAt": "2025-10-16T02:15:31.504Z",
+        "createdAt": "2025-10-16T02:15:31.504Z",
+        "lastUsedAt": "",
+        "expiresAt": "",
+        "createdBy": "admin",
+        "userId": "",
+        "userUsername": "",
+        "icon": "",
+        "isDeleted": "true",
+        "deletedAt": "2025-11-03T00:46:45.007Z",
+        "deletedBy": "xingchen",
+        "deletedByType": "admin",
+        "usageStats": {
+          "total": {},
+          "daily": {},
+          "monthly": {},
+          "hourly": {},
+          "models": {}
+        }
+      },
+      {
+        "id": "36a7c574-0772-4467-ab0e-9bf26c3089b7",
+        "name": "ai-edu",
+        "description": "",
+        "apiKey": "4d816e41833a69dd4a3e9c8e396efdbd91430c1e9e4d50d8c110f0c8303e9843",
+        "tokenLimit": "0",
+        "concurrencyLimit": "0",
+        "rateLimitWindow": "0",
+        "rateLimitRequests": "0",
+        "rateLimitCost": "0",
+        "isActive": "true",
+        "claudeAccountId": "",
+        "claudeConsoleAccountId": "72a9ffd6-ecc8-4e61-88a9-617e55e7292f",
+        "geminiAccountId": "",
+        "openaiAccountId": "",
+        "azureOpenaiAccountId": "",
+        "bedrockAccountId": "",
+        "permissions": "claude",
+        "enableModelRestriction": "false",
+        "restrictedModels": "[]",
+        "enableClientRestriction": "false",
+        "allowedClients": "[]",
+        "dailyCostLimit": "0",
+        "totalCostLimit": "0",
+        "weeklyOpusCostLimit": "0",
+        "tags": "[]",
+        "activationDays": "0",
+        "expirationMode": "fixed",
+        "isActivated": "true",
+        "activatedAt": "2025-10-28T01:53:18.971Z",
+        "createdAt": "2025-10-28T01:53:18.971Z",
+        "lastUsedAt": "2025-11-22T09:25:45.077Z",
+        "expiresAt": "",
+        "createdBy": "admin",
+        "userId": "",
+        "userUsername": "",
+        "icon": "",
+        "updatedAt": "2025-11-22T09:27:43.886Z",
+        "droidAccountId": "",
+        "usageStats": {
+          "total": {
+            "totalTokens": "2083374",
+            "totalInputTokens": "1814327",
+            "totalOutputTokens": "269047",
+            "totalCacheCreateTokens": "0",
+            "totalCacheReadTokens": "398",
+            "totalAllTokens": "2083772",
+            "totalEphemeral5mTokens": "0",
+            "totalEphemeral1hTokens": "0",
+            "totalRequests": "363"
+          },
+          "daily": {
+            "2025-11-22": {
+              "tokens": "3145",
+              "inputTokens": "456",
+              "outputTokens": "2689",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "0",
+              "allTokens": "3145",
+              "requests": "2",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            },
+            "2025-11-09": {
+              "tokens": "9804",
+              "inputTokens": "907",
+              "outputTokens": "8897",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "0",
+              "allTokens": "9804",
+              "requests": "7",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            },
+            "2025-11-08": {
+              "tokens": "39476",
+              "inputTokens": "8496",
+              "outputTokens": "30980",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "0",
+              "allTokens": "39476",
+              "requests": "30",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            },
+            "2025-11-07": {
+              "tokens": "18559",
+              "inputTokens": "0",
+              "outputTokens": "18559",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "0",
+              "allTokens": "18559",
+              "requests": "33",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            },
+            "2025-11-06": {
+              "tokens": "22672",
+              "inputTokens": "0",
+              "outputTokens": "22672",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "0",
+              "allTokens": "22672",
+              "requests": "40",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            },
+            "2025-11-05": {
+              "tokens": "3210",
+              "inputTokens": "0",
+              "outputTokens": "3210",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "0",
+              "allTokens": "3210",
+              "requests": "6",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            },
+            "2025-11-04": {
+              "tokens": "26716",
+              "inputTokens": "0",
+              "outputTokens": "26716",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "0",
+              "allTokens": "26716",
+              "requests": "57",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            },
+            "2025-11-03": {
+              "tokens": "56600",
+              "inputTokens": "1830",
+              "outputTokens": "54770",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "0",
+              "allTokens": "56600",
+              "requests": "51",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            },
+            "2025-11-02": {
+              "tokens": "27726",
+              "inputTokens": "2800",
+              "outputTokens": "24926",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "0",
+              "allTokens": "27726",
+              "requests": "23",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            },
+            "2025-11-01": {
+              "tokens": "20473",
+              "inputTokens": "9882",
+              "outputTokens": "10591",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "8",
+              "allTokens": "20481",
+              "requests": "23",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            },
+            "2025-10-31": {
+              "tokens": "7665",
+              "inputTokens": "3538",
+              "outputTokens": "4127",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "0",
+              "allTokens": "7665",
+              "requests": "8",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            },
+            "2025-10-30": {
+              "tokens": "1780383",
+              "inputTokens": "1763454",
+              "outputTokens": "16929",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "62",
+              "allTokens": "1780445",
+              "requests": "30",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            },
+            "2025-10-29": {
+              "tokens": "44595",
+              "inputTokens": "12833",
+              "outputTokens": "31762",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "56",
+              "allTokens": "44651",
+              "requests": "30",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            },
+            "2025-10-28": {
+              "tokens": "22350",
+              "inputTokens": "10131",
+              "outputTokens": "12219",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "272",
+              "allTokens": "22622",
+              "requests": "23",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            }
+          },
+          "monthly": {
+            "2025-11": {
+              "tokens": "228381",
+              "inputTokens": "24371",
+              "outputTokens": "204010",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "8",
+              "allTokens": "228389",
+              "requests": "272",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            },
+            "2025-10": {
+              "tokens": "1854993",
+              "inputTokens": "1789956",
+              "outputTokens": "65037",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "390",
+              "allTokens": "1855383",
+              "requests": "91",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            }
+          },
+          "hourly": {},
+          "models": {
+            "glm-4.6": {
+              "daily": {
+                "2025-10-29": {
+                  "inputTokens": "2417",
+                  "outputTokens": "5479",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "7896",
+                  "requests": "12",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-01": {
+                  "inputTokens": "9882",
+                  "outputTokens": "10591",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "8",
+                  "allTokens": "20481",
+                  "requests": "23",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-05": {
+                  "inputTokens": "0",
+                  "outputTokens": "3210",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "3210",
+                  "requests": "6",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-30": {
+                  "inputTokens": "680155",
+                  "outputTokens": "5919",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "686074",
+                  "requests": "13",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-03": {
+                  "inputTokens": "0",
+                  "outputTokens": "30108",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "30108",
+                  "requests": "47",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-02": {
+                  "inputTokens": "2800",
+                  "outputTokens": "24926",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "27726",
+                  "requests": "23",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-28": {
+                  "inputTokens": "3513",
+                  "outputTokens": "5930",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "9443",
+                  "requests": "13",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-31": {
+                  "inputTokens": "3538",
+                  "outputTokens": "4127",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "7665",
+                  "requests": "8",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-09": {
+                  "inputTokens": "0",
+                  "outputTokens": "1422",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "1422",
+                  "requests": "5",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-04": {
+                  "inputTokens": "0",
+                  "outputTokens": "26716",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "26716",
+                  "requests": "57",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-06": {
+                  "inputTokens": "0",
+                  "outputTokens": "22672",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "22672",
+                  "requests": "40",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-07": {
+                  "inputTokens": "0",
+                  "outputTokens": "18559",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "18559",
+                  "requests": "33",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-08": {
+                  "inputTokens": "0",
+                  "outputTokens": "4463",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "4463",
+                  "requests": "18",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              },
+              "monthly": {
+                "2025-11": {
+                  "inputTokens": "12682",
+                  "outputTokens": "142667",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "8",
+                  "allTokens": "155357",
+                  "requests": "252",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10": {
+                  "inputTokens": "689623",
+                  "outputTokens": "21455",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "711078",
+                  "requests": "46",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              }
+            },
+            "MiniMax-M2": {
+              "daily": {
+                "2025-10-29": {
+                  "inputTokens": "4799",
+                  "outputTokens": "18778",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "23577",
+                  "requests": "10",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-03": {
+                  "inputTokens": "1830",
+                  "outputTokens": "24662",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "26492",
+                  "requests": "4",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-28": {
+                  "inputTokens": "862",
+                  "outputTokens": "1658",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "2520",
+                  "requests": "2",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-09": {
+                  "inputTokens": "907",
+                  "outputTokens": "7475",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "8382",
+                  "requests": "2",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-08": {
+                  "inputTokens": "8496",
+                  "outputTokens": "26517",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "35013",
+                  "requests": "12",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-30": {
+                  "inputTokens": "177426",
+                  "outputTokens": "720",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "178146",
+                  "requests": "2",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              },
+              "monthly": {
+                "2025-10": {
+                  "inputTokens": "183087",
+                  "outputTokens": "21156",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "204243",
+                  "requests": "14",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11": {
+                  "inputTokens": "11233",
+                  "outputTokens": "58654",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "69887",
+                  "requests": "18",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              }
+            },
+            "claude-3-5-haiku-20241022": {
+              "daily": {
+                "2025-10-30": {
+                  "inputTokens": "225",
+                  "outputTokens": "236",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "461",
+                  "requests": "1",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              },
+              "monthly": {
+                "2025-10": {
+                  "inputTokens": "225",
+                  "outputTokens": "236",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "461",
+                  "requests": "1",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              }
+            },
+            "glm-4.5-air": {
+              "daily": {
+                "2025-10-30": {
+                  "inputTokens": "905648",
+                  "outputTokens": "10054",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "62",
+                  "allTokens": "915764",
+                  "requests": "14",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-28": {
+                  "inputTokens": "5756",
+                  "outputTokens": "4631",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "272",
+                  "allTokens": "10659",
+                  "requests": "8",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-29": {
+                  "inputTokens": "5617",
+                  "outputTokens": "7505",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "56",
+                  "allTokens": "13178",
+                  "requests": "8",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              },
+              "monthly": {
+                "2025-10": {
+                  "inputTokens": "917021",
+                  "outputTokens": "22190",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "390",
+                  "allTokens": "939601",
+                  "requests": "30",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              }
+            },
+            "kimi-for-coding": {
+              "daily": {
+                "2025-11-22": {
+                  "inputTokens": "456",
+                  "outputTokens": "2689",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "3145",
+                  "requests": "2",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              },
+              "monthly": {
+                "2025-11": {
+                  "inputTokens": "456",
+                  "outputTokens": "2689",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "3145",
+                  "requests": "2",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "61ef8a21-0831-4b6b-9ab7-9ea22863b922",
+        "name": "Bridge Test Key",
+        "description": "API key for testing bridge mode functionality",
+        "apiKey": "d5adf979de94e67f5b951d9fa66ca4786d6add2262c3e68f41e462a8daa8f463",
+        "tokenLimit": "10000",
+        "concurrencyLimit": "0",
+        "rateLimitWindow": "0",
+        "rateLimitRequests": "0",
+        "rateLimitCost": "0",
+        "isActive": "false",
+        "claudeAccountId": "",
+        "claudeConsoleAccountId": "",
+        "geminiAccountId": "",
+        "openaiAccountId": "",
+        "azureOpenaiAccountId": "",
+        "bedrockAccountId": "",
+        "permissions": "all",
+        "enableModelRestriction": "false",
+        "restrictedModels": "[]",
+        "enableClientRestriction": "false",
+        "allowedClients": "[]",
+        "dailyCostLimit": "0",
+        "totalCostLimit": "0",
+        "weeklyOpusCostLimit": "0",
+        "tags": "[]",
+        "activationDays": "0",
+        "expirationMode": "fixed",
+        "isActivated": "true",
+        "activatedAt": "2025-10-14T12:57:08.780Z",
+        "createdAt": "2025-10-14T12:57:08.780Z",
+        "lastUsedAt": "2025-10-15T02:56:43.784Z",
+        "expiresAt": "",
+        "createdBy": "system",
+        "userId": "",
+        "userUsername": "",
+        "icon": "",
+        "isDeleted": "true",
+        "deletedAt": "2025-11-13T10:45:14.013Z",
+        "deletedBy": "xingchen",
+        "deletedByType": "admin",
+        "usageStats": {
+          "total": {
+            "totalTokens": "5116",
+            "totalInputTokens": "5058",
+            "totalOutputTokens": "58",
+            "totalCacheCreateTokens": "0",
+            "totalCacheReadTokens": "0",
+            "totalAllTokens": "5116",
+            "totalEphemeral5mTokens": "0",
+            "totalEphemeral1hTokens": "0",
+            "totalRequests": "3"
+          },
+          "daily": {},
+          "monthly": {
+            "2025-10": {
+              "tokens": "5116",
+              "inputTokens": "5058",
+              "outputTokens": "58",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "0",
+              "allTokens": "5116",
+              "requests": "3",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            }
+          },
+          "hourly": {},
+          "models": {
+            "glm-4.6": {
+              "daily": {},
+              "monthly": {
+                "2025-10": {
+                  "inputTokens": "16",
+                  "outputTokens": "49",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "65",
+                  "requests": "2",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              }
+            },
+            "claude-3-5-sonnet-20241022": {
+              "daily": {},
+              "monthly": {
+                "2025-10": {
+                  "inputTokens": "5042",
+                  "outputTokens": "9",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "5051",
+                  "requests": "1",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "9f9716bf-b3e5-473d-a9ec-9a756084e2d8",
+        "name": "cloud",
+        "description": "",
+        "apiKey": "90b3be26ba1aadb79b67770bd936a5006568bae08aa726bb08af668ae05514b7",
+        "tokenLimit": "0",
+        "concurrencyLimit": "0",
+        "rateLimitWindow": "0",
+        "rateLimitRequests": "0",
+        "rateLimitCost": "0",
+        "isActive": "true",
+        "claudeAccountId": "",
+        "claudeConsoleAccountId": "",
+        "geminiAccountId": "",
+        "openaiAccountId": "",
+        "azureOpenaiAccountId": "",
+        "bedrockAccountId": "",
+        "permissions": "all",
+        "enableModelRestriction": "false",
+        "restrictedModels": "[]",
+        "enableClientRestriction": "false",
+        "allowedClients": "[]",
+        "dailyCostLimit": "0",
+        "weeklyOpusCostLimit": "0",
+        "tags": "[]",
+        "activationDays": "0",
+        "expirationMode": "fixed",
+        "isActivated": "true",
+        "activatedAt": "2025-09-18T06:44:44.577Z",
+        "createdAt": "2025-09-18T06:44:44.577Z",
+        "lastUsedAt": "2025-11-24T08:08:00.107Z",
+        "expiresAt": "",
+        "createdBy": "admin",
+        "userId": "",
+        "userUsername": "",
+        "icon": "",
+        "usageStats": {
+          "total": {
+            "totalTokens": "815257575",
+            "totalInputTokens": "794116993",
+            "totalOutputTokens": "21140582",
+            "totalCacheCreateTokens": "155214358",
+            "totalCacheReadTokens": "1518370770",
+            "totalAllTokens": "2488842703",
+            "totalEphemeral5mTokens": "135464213",
+            "totalEphemeral1hTokens": "0",
+            "totalRequests": "144564"
+          },
+          "daily": {
+            "2025-11-24": {
+              "tokens": "26756479",
+              "inputTokens": "26641932",
+              "outputTokens": "114547",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "0",
+              "allTokens": "26756479",
+              "requests": "611",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            },
+            "2025-11-19": {
+              "tokens": "488",
+              "inputTokens": "394",
+              "outputTokens": "94",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "0",
+              "allTokens": "488",
+              "requests": "1",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            },
+            "2025-11-15": {
+              "tokens": "12701449",
+              "inputTokens": "12617311",
+              "outputTokens": "84138",
+              "cacheCreateTokens": "1160330",
+              "cacheReadTokens": "8338684",
+              "allTokens": "22200463",
+              "requests": "255",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            },
+            "2025-11-14": {
+              "tokens": "490067",
+              "inputTokens": "312061",
+              "outputTokens": "178006",
+              "cacheCreateTokens": "2086129",
+              "cacheReadTokens": "19657130",
+              "allTokens": "22233326",
+              "requests": "454",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            },
+            "2025-11-13": {
+              "tokens": "1428702",
+              "inputTokens": "1254983",
+              "outputTokens": "173719",
+              "cacheCreateTokens": "3772724",
+              "cacheReadTokens": "38405547",
+              "allTokens": "43606973",
+              "requests": "619",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            },
+            "2025-11-12": {
+              "tokens": "930447",
+              "inputTokens": "692071",
+              "outputTokens": "238376",
+              "cacheCreateTokens": "5201681",
+              "cacheReadTokens": "41284006",
+              "allTokens": "47416134",
+              "requests": "665",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            },
+            "2025-11-11": {
+              "tokens": "73725650",
+              "inputTokens": "73291497",
+              "outputTokens": "434153",
+              "cacheCreateTokens": "2264859",
+              "cacheReadTokens": "17275798",
+              "allTokens": "93266307",
+              "requests": "1258",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            },
+            "2025-11-10": {
+              "tokens": "92029173",
+              "inputTokens": "91539855",
+              "outputTokens": "489318",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "1504",
+              "allTokens": "92030677",
+              "requests": "1733",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            },
+            "2025-11-08": {
+              "tokens": "42571976",
+              "inputTokens": "42282471",
+              "outputTokens": "289505",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "0",
+              "allTokens": "42571976",
+              "requests": "824",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            },
+            "2025-11-07": {
+              "tokens": "33927039",
+              "inputTokens": "33760838",
+              "outputTokens": "166201",
+              "cacheCreateTokens": "3344",
+              "cacheReadTokens": "0",
+              "allTokens": "33930383",
+              "requests": "460",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            },
+            "2025-11-06": {
+              "tokens": "16216926",
+              "inputTokens": "16151204",
+              "outputTokens": "65722",
+              "cacheCreateTokens": "4342",
+              "cacheReadTokens": "0",
+              "allTokens": "16221268",
+              "requests": "259",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            },
+            "2025-11-05": {
+              "tokens": "3406583",
+              "inputTokens": "3264071",
+              "outputTokens": "142512",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "0",
+              "allTokens": "3406583",
+              "requests": "482",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            },
+            "2025-11-04": {
+              "tokens": "7042202",
+              "inputTokens": "6930987",
+              "outputTokens": "111215",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "0",
+              "allTokens": "7042202",
+              "requests": "357",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            },
+            "2025-11-03": {
+              "tokens": "28521799",
+              "inputTokens": "28437486",
+              "outputTokens": "84313",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "0",
+              "allTokens": "28521799",
+              "requests": "281",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            },
+            "2025-11-02": {
+              "tokens": "115811619",
+              "inputTokens": "115391235",
+              "outputTokens": "420384",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "0",
+              "allTokens": "115811619",
+              "requests": "1135",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            },
+            "2025-11-01": {
+              "tokens": "36712191",
+              "inputTokens": "36208288",
+              "outputTokens": "503903",
+              "cacheCreateTokens": "5572297",
+              "cacheReadTokens": "8104911",
+              "allTokens": "50389399",
+              "requests": "2096",
+              "ephemeral5mTokens": "5572297",
+              "ephemeral1hTokens": "0"
+            },
+            "2025-10-31": {
+              "tokens": "80804933",
+              "inputTokens": "80222604",
+              "outputTokens": "582329",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "63296",
+              "allTokens": "80868229",
+              "requests": "2137",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            },
+            "2025-10-30": {
+              "tokens": "120196253",
+              "inputTokens": "119596923",
+              "outputTokens": "599330",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "0",
+              "allTokens": "120196253",
+              "requests": "1672",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            },
+            "2025-10-29": {
+              "tokens": "2829308",
+              "inputTokens": "2314877",
+              "outputTokens": "514431",
+              "cacheCreateTokens": "2082620",
+              "cacheReadTokens": "2122649",
+              "allTokens": "7034577",
+              "requests": "3629",
+              "ephemeral5mTokens": "2082620",
+              "ephemeral1hTokens": "0"
+            },
+            "2025-10-28": {
+              "tokens": "1089681",
+              "inputTokens": "623704",
+              "outputTokens": "465977",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "901312",
+              "allTokens": "1990993",
+              "requests": "2443",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            },
+            "2025-10-27": {
+              "tokens": "694782",
+              "inputTokens": "305329",
+              "outputTokens": "389453",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "770871",
+              "allTokens": "1465653",
+              "requests": "1941",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            },
+            "2025-10-26": {
+              "tokens": "174220",
+              "inputTokens": "5838",
+              "outputTokens": "168382",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "553248",
+              "allTokens": "727468",
+              "requests": "863",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            }
+          },
+          "monthly": {
+            "2025-11": {
+              "tokens": "492272790",
+              "inputTokens": "488776684",
+              "outputTokens": "3496106",
+              "cacheCreateTokens": "20065706",
+              "cacheReadTokens": "133067580",
+              "allTokens": "645406076",
+              "requests": "11490",
+              "ephemeral5mTokens": "5572297",
+              "ephemeral1hTokens": "0"
+            },
+            "2025-10": {
+              "tokens": "310094707",
+              "inputTokens": "298501029",
+              "outputTokens": "11593678",
+              "cacheCreateTokens": "47347213",
+              "cacheReadTokens": "448102451",
+              "allTokens": "805544371",
+              "requests": "117595",
+              "ephemeral5mTokens": "44839724",
+              "ephemeral1hTokens": "0"
+            },
+            "2025-09": {
+              "tokens": "12890078",
+              "inputTokens": "6839280",
+              "outputTokens": "6050798",
+              "cacheCreateTokens": "87801439",
+              "cacheReadTokens": "937200739",
+              "allTokens": "1037892256",
+              "requests": "15479",
+              "ephemeral5mTokens": "85052192",
+              "ephemeral1hTokens": "0"
+            }
+          },
+          "hourly": {
+            "2025-11-24:16": {
+              "tokens": "3332767",
+              "inputTokens": "3324578",
+              "outputTokens": "8189",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "0",
+              "allTokens": "3332767",
+              "requests": "41"
+            },
+            "2025-11-24:15": {
+              "tokens": "2427984",
+              "inputTokens": "2415313",
+              "outputTokens": "12671",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "0",
+              "allTokens": "2427984",
+              "requests": "51"
+            },
+            "2025-11-24:14": {
+              "tokens": "5054441",
+              "inputTokens": "5020504",
+              "outputTokens": "33937",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "0",
+              "allTokens": "5054441",
+              "requests": "114"
+            },
+            "2025-11-24:11": {
+              "tokens": "359671",
+              "inputTokens": "357873",
+              "outputTokens": "1798",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "0",
+              "allTokens": "359671",
+              "requests": "11"
+            },
+            "2025-11-24:10": {
+              "tokens": "5131487",
+              "inputTokens": "5107464",
+              "outputTokens": "24023",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "0",
+              "allTokens": "5131487",
+              "requests": "197"
+            },
+            "2025-11-24:09": {
+              "tokens": "10450129",
+              "inputTokens": "10416200",
+              "outputTokens": "33929",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "0",
+              "allTokens": "10450129",
+              "requests": "197"
+            }
+          },
+          "models": {
+            "glm-4.6": {
+              "daily": {
+                "2025-10-14": {
+                  "inputTokens": "1669",
+                  "outputTokens": "253895",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "90720",
+                  "allTokens": "346284",
+                  "requests": "823",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-31": {
+                  "inputTokens": "972",
+                  "outputTokens": "159846",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "63296",
+                  "allTokens": "224114",
+                  "requests": "1088",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-05": {
+                  "inputTokens": "0",
+                  "outputTokens": "119968",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "119968",
+                  "requests": "393",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-11": {
+                  "inputTokens": "131996",
+                  "outputTokens": "20540",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "152633",
+                  "allTokens": "305169",
+                  "requests": "149",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-30": {
+                  "inputTokens": "0",
+                  "outputTokens": "38013",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "38013",
+                  "requests": "159",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-22": {
+                  "inputTokens": "247528",
+                  "outputTokens": "291817",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "633105",
+                  "allTokens": "1172450",
+                  "requests": "1551",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-26": {
+                  "inputTokens": "5838",
+                  "outputTokens": "168382",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "553248",
+                  "allTokens": "727468",
+                  "requests": "863",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-04": {
+                  "inputTokens": "0",
+                  "outputTokens": "76072",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "76072",
+                  "requests": "274",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-18": {
+                  "inputTokens": "276278",
+                  "outputTokens": "681253",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "536960",
+                  "allTokens": "1494491",
+                  "requests": "3107",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-13": {
+                  "inputTokens": "106298",
+                  "outputTokens": "329802",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "139456",
+                  "allTokens": "575556",
+                  "requests": "1262",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-19": {
+                  "inputTokens": "623",
+                  "outputTokens": "94670",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "126432",
+                  "allTokens": "221725",
+                  "requests": "424",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-08": {
+                  "inputTokens": "0",
+                  "outputTokens": "1606",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "1606",
+                  "requests": "2",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-25": {
+                  "inputTokens": "3256",
+                  "outputTokens": "440312",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "495904",
+                  "allTokens": "939472",
+                  "requests": "2201",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-29": {
+                  "inputTokens": "1404070",
+                  "outputTokens": "487051",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "729856",
+                  "allTokens": "2620977",
+                  "requests": "3506",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-12": {
+                  "inputTokens": "0",
+                  "outputTokens": "30875",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "30875",
+                  "requests": "159",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-27": {
+                  "inputTokens": "305329",
+                  "outputTokens": "389453",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "770871",
+                  "allTokens": "1465653",
+                  "requests": "1941",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-21": {
+                  "inputTokens": "457048",
+                  "outputTokens": "518049",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "1177031",
+                  "allTokens": "2152128",
+                  "requests": "2388",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-20": {
+                  "inputTokens": "125081",
+                  "outputTokens": "245331",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "288618",
+                  "allTokens": "659030",
+                  "requests": "1721",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-23": {
+                  "inputTokens": "14158",
+                  "outputTokens": "344424",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "1624156",
+                  "allTokens": "1982738",
+                  "requests": "1936",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-15": {
+                  "inputTokens": "864161",
+                  "outputTokens": "443674",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "805344",
+                  "allTokens": "2113179",
+                  "requests": "1332",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-16": {
+                  "inputTokens": "152258",
+                  "outputTokens": "214274",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "476192",
+                  "allTokens": "842724",
+                  "requests": "975",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-28": {
+                  "inputTokens": "169140",
+                  "outputTokens": "328666",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "901312",
+                  "allTokens": "1399118",
+                  "requests": "1978",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-01": {
+                  "inputTokens": "1501",
+                  "outputTokens": "314104",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "416832",
+                  "allTokens": "732437",
+                  "requests": "1514",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-10": {
+                  "inputTokens": "372372",
+                  "outputTokens": "60174",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "1504",
+                  "allTokens": "434050",
+                  "requests": "341",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-24": {
+                  "inputTokens": "133488",
+                  "outputTokens": "420640",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "612800",
+                  "allTokens": "1166928",
+                  "requests": "1968",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-17": {
+                  "inputTokens": "253786",
+                  "outputTokens": "221387",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "640",
+                  "allTokens": "475813",
+                  "requests": "819",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              },
+              "monthly": {
+                "2025-10": {
+                  "inputTokens": "5413865",
+                  "outputTokens": "7252484",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "11059828",
+                  "allTokens": "23726177",
+                  "requests": "34220",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11": {
+                  "inputTokens": "505869",
+                  "outputTokens": "592464",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "570969",
+                  "allTokens": "1669302",
+                  "requests": "2673",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              }
+            },
+            "claude-sonnet-4-5-20250929": {
+              "daily": {
+                "2025-10-29": {
+                  "inputTokens": "273",
+                  "outputTokens": "7130",
+                  "cacheCreateTokens": "2082620",
+                  "cacheReadTokens": "1392793",
+                  "allTokens": "3482816",
+                  "requests": "26",
+                  "ephemeral5mTokens": "2082620",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-19": {
+                  "inputTokens": "257123",
+                  "outputTokens": "406",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "257529",
+                  "requests": "2",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-20": {
+                  "inputTokens": "3974202",
+                  "outputTokens": "29972",
+                  "cacheCreateTokens": "61530",
+                  "cacheReadTokens": "830655",
+                  "allTokens": "4896359",
+                  "requests": "59",
+                  "ephemeral5mTokens": "61530",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-01": {
+                  "inputTokens": "1250",
+                  "outputTokens": "82002",
+                  "cacheCreateTokens": "5572297",
+                  "cacheReadTokens": "7688079",
+                  "allTokens": "13343628",
+                  "requests": "113",
+                  "ephemeral5mTokens": "5572297",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-16": {
+                  "inputTokens": "185",
+                  "outputTokens": "11496",
+                  "cacheCreateTokens": "544531",
+                  "cacheReadTokens": "1954169",
+                  "allTokens": "2510381",
+                  "requests": "22",
+                  "ephemeral5mTokens": "544531",
+                  "ephemeral1hTokens": "0"
+                }
+              },
+              "monthly": {
+                "2025-09": {
+                  "inputTokens": "2250",
+                  "outputTokens": "123957",
+                  "cacheCreateTokens": "4956848",
+                  "cacheReadTokens": "23884660",
+                  "allTokens": "28967715",
+                  "requests": "285",
+                  "ephemeral5mTokens": "4820448",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11": {
+                  "inputTokens": "1250",
+                  "outputTokens": "82002",
+                  "cacheCreateTokens": "5572297",
+                  "cacheReadTokens": "7688079",
+                  "allTokens": "13343628",
+                  "requests": "113",
+                  "ephemeral5mTokens": "5572297",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10": {
+                  "inputTokens": "4333585",
+                  "outputTokens": "1779114",
+                  "cacheCreateTokens": "44259673",
+                  "cacheReadTokens": "263254219",
+                  "allTokens": "313626591",
+                  "requests": "2868",
+                  "ephemeral5mTokens": "41763135",
+                  "ephemeral1hTokens": "0"
+                }
+              }
+            },
+            "gpt-5-codex": {
+              "daily": {
+                "2025-10-17": {
+                  "inputTokens": "12392819",
+                  "outputTokens": "33068",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "16436480",
+                  "allTokens": "28862367",
+                  "requests": "122",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-16": {
+                  "inputTokens": "15626721",
+                  "outputTokens": "109342",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "8276736",
+                  "allTokens": "24012799",
+                  "requests": "244",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-05": {
+                  "inputTokens": "19607",
+                  "outputTokens": "253",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "19860",
+                  "requests": "3",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-25": {
+                  "inputTokens": "10372115",
+                  "outputTokens": "100942",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "2547840",
+                  "allTokens": "13020897",
+                  "requests": "217",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-13": {
+                  "inputTokens": "951293",
+                  "outputTokens": "0",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "951293",
+                  "requests": "64",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-10": {
+                  "inputTokens": "5015",
+                  "outputTokens": "9",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "5024",
+                  "requests": "1",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-06": {
+                  "inputTokens": "148021",
+                  "outputTokens": "2239",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "150260",
+                  "requests": "13",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              },
+              "monthly": {
+                "2025-10": {
+                  "inputTokens": "44130462",
+                  "outputTokens": "639694",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "142929920",
+                  "allTokens": "187700076",
+                  "requests": "1656",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11": {
+                  "inputTokens": "1123936",
+                  "outputTokens": "2501",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "1126437",
+                  "requests": "81",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              }
+            },
+            "claude-3-5-haiku-20241022": {
+              "daily": {
+                "2025-10-16": {
+                  "inputTokens": "25816",
+                  "outputTokens": "648",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "26464",
+                  "requests": "31",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-19": {
+                  "inputTokens": "85",
+                  "outputTokens": "136",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "221",
+                  "requests": "3",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-30": {
+                  "inputTokens": "836",
+                  "outputTokens": "458",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "1294",
+                  "requests": "2",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-21": {
+                  "inputTokens": "22",
+                  "outputTokens": "42",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "64",
+                  "requests": "1",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              },
+              "monthly": {
+                "2025-10": {
+                  "inputTokens": "42955116",
+                  "outputTokens": "149974",
+                  "cacheCreateTokens": "60705",
+                  "cacheReadTokens": "6533707",
+                  "allTokens": "49699502",
+                  "requests": "69731",
+                  "ephemeral5mTokens": "60705",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-09": {
+                  "inputTokens": "6462226",
+                  "outputTokens": "485437",
+                  "cacheCreateTokens": "1106834",
+                  "cacheReadTokens": "18115539",
+                  "allTokens": "26170036",
+                  "requests": "4188",
+                  "ephemeral5mTokens": "1095083",
+                  "ephemeral1hTokens": "0"
+                }
+              }
+            },
+            "MiniMax-M2": {
+              "daily": {
+                "2025-11-11": {
+                  "inputTokens": "73159113",
+                  "outputTokens": "413543",
+                  "cacheCreateTokens": "2264859",
+                  "cacheReadTokens": "17123165",
+                  "allTokens": "92960680",
+                  "requests": "1106",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-02": {
+                  "inputTokens": "115391235",
+                  "outputTokens": "420384",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "115811619",
+                  "requests": "1135",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-06": {
+                  "inputTokens": "16003183",
+                  "outputTokens": "63483",
+                  "cacheCreateTokens": "4342",
+                  "cacheReadTokens": "0",
+                  "allTokens": "16071008",
+                  "requests": "246",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-29": {
+                  "inputTokens": "897924",
+                  "outputTokens": "19619",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "917543",
+                  "requests": "77",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-04": {
+                  "inputTokens": "6930987",
+                  "outputTokens": "35143",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "6966130",
+                  "requests": "83",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-13": {
+                  "inputTokens": "298575",
+                  "outputTokens": "173653",
+                  "cacheCreateTokens": "3772724",
+                  "cacheReadTokens": "38405547",
+                  "allTokens": "42650499",
+                  "requests": "553",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-01": {
+                  "inputTokens": "36134172",
+                  "outputTokens": "106494",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "36240666",
+                  "requests": "439",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-12": {
+                  "inputTokens": "692071",
+                  "outputTokens": "238376",
+                  "cacheCreateTokens": "5201681",
+                  "cacheReadTokens": "41284006",
+                  "allTokens": "47416134",
+                  "requests": "665",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-30": {
+                  "inputTokens": "119596087",
+                  "outputTokens": "560859",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "120156946",
+                  "requests": "1511",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-31": {
+                  "inputTokens": "80221632",
+                  "outputTokens": "422483",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "80644115",
+                  "requests": "1049",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-10": {
+                  "inputTokens": "91060001",
+                  "outputTokens": "428967",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "91488968",
+                  "requests": "1390",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-14": {
+                  "inputTokens": "312061",
+                  "outputTokens": "178006",
+                  "cacheCreateTokens": "2086129",
+                  "cacheReadTokens": "19657130",
+                  "allTokens": "22233326",
+                  "requests": "454",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-28": {
+                  "inputTokens": "454564",
+                  "outputTokens": "136506",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "591070",
+                  "requests": "448",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-08": {
+                  "inputTokens": "42282471",
+                  "outputTokens": "287899",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "42570370",
+                  "requests": "822",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-05": {
+                  "inputTokens": "3244464",
+                  "outputTokens": "22291",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "3266755",
+                  "requests": "86",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-15": {
+                  "inputTokens": "102818",
+                  "outputTokens": "26700",
+                  "cacheCreateTokens": "1160330",
+                  "cacheReadTokens": "8338684",
+                  "allTokens": "9628532",
+                  "requests": "88",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-07": {
+                  "inputTokens": "33760838",
+                  "outputTokens": "166201",
+                  "cacheCreateTokens": "3344",
+                  "cacheReadTokens": "0",
+                  "allTokens": "33930383",
+                  "requests": "460",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-03": {
+                  "inputTokens": "28437486",
+                  "outputTokens": "84313",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "28521799",
+                  "requests": "281",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              },
+              "monthly": {
+                "2025-10": {
+                  "inputTokens": "201170207",
+                  "outputTokens": "1139467",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "202309674",
+                  "requests": "3085",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11": {
+                  "inputTokens": "447809475",
+                  "outputTokens": "2645453",
+                  "cacheCreateTokens": "14493409",
+                  "cacheReadTokens": "124808532",
+                  "allTokens": "589756869",
+                  "requests": "7808",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              }
+            },
+            "kimi-for-coding": {
+              "daily": {
+                "2025-11-24": {
+                  "inputTokens": "26641932",
+                  "outputTokens": "114547",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "26756479",
+                  "requests": "611",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-15": {
+                  "inputTokens": "12514493",
+                  "outputTokens": "57438",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "12571931",
+                  "requests": "167",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-10": {
+                  "inputTokens": "102467",
+                  "outputTokens": "168",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "102635",
+                  "requests": "1",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-19": {
+                  "inputTokens": "394",
+                  "outputTokens": "94",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "488",
+                  "requests": "1",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              },
+              "monthly": {
+                "2025-11": {
+                  "inputTokens": "39259286",
+                  "outputTokens": "172247",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "39431533",
+                  "requests": "780",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              }
+            },
+            "glm-4.5-air": {
+              "daily": {
+                "2025-10-12": {
+                  "inputTokens": "0",
+                  "outputTokens": "3759",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "3759",
+                  "requests": "97",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-15": {
+                  "inputTokens": "0",
+                  "outputTokens": "27221",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "27221",
+                  "requests": "781",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-14": {
+                  "inputTokens": "0",
+                  "outputTokens": "16748",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "16748",
+                  "requests": "450",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-18": {
+                  "inputTokens": "374128",
+                  "outputTokens": "237591",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "253352",
+                  "allTokens": "865071",
+                  "requests": "656",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-13": {
+                  "inputTokens": "0",
+                  "outputTokens": "21002",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "21002",
+                  "requests": "614",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-16": {
+                  "inputTokens": "0",
+                  "outputTokens": "798",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "798",
+                  "requests": "24",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-28": {
+                  "inputTokens": "0",
+                  "outputTokens": "805",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "805",
+                  "requests": "17",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              },
+              "monthly": {
+                "2025-10": {
+                  "inputTokens": "374128",
+                  "outputTokens": "399029",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "253352",
+                  "allTokens": "1026509",
+                  "requests": "5439",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-09": {
+                  "inputTokens": "0",
+                  "outputTokens": "3960",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "3960",
+                  "requests": "97",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              }
+            },
+            "claude-haiku-4-5-20251001": {
+              "daily": {
+                "2025-10-20": {
+                  "inputTokens": "5068",
+                  "outputTokens": "285",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "5353",
+                  "requests": "6",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-11": {
+                  "inputTokens": "388",
+                  "outputTokens": "70",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "458",
+                  "requests": "3",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-01": {
+                  "inputTokens": "71365",
+                  "outputTokens": "1303",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "72668",
+                  "requests": "30",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-29": {
+                  "inputTokens": "12610",
+                  "outputTokens": "631",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "13241",
+                  "requests": "20",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-19": {
+                  "inputTokens": "8257",
+                  "outputTokens": "881",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "9138",
+                  "requests": "3",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              },
+              "monthly": {
+                "2025-10": {
+                  "inputTokens": "25935",
+                  "outputTokens": "1797",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "27732",
+                  "requests": "29",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11": {
+                  "inputTokens": "71753",
+                  "outputTokens": "1373",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "73126",
+                  "requests": "33",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              }
+            },
+            "gpt-5.1-codex": {
+              "daily": {
+                "2025-11-13": {
+                  "inputTokens": "5015",
+                  "outputTokens": "16",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "5031",
+                  "requests": "1",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-14": {
+                  "inputTokens": "10030",
+                  "outputTokens": "31",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "10061",
+                  "requests": "2",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              },
+              "monthly": {
+                "2025-11": {
+                  "inputTokens": "5015",
+                  "outputTokens": "16",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "5031",
+                  "requests": "1",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              }
+            },
+            "claude-sonnet-4-20250514": {
+              "daily": {
+                "2025-10-21": {
+                  "inputTokens": "44",
+                  "outputTokens": "127",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "171",
+                  "requests": "2",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              },
+              "monthly": {
+                "2025-10": {
+                  "inputTokens": "899",
+                  "outputTokens": "137350",
+                  "cacheCreateTokens": "3015884",
+                  "cacheReadTokens": "24059208",
+                  "allTokens": "27213341",
+                  "requests": "279",
+                  "ephemeral5mTokens": "3015884",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-09": {
+                  "inputTokens": "112280",
+                  "outputTokens": "5243758",
+                  "cacheCreateTokens": "80152114",
+                  "cacheReadTokens": "889742297",
+                  "allTokens": "975250449",
+                  "requests": "10615",
+                  "ephemeral5mTokens": "77551018",
+                  "ephemeral1hTokens": "0"
+                }
+              }
+            },
+            "gpt-5": {
+              "daily": {
+                "2025-11-13": {
+                  "inputTokens": "100",
+                  "outputTokens": "50",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "150",
+                  "requests": "1",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              },
+              "monthly": {
+                "2025-11": {
+                  "inputTokens": "100",
+                  "outputTokens": "50",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "150",
+                  "requests": "1",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              }
+            },
+            "claude-opus-4-1-20250805": {
+              "daily": {},
+              "monthly": {
+                "2025-09": {
+                  "inputTokens": "411",
+                  "outputTokens": "76051",
+                  "cacheCreateTokens": "1585643",
+                  "cacheReadTokens": "5446038",
+                  "allTokens": "7108143",
+                  "requests": "105",
+                  "ephemeral5mTokens": "1585643",
+                  "ephemeral1hTokens": "0"
+                }
+              }
+            },
+            "gpt-5-codex-medium": {
+              "daily": {},
+              "monthly": {
+                "2025-10": {
+                  "inputTokens": "59",
+                  "outputTokens": "9",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "2048",
+                  "allTokens": "2116",
+                  "requests": "1",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-09": {
+                  "inputTokens": "70",
+                  "outputTokens": "32",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "2048",
+                  "allTokens": "2150",
+                  "requests": "1",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              }
+            },
+            "claude-opus-4-20250514": {
+              "daily": {},
+              "monthly": {
+                "2025-09": {
+                  "inputTokens": "53",
+                  "outputTokens": "159",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "212",
+                  "requests": "1",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              }
+            },
+            "gpt-5-2025-08-07": {
+              "daily": {},
+              "monthly": {
+                "2025-09": {
+                  "inputTokens": "176",
+                  "outputTokens": "29",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "9856",
+                  "allTokens": "10061",
+                  "requests": "2",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10": {
+                  "inputTokens": "153",
+                  "outputTokens": "15",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "4864",
+                  "allTokens": "5032",
+                  "requests": "1",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              }
+            },
+            "glm-4.5": {
+              "daily": {},
+              "monthly": {
+                "2025-10": {
+                  "inputTokens": "0",
+                  "outputTokens": "94545",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "94545",
+                  "requests": "133",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-09": {
+                  "inputTokens": "261814",
+                  "outputTokens": "117415",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "301",
+                  "allTokens": "379530",
+                  "requests": "185",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              }
+            },
+            "claude-3-5-sonnet-20241022": {
+              "daily": {},
+              "monthly": {
+                "2025-10": {
+                  "inputTokens": "96620",
+                  "outputTokens": "200",
+                  "cacheCreateTokens": "10951",
+                  "cacheReadTokens": "5305",
+                  "allTokens": "113076",
+                  "requests": "153",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "db377522-8970-43da-ad84-d72bd10de8cd",
+        "name": "ai-edu-pic",
+        "description": "",
+        "apiKey": "a551050458b24ba851aee0f236d8b8787ad0437d319e5b44cd7bec4e1750dde2",
+        "tokenLimit": "0",
+        "concurrencyLimit": "0",
+        "rateLimitWindow": "0",
+        "rateLimitRequests": "0",
+        "rateLimitCost": "0",
+        "isActive": "true",
+        "claudeAccountId": "",
+        "claudeConsoleAccountId": "72a9ffd6-ecc8-4e61-88a9-617e55e7292f",
+        "geminiAccountId": "",
+        "openaiAccountId": "",
+        "azureOpenaiAccountId": "",
+        "bedrockAccountId": "",
+        "permissions": "all",
+        "enableModelRestriction": "false",
+        "restrictedModels": "[]",
+        "enableClientRestriction": "false",
+        "allowedClients": "[]",
+        "dailyCostLimit": "0",
+        "totalCostLimit": "0",
+        "weeklyOpusCostLimit": "0",
+        "tags": "[]",
+        "activationDays": "0",
+        "expirationMode": "fixed",
+        "isActivated": "true",
+        "activatedAt": "2025-10-30T07:47:44.484Z",
+        "createdAt": "2025-10-30T07:47:44.484Z",
+        "lastUsedAt": "2025-10-30T07:51:14.981Z",
+        "expiresAt": "",
+        "createdBy": "admin",
+        "userId": "",
+        "userUsername": "",
+        "icon": "",
+        "usageStats": {
+          "total": {
+            "totalTokens": "1119",
+            "totalInputTokens": "643",
+            "totalOutputTokens": "476",
+            "totalCacheCreateTokens": "0",
+            "totalCacheReadTokens": "0",
+            "totalAllTokens": "1119",
+            "totalEphemeral5mTokens": "0",
+            "totalEphemeral1hTokens": "0",
+            "totalRequests": "2"
+          },
+          "daily": {
+            "2025-10-30": {
+              "tokens": "1119",
+              "inputTokens": "643",
+              "outputTokens": "476",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "0",
+              "allTokens": "1119",
+              "requests": "2",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            }
+          },
+          "monthly": {
+            "2025-10": {
+              "tokens": "1119",
+              "inputTokens": "643",
+              "outputTokens": "476",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "0",
+              "allTokens": "1119",
+              "requests": "2",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            }
+          },
+          "hourly": {},
+          "models": {
+            "claude-3-5-haiku-20241022": {
+              "daily": {
+                "2025-10-30": {
+                  "inputTokens": "643",
+                  "outputTokens": "476",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "1119",
+                  "requests": "2",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              },
+              "monthly": {
+                "2025-10": {
+                  "inputTokens": "643",
+                  "outputTokens": "476",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "1119",
+                  "requests": "2",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "11388794-259a-4309-b9e4-12b01b2d80c6",
+        "name": "x13",
+        "description": "",
+        "apiKey": "3bc99400565f7624178b3a07e92d33ee5bf1a97d9fe1dc65c7e3df7936be4420",
+        "tokenLimit": "0",
+        "concurrencyLimit": "0",
+        "rateLimitWindow": "0",
+        "rateLimitRequests": "0",
+        "rateLimitCost": "0",
+        "isActive": "true",
+        "claudeAccountId": "",
+        "claudeConsoleAccountId": "",
+        "geminiAccountId": "",
+        "openaiAccountId": "",
+        "azureOpenaiAccountId": "",
+        "bedrockAccountId": "",
+        "permissions": "all",
+        "enableModelRestriction": "false",
+        "restrictedModels": "[]",
+        "enableClientRestriction": "false",
+        "allowedClients": "[]",
+        "dailyCostLimit": "0",
+        "totalCostLimit": "0",
+        "weeklyOpusCostLimit": "0",
+        "tags": "[]",
+        "activationDays": "0",
+        "expirationMode": "fixed",
+        "isActivated": "true",
+        "activatedAt": "2025-10-14T00:30:48.589Z",
+        "createdAt": "2025-10-14T00:30:48.589Z",
+        "lastUsedAt": "2025-11-13T09:50:08.591Z",
+        "expiresAt": "",
+        "createdBy": "admin",
+        "userId": "",
+        "userUsername": "",
+        "icon": "",
+        "usageStats": {
+          "total": {
+            "totalTokens": "6386639",
+            "totalInputTokens": "6358087",
+            "totalOutputTokens": "28552",
+            "totalCacheCreateTokens": "92892",
+            "totalCacheReadTokens": "1787047",
+            "totalAllTokens": "8266578",
+            "totalEphemeral5mTokens": "0",
+            "totalEphemeral1hTokens": "0",
+            "totalRequests": "329"
+          },
+          "daily": {
+            "2025-11-13": {
+              "tokens": "3054539",
+              "inputTokens": "3042277",
+              "outputTokens": "12262",
+              "cacheCreateTokens": "92892",
+              "cacheReadTokens": "603762",
+              "allTokens": "3751193",
+              "requests": "166",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            },
+            "2025-11-11": {
+              "tokens": "80",
+              "inputTokens": "15",
+              "outputTokens": "65",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "53",
+              "allTokens": "133",
+              "requests": "2",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            },
+            "2025-11-10": {
+              "tokens": "22321",
+              "inputTokens": "22136",
+              "outputTokens": "185",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "3968",
+              "allTokens": "26289",
+              "requests": "5",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            },
+            "2025-10-30": {
+              "tokens": "648",
+              "inputTokens": "418",
+              "outputTokens": "230",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "0",
+              "allTokens": "648",
+              "requests": "1",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            }
+          },
+          "monthly": {
+            "2025-11": {
+              "tokens": "3076940",
+              "inputTokens": "3064428",
+              "outputTokens": "12512",
+              "cacheCreateTokens": "92892",
+              "cacheReadTokens": "607783",
+              "allTokens": "3777615",
+              "requests": "173",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            },
+            "2025-10": {
+              "tokens": "3309699",
+              "inputTokens": "3293659",
+              "outputTokens": "16040",
+              "cacheCreateTokens": "0",
+              "cacheReadTokens": "1179264",
+              "allTokens": "4488963",
+              "requests": "156",
+              "ephemeral5mTokens": "0",
+              "ephemeral1hTokens": "0"
+            }
+          },
+          "hourly": {},
+          "models": {
+            "claude-3-5-haiku-20241022": {
+              "daily": {
+                "2025-11-10": {
+                  "inputTokens": "16032",
+                  "outputTokens": "101",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "16133",
+                  "requests": "2",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-30": {
+                  "inputTokens": "418",
+                  "outputTokens": "230",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "648",
+                  "requests": "1",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              },
+              "monthly": {
+                "2025-11": {
+                  "inputTokens": "16032",
+                  "outputTokens": "101",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "16133",
+                  "requests": "2",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10": {
+                  "inputTokens": "131254",
+                  "outputTokens": "3982",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "135236",
+                  "requests": "20",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              }
+            },
+            "gpt-5-codex": {
+              "daily": {
+                "2025-11-10": {
+                  "inputTokens": "6062",
+                  "outputTokens": "32",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "3968",
+                  "allTokens": "10062",
+                  "requests": "2",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10-25": {
+                  "inputTokens": "3489",
+                  "outputTokens": "79",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "3568",
+                  "requests": "1",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-13": {
+                  "inputTokens": "26883",
+                  "outputTokens": "0",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "26883",
+                  "requests": "9",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              },
+              "monthly": {
+                "2025-10": {
+                  "inputTokens": "2634676",
+                  "outputTokens": "8148",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "1179264",
+                  "allTokens": "3822088",
+                  "requests": "35",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11": {
+                  "inputTokens": "32945",
+                  "outputTokens": "32",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "3968",
+                  "allTokens": "36945",
+                  "requests": "11",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              }
+            },
+            "MiniMax-M2": {
+              "daily": {
+                "2025-11-13": {
+                  "inputTokens": "10461",
+                  "outputTokens": "3899",
+                  "cacheCreateTokens": "92892",
+                  "cacheReadTokens": "603762",
+                  "allTokens": "711014",
+                  "requests": "22",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-11-10": {
+                  "inputTokens": "42",
+                  "outputTokens": "52",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "94",
+                  "requests": "1",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              },
+              "monthly": {
+                "2025-11": {
+                  "inputTokens": "10503",
+                  "outputTokens": "3951",
+                  "cacheCreateTokens": "92892",
+                  "cacheReadTokens": "603762",
+                  "allTokens": "711108",
+                  "requests": "23",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              }
+            },
+            "kimi-for-coding": {
+              "daily": {
+                "2025-11-13": {
+                  "inputTokens": "2983990",
+                  "outputTokens": "8363",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "2992353",
+                  "requests": "132",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              },
+              "monthly": {
+                "2025-11": {
+                  "inputTokens": "2983990",
+                  "outputTokens": "8363",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "2992353",
+                  "requests": "132",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              }
+            },
+            "gpt-5": {
+              "daily": {
+                "2025-11-13": {
+                  "inputTokens": "20943",
+                  "outputTokens": "0",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "20943",
+                  "requests": "3",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              },
+              "monthly": {
+                "2025-11": {
+                  "inputTokens": "20943",
+                  "outputTokens": "0",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "20943",
+                  "requests": "3",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              }
+            },
+            "glm-4.5-air": {
+              "daily": {
+                "2025-11-11": {
+                  "inputTokens": "15",
+                  "outputTokens": "65",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "53",
+                  "allTokens": "133",
+                  "requests": "2",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              },
+              "monthly": {
+                "2025-11": {
+                  "inputTokens": "15",
+                  "outputTokens": "65",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "53",
+                  "allTokens": "133",
+                  "requests": "2",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                },
+                "2025-10": {
+                  "inputTokens": "7911",
+                  "outputTokens": "333",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "8244",
+                  "requests": "5",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              }
+            },
+            "claude-3-5-sonnet-20241022": {
+              "daily": {},
+              "monthly": {
+                "2025-10": {
+                  "inputTokens": "474419",
+                  "outputTokens": "3205",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "477624",
+                  "requests": "87",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              }
+            },
+            "glm-4.6": {
+              "daily": {},
+              "monthly": {
+                "2025-10": {
+                  "inputTokens": "27",
+                  "outputTokens": "6",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "33",
+                  "requests": "1",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              }
+            },
+            "claude-sonnet-4-20250514": {
+              "daily": {},
+              "monthly": {
+                "2025-10": {
+                  "inputTokens": "45372",
+                  "outputTokens": "366",
+                  "cacheCreateTokens": "0",
+                  "cacheReadTokens": "0",
+                  "allTokens": "45738",
+                  "requests": "8",
+                  "ephemeral5mTokens": "0",
+                  "ephemeral1hTokens": "0"
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "e4737734-3eb2-4736-a3f8-09b99e54ce78",
+        "name": "cursor",
+        "description": "",
+        "apiKey": "1d11a0c81481e1e9afe970099673ea4ba7316731bf5cae4f218e8d963024f337",
+        "tokenLimit": "0",
+        "concurrencyLimit": "0",
+        "rateLimitWindow": "0",
+        "rateLimitRequests": "0",
+        "rateLimitCost": "0",
+        "isActive": "true",
+        "claudeAccountId": "",
+        "claudeConsoleAccountId": "",
+        "geminiAccountId": "",
+        "openaiAccountId": "",
+        "azureOpenaiAccountId": "",
+        "bedrockAccountId": "",
+        "permissions": "all",
+        "enableModelRestriction": "false",
+        "restrictedModels": "[]",
+        "enableClientRestriction": "false",
+        "allowedClients": "[]",
+        "dailyCostLimit": "0",
+        "totalCostLimit": "0",
+        "weeklyOpusCostLimit": "0",
+        "tags": "[]",
+        "activationDays": "0",
+        "expirationMode": "fixed",
+        "isActivated": "true",
+        "activatedAt": "2025-11-03T00:46:52.773Z",
+        "createdAt": "2025-11-03T00:46:52.773Z",
+        "lastUsedAt": "",
+        "expiresAt": "",
+        "createdBy": "admin",
+        "userId": "",
+        "userUsername": "",
+        "icon": "",
+        "usageStats": {
+          "total": {},
+          "daily": {},
+          "monthly": {},
+          "hourly": {},
+          "models": {}
+        }
+      }
+    ],
+    "claudeAccounts": [],
+    "claudeConsoleAccounts": [
+      {
+        "stoppedReason": "",
+        "errorMessage": "",
+        "dailyUsage": "0",
+        "apiUrl": "https://open.bigmodel.cn/api/anthropic",
+        "dailyQuota": "0",
+        "proxy": "",
+        "accountType": "shared",
+        "supportedModels": "{\"claude-3-5-haiku-20241022\":\"glm-4.6\",\"claude-opus-4-1-20250805\":\"glm-4.6\",\"claude-sonnet-4-5-20250929\":\"glm-4.6\",\"claude-haiku-4-5-20251001\":\"glm-4.6\"}",
+        "platform": "claude-console",
+        "name": "glm-high",
+        "description": "355cd9fe428245aab8bddb72d4224cbd.YwGwWDi26fQ6hASh",
+        "rateLimitDuration": "60",
+        "id": "bc61529c-7b3c-4307-9fb7-3345933ada7f",
+        "autoStoppedAt": "",
+        "priority": "50",
+        "schedulable": "false",
+        "isActive": "true",
+        "updatedAt": "2025-11-11T03:34:05.111Z",
+        "userAgent": "",
+        "createdAt": "2025-10-16T01:22:53.145Z",
+        "lastUsedAt": "2025-11-11T02:31:11.343Z",
+        "quotaResetTime": "00:00",
+        "apiKey": "79089145f3144ff9cd14d39bb1acd786:65099ff518815bb030648e98a19888922dbc717fa90070e639d853bd68d5bc1eadb1a60773215648de89ab5754fb8aae66c9814a765089e789b2200ff4b86b6f",
+        "rateLimitAutoStopped": "",
+        "lastResetDate": "2025-10-16",
+        "status": "active",
+        "quotaAutoStopped": ""
+      },
+      {
+        "stoppedReason": "",
+        "errorMessage": "",
+        "dailyUsage": "0",
+        "apiUrl": "https://open.bigmodel.cn/api/anthropic",
+        "dailyQuota": "0",
+        "proxy": "",
+        "accountType": "shared",
+        "supportedModels": "{\"claude-3-5-haiku-20241022\":\"glm-4.6\",\"claude-opus-4-1-20250805\":\"glm-4.6\",\"claude-sonnet-4-5-20250929\":\"glm-4.6\",\"claude-haiku-4-5-20251001\":\"glm-4.6\"}",
+        "platform": "claude-console",
+        "name": "glm2-high",
+        "description": "77f5df909ec5d0a9ad5509324dee1689.kEoGoiOsdkccFXu7",
+        "rateLimitDuration": "60",
+        "id": "5ce29e09-af54-41f0-b7f0-47c5d73c087d",
+        "autoStoppedAt": "",
+        "priority": "55",
+        "schedulable": "false",
+        "isActive": "true",
+        "updatedAt": "2025-11-11T03:50:44.868Z",
+        "userAgent": "",
+        "createdAt": "2025-10-16T01:24:16.024Z",
+        "lastUsedAt": "2025-11-11T03:47:36.425Z",
+        "quotaResetTime": "00:00",
+        "apiKey": "8adcafb00807fc909550eb5d258f05c6:42be50c81daf144cf8b7adbd829b8e83139bd5517a354fb112fee7013a24de148f427edc622aeb96fa35bc2dcbca7feb15b3caf46bc2f90d7518b4fedce2bbfa",
+        "rateLimitAutoStopped": "",
+        "lastResetDate": "2025-10-16",
+        "status": "active",
+        "quotaAutoStopped": ""
+      },
+      {
+        "stoppedReason": "",
+        "errorMessage": "",
+        "dailyUsage": "0",
+        "apiUrl": "https://agentrouter.org",
+        "dailyQuota": "0",
+        "proxy": "",
+        "accountType": "shared",
+        "supportedModels": "{}",
+        "platform": "claude-console",
+        "name": "agent-router-flo",
+        "description": "sk-5l0i55QBvw4FKe1kl91mv7xOb4AuTPcjDeg2wXSIpCA7TfUf",
+        "rateLimitDuration": "60",
+        "id": "9aca33c3-6b74-43ce-b378-8bf86649465c",
+        "autoStoppedAt": "",
+        "priority": "48",
+        "schedulable": "false",
+        "isActive": "true",
+        "updatedAt": "2025-10-20T04:09:27.554Z",
+        "userAgent": "",
+        "createdAt": "2025-10-19T14:44:49.306Z",
+        "lastUsedAt": "2025-10-20T04:09:09.503Z",
+        "quotaResetTime": "00:00",
+        "apiKey": "d030abb0d016a2d60e0e3bda07f34acb:fa7e5b0bc0330a5a08f56157ca3fc88766bc07aa8eb4b2154fa08c935433f98d09632f5fd2644482ae486ba4812cfddf9916f176b1c085a63962d70f48b34147",
+        "rateLimitAutoStopped": "",
+        "lastResetDate": "2025-10-19",
+        "status": "active",
+        "quotaAutoStopped": ""
+      },
+      {
+        "stoppedReason": "",
+        "errorMessage": "",
+        "dailyUsage": "0",
+        "apiUrl": "https://open.bigmodel.cn/api/anthropic",
+        "dailyQuota": "0",
+        "proxy": "",
+        "accountType": "shared",
+        "quotaStoppedAt": "",
+        "supportedModels": "{\"claude-opus-4-1-20250805\":\"glm-4.5-air\",\"claude-sonnet-4-5-20250929\":\"glm-4.5-air\",\"claude-3-5-haiku-20241022\":\"glm-4.5-air\",\"claude-haiku-4-5-20251001\":\"glm-4.5-air\"}",
+        "platform": "claude-console",
+        "name": "glm2-low",
+        "description": "77f5df909ec5d0a9ad5509324dee1689.kEoGoiOsdkccFXu7",
+        "rateLimitDuration": "60",
+        "id": "a09da760-d09a-4247-96a2-8ce10a8e60da",
+        "autoStoppedAt": "",
+        "priority": "99",
+        "schedulable": "false",
+        "isActive": "true",
+        "updatedAt": "2025-11-06T00:37:11.497Z",
+        "userAgent": "",
+        "createdAt": "2025-10-10T03:20:36.801Z",
+        "lastUsedAt": "2025-10-30T05:08:07.112Z",
+        "quotaResetTime": "00:00",
+        "apiKey": "103812cfcc167ba3b12ae9d06fa512d2:027baa4fefa7d78e4a8a55b0e6bb156e73d841a665f0ad2b9e8f5903180f52bfaf1392930c9f70155dbe0930434a04d90a8ff33da58be3546f161ce0ab429085",
+        "rateLimitAutoStopped": "",
+        "lastResetDate": "2025-10-10",
+        "status": "active",
+        "quotaAutoStopped": ""
+      },
+      {
+        "stoppedReason": "",
+        "errorMessage": "",
+        "apiUrl": "https://api.kimi.com/coding/",
+        "dailyUsage": "0",
+        "dailyQuota": "0",
+        "proxy": "",
+        "accountType": "shared",
+        "quotaStoppedAt": "",
+        "supportedModels": "{\"claude-3-5-haiku-20241022\":\"kimi-for-coding\",\"claude-sonnet-4-20250514\":\"kimi-for-coding\",\"claude-opus-4-1-20250805\":\"kimi-for-coding\",\"claude-sonnet-4-5-20250929\":\"kimi-for-coding\",\"claude-haiku-4-5-20251001\":\"kimi-for-coding\"}",
+        "platform": "claude-console",
+        "name": "kimi",
+        "description": "sk-kimi-uLs9bY43hKnuNWG661kvQJyGGg6TM4Yd9LZqoCD66QrvBpQEfCaPKilOSZiDrBEb",
+        "rateLimitDuration": "60",
+        "id": "088e856a-3416-44dc-8577-66b42eb6ad20",
+        "rateLimitedAt": "",
+        "autoStoppedAt": "",
+        "priority": "40",
+        "schedulable": "false",
+        "isActive": "true",
+        "updatedAt": "2025-11-24T02:13:48.189Z",
+        "userAgent": "",
+        "createdAt": "2025-11-08T06:26:29.216Z",
+        "rateLimitStatus": "",
+        "lastUsedAt": "2025-11-24T02:13:14.133Z",
+        "quotaResetTime": "00:00",
+        "apiKey": "492e6cb0e9a045879c79fea3abff8610:16d28c84b516049fd2b44cc702ef2c46d5f3d3d0329d7817a2eb05c2cf7700d89ce53aefdb4d0acf4612a98b02b5543b2f8d654dd9ea7292f0dcf9b50dd7053f3094adbd0bd239f569d68aaabfbfa149",
+        "rateLimitAutoStopped": "",
+        "lastResetDate": "2025-11-08",
+        "quotaAutoStopped": "",
+        "status": "active"
+      },
+      {
+        "stoppedReason": "",
+        "errorMessage": "",
+        "apiUrl": "https://q.quuvv.cn",
+        "dailyUsage": "0",
+        "dailyQuota": "0",
+        "proxy": "",
+        "accountType": "shared",
+        "quotaStoppedAt": "",
+        "supportedModels": "{}",
+        "platform": "claude-console",
+        "name": "anyrouter",
+        "description": "sk-ah6coK1ZCu6jNeYkOEYiTyOE6InE0N7ecr24dmPDwcIQrXHG",
+        "rateLimitDuration": "60",
+        "id": "72a9ffd6-ecc8-4e61-88a9-617e55e7292f",
+        "rateLimitedAt": "",
+        "autoStoppedAt": "",
+        "priority": "99",
+        "schedulable": "true",
+        "isActive": "true",
+        "updatedAt": "2025-11-22T09:27:23.175Z",
+        "userAgent": "",
+        "createdAt": "2025-10-05T12:40:50.343Z",
+        "rateLimitStatus": "",
+        "lastUsedAt": "2025-11-11T08:06:47.241Z",
+        "quotaResetTime": "00:00",
+        "apiKey": "0ce0147afe9997758fd4284b07eb4448:469d17d1e28a57aedc53661cbaf155a6a1c3f41e1c0b01e6f72579171c97b60fb9abf3d1aa3b720dfce819fa0a3f0a4d2f5d0f42690e532139e83fcb84635ebf",
+        "rateLimitAutoStopped": "",
+        "lastResetDate": "2025-10-05",
+        "quotaAutoStopped": "",
+        "status": "active"
+      },
+      {
+        "stoppedReason": "",
+        "errorMessage": "",
+        "apiUrl": "https://api.codemirror.codes/",
+        "dailyUsage": "0",
+        "dailyQuota": "0",
+        "proxy": "",
+        "accountType": "shared",
+        "quotaStoppedAt": "",
+        "supportedModels": "{}",
+        "platform": "claude-console",
+        "name": "mirror转发cc",
+        "description": "sk-2xY7KDM8KUcRJAHLF7pQfcJFacfEpoNuAeuziitbUXQtAmmW\nsk-YEuG35ObKsVzQu55OEgdmXxFD3YeaT7tq8VZd4CJrueiuerD",
+        "rateLimitDuration": "60",
+        "id": "73c48a98-8bdf-4620-a870-f7dcfc5b6dc2",
+        "rateLimitedAt": "",
+        "autoStoppedAt": "",
+        "priority": "48",
+        "schedulable": "false",
+        "isActive": "true",
+        "updatedAt": "2025-10-21T03:38:43.756Z",
+        "userAgent": "",
+        "createdAt": "2025-09-30T04:07:31.739Z",
+        "rateLimitStatus": "",
+        "lastUsedAt": "2025-10-21T03:38:29.190Z",
+        "quotaResetTime": "00:00",
+        "apiKey": "fb76772f988d1c96c778dba8bc9996e0:4b097f71ce2de0a591be8b072c162a3b6846f79b2ef200b699b959aaa3c4098097a107eb4c60f73daa1f7e28f662401ed503cb400eb30a2f99da3c9885480c08",
+        "rateLimitAutoStopped": "",
+        "lastResetDate": "2025-09-30",
+        "quotaAutoStopped": "",
+        "status": "active"
+      },
+      {
+        "stoppedReason": "",
+        "errorMessage": "",
+        "apiUrl": "https://agentrouter.org",
+        "dailyUsage": "0",
+        "dailyQuota": "0",
+        "proxy": "",
+        "accountType": "shared",
+        "quotaStoppedAt": "",
+        "supportedModels": "{}",
+        "platform": "claude-console",
+        "name": "agent-router-boo",
+        "description": "sk-rKp6FqCkXGZX3yTIgfoNFgvmTY002fnBsp4Hw4SdmHv2Yya3",
+        "rateLimitDuration": "60",
+        "id": "48458e5e-14cf-4f97-9f6f-7ccc2686cf3a",
+        "rateLimitedAt": "",
+        "autoStoppedAt": "",
+        "priority": "48",
+        "schedulable": "false",
+        "isActive": "true",
+        "updatedAt": "2025-10-24T09:31:59.753Z",
+        "userAgent": "",
+        "createdAt": "2025-10-19T14:38:30.087Z",
+        "rateLimitStatus": "",
+        "lastUsedAt": "2025-10-20T04:08:28.511Z",
+        "quotaResetTime": "00:00",
+        "apiKey": "6724e6f10b41c1ab09a6e6ded377eca1:f015f5b68f85f4556f45dc722659e300c741affa459fdd67f37b456d48f94cf3fa0981d7a1342d608313cc103c93932d47e8ea3f3a8df647f9ab5527f62d9d90",
+        "rateLimitAutoStopped": "",
+        "lastResetDate": "2025-10-19",
+        "quotaAutoStopped": "",
+        "status": "active"
+      },
+      {
+        "stoppedReason": "",
+        "errorMessage": "",
+        "dailyUsage": "0",
+        "apiUrl": "https://open.bigmodel.cn/api/anthropic",
+        "dailyQuota": "0",
+        "proxy": "",
+        "accountType": "shared",
+        "supportedModels": "{}",
+        "platform": "claude-console",
+        "name": "glm2-normal",
+        "description": "77f5df909ec5d0a9ad5509324dee1689.kEoGoiOsdkccFXu7",
+        "rateLimitDuration": "60",
+        "id": "17b4f988-073d-459b-861c-47c81ba96c78",
+        "autoStoppedAt": "",
+        "priority": "51",
+        "schedulable": "false",
+        "isActive": "true",
+        "updatedAt": "2025-10-28T06:01:30.955Z",
+        "userAgent": "",
+        "createdAt": "2025-10-28T00:21:35.420Z",
+        "lastUsedAt": "2025-10-28T04:06:24.744Z",
+        "quotaResetTime": "00:00",
+        "apiKey": "c659f94ae593d2bdde1aaf25a1f889d0:2a2ae6c69753e28f88aaea898127f2899dabf7c3dc038fe1227c1ab8e866a7ca1d81f77f69ce2937a6b66c7cae17fad21758cb981ce22cde0f6e8859dad3788f",
+        "rateLimitAutoStopped": "",
+        "lastResetDate": "2025-10-28",
+        "status": "active",
+        "quotaAutoStopped": ""
+      },
+      {
+        "stoppedReason": "",
+        "errorMessage": "",
+        "dailyUsage": "0",
+        "apiUrl": "https://api.minimaxi.com/anthropic",
+        "dailyQuota": "0",
+        "proxy": "",
+        "accountType": "shared",
+        "quotaStoppedAt": "",
+        "supportedModels": "{\"claude-opus-4-1-20250805\":\"MiniMax-M2\",\"claude-3-5-haiku-20241022\":\"MiniMax-M2\",\"claude-sonnet-4-5-20250929\":\"MiniMax-M2\",\"claude-haiku-4-5-20251001\":\"MiniMax-M2\"}",
+        "platform": "claude-console",
+        "name": "minimax",
+        "description": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJHcm91cE5hbWUiOiLpmYjliJfmlrAiLCJVc2VyTmFtZSI6IumZiOWIl-aWsCIsIkFjY291bnQiOiIiLCJTdWJqZWN0SUQiOiIxODk0NjI2NzcyMjUxNTc4NjgzIiwiUGhvbmUiOiIxMzgxMzg2NjcxOSIsIkdyb3VwSUQiOiIxODk0NjI2NzcyMjQzMTkwMDc1IiwiUGFnZU5hbWUiOiIiLCJNYWlsIjoiIiwiQ3JlYXRlVGltZSI6IjIwMjUtMTAtMjggMTE6Mzc6NDQiLCJUb2tlblR5cGUiOjEsImlzcyI6Im1pbmltYXgifQ.iuIwn7i2dE207LVNVPKQR7IhJdrPYm6cf2V-8jQM-ksi4qEp8OAnEgPuSESRwLueHN1ezPd5kssuGEq9zhzwVxWyeAVj8atdzNNsvSYn5I_HgT7eN6S3RZPTrl2waPmGa8pRtiBIHvQa_1q79Pa9uslQp_dVR-iMmtwQnh4rm7TR7MhVfFxSmoF5XptBDvQXmG1-WaJS-TabUFuiW9OwdE5lOXSnuvfmsXJNEJ8WXjYBSgY5cpkfa1bLOjJpEnplG9DzDp3j_FvwjOZFl2luLXKFoTJ39FFql7CaLCjsGm90r9cSwZPtAcL_4YuRDaQtZ4uezxmn5atKC72ORGOTOQ",
+        "rateLimitDuration": "60",
+        "id": "0a54baf8-852f-447b-9c45-ca447f3e86dd",
+        "autoStoppedAt": "",
+        "priority": "60",
+        "schedulable": "false",
+        "isActive": "true",
+        "updatedAt": "2025-11-15T07:32:04.568Z",
+        "userAgent": "",
+        "createdAt": "2025-10-28T03:38:19.304Z",
+        "lastUsedAt": "2025-11-15T07:31:36.083Z",
+        "quotaResetTime": "00:00",
+        "apiKey": "2ac75cbf39de70fb1c7deb0a61d19f2e:a752284b772794e9c50ba9b1692f7ca4ffd693fee074c1f6721698536fe22fb6de5445757944038f9561827e263e297e05c77ca5888fe805993800e3192ac1ec25cbdb50cc51189b795562280a7f917eece83aad1c50eed99181c50ec3e7fa2021ad6d8c84a8a44a4e364419127a1aee89e0a414241be9d09abf4963ad0878b615c83c80471b91c10c3751686c89f4c5c246e53e88a11692cc749740b3adf4fd066b70557c933406b9cce675e2eb126ad44bea9ade18ec48e7c2c1a581f2ce5216da0ec82eadfaea01d64a9930c040993996a5ef13a511653c5812111c4edb07ad77bec9352a7d84d385337ae95d22af340ba7062b20497fb321d6ca1cd5b5ffde9feff87a477ac70d5aea7a05c047c6b4671e9db03dbebec1968e7f17a1c95c2ef7f5c8e44093da6c5ce7116b3baf860cc10e6556ad969ba389e9e915bec2871fd23ed1ad1474bb789979dd4e923082f44070441d55f64a54e62cf12a020dab0f79725c2f48f7cae513daf5aaf0c7207c110b7a06cfb82b1a25c601bc1f31314e71c4c772272eef5a72a5e6e7229bf8e9fa6f1a8ab06505f5ca0a05a9e5b47670f61540e4ae4302c2a75db67a6df9f4f907b4d5b8903bc484f588ce6d7521d1a2de8e6a447f4cd0b18421f42d524c224a375ff0f72dfb50065942374b4877b1102026aa79763b2058cb406f4150167f7f7b83127adf4ac27c40d83c0b361564ed4309ffc366306ff96f5f1524c67059ce7b21713e6d07066bd54c873761a8973a0b450a5b058a922b4f7a99194d50c2e57445427feead6c2aa5c67947e2e171bae40002eb643aa0ed6a4d4d15c1a4231a49277412d490a0ab1308e527e39a6390a3ab980e2bd1ddd63acc61b5e6e3cfbd15c39008504cf22cc05550e78e6e4fc41753c95df4a8c6afa67a7fc133b9fab85f24dcb504754399563f243763044034d248178ef295a8816de439c4648999881e198da1f460bb631350624a4493a4",
+        "rateLimitAutoStopped": "",
+        "lastResetDate": "2025-10-28",
+        "status": "active",
+        "quotaAutoStopped": ""
+      },
+      {
+        "stoppedReason": "",
+        "errorMessage": "",
+        "apiUrl": "https://agentrouter.org",
+        "dailyUsage": "0",
+        "dailyQuota": "0",
+        "proxy": "",
+        "accountType": "shared",
+        "quotaStoppedAt": "",
+        "supportedModels": "{}",
+        "platform": "claude-console",
+        "name": "agent-router-lee",
+        "description": "sk-JMDG2oX58COFlZ0PpCMvp9gicu28aLecy0BVdazs0vRtPAyk",
+        "rateLimitDuration": "60",
+        "id": "daf51485-eb72-4cb7-9fce-332c54f57f93",
+        "rateLimitedAt": "",
+        "autoStoppedAt": "",
+        "priority": "48",
+        "schedulable": "false",
+        "isActive": "true",
+        "updatedAt": "2025-10-25T02:54:49.942Z",
+        "userAgent": "",
+        "createdAt": "2025-10-19T14:19:33.068Z",
+        "rateLimitStatus": "",
+        "lastUsedAt": "2025-10-25T02:50:19.242Z",
+        "quotaResetTime": "00:00",
+        "apiKey": "cc205b64f913605136d30a9259b9555d:c77f616aa9d62793278362c552d77fd70a30dc24babbf98c1f5c1cdb6bb84c4ba58c1c0b0c7dcd322a363d0571b46dac50bd9e3d0f8ffc0d7c1d362b74f6f34b",
+        "rateLimitAutoStopped": "",
+        "lastResetDate": "2025-10-19",
+        "quotaAutoStopped": "",
+        "status": "active"
+      },
+      {
+        "stoppedReason": "",
+        "errorMessage": "",
+        "dailyUsage": "0",
+        "apiUrl": "https://open.bigmodel.cn/api/anthropic",
+        "dailyQuota": "0",
+        "proxy": "",
+        "accountType": "shared",
+        "supportedModels": "{\"claude-3-5-haiku-20241022\":\"glm-4.5-air\",\"claude-opus-4-1-20250805\":\"glm-4.5-air\",\"claude-sonnet-4-5-20250929\":\"glm-4.5-air\",\"claude-haiku-4-5-20251001\":\"glm-4.5-air\"}",
+        "platform": "claude-console",
+        "name": "glm-low",
+        "description": "355cd9fe428245aab8bddb72d4224cbd.YwGwWDi26fQ6hASh",
+        "rateLimitDuration": "60",
+        "id": "d52a1e81-7900-4036-b9b7-14c96c4d6f58",
+        "autoStoppedAt": "",
+        "priority": "50",
+        "schedulable": "false",
+        "isActive": "true",
+        "updatedAt": "2025-10-18T05:44:11.752Z",
+        "userAgent": "",
+        "createdAt": "2025-09-18T07:02:35.532Z",
+        "lastUsedAt": "2025-10-18T05:43:02.007Z",
+        "quotaResetTime": "00:00",
+        "apiKey": "dfb98f65959a69c43e9dc3003630a7b1:8e3497cc8184e60365687235f525f1db26af05b8c0d6075230c49c105e067e4496d0e37ed5d49fe21494d398d5e87c446e4a4f21a61a455ca52d42b31757b155",
+        "rateLimitAutoStopped": "",
+        "lastResetDate": "2025-09-18",
+        "status": "active",
+        "quotaAutoStopped": ""
+      },
+      {
+        "stoppedReason": "",
+        "errorMessage": "",
+        "dailyUsage": "0",
+        "apiUrl": "https://api.kimi.com/coding/",
+        "dailyQuota": "0",
+        "proxy": "",
+        "accountType": "shared",
+        "quotaStoppedAt": "",
+        "supportedModels": "{}",
+        "platform": "claude-console",
+        "name": "kimi2",
+        "description": "sk-kimi-I1uj4ZbrQx0khncXVepjrRI1w1QQZ1UBgkFVHPARHKEMBYGLBYdMGXNnIAUzw7Sh",
+        "rateLimitDuration": "60",
+        "id": "27ffae4d-7280-4cb4-8bd7-a4439281418b",
+        "autoStoppedAt": "",
+        "priority": "40",
+        "schedulable": "true",
+        "isActive": "true",
+        "updatedAt": "2025-11-15T07:32:01.852Z",
+        "userAgent": "",
+        "createdAt": "2025-11-11T08:39:43.813Z",
+        "lastUsedAt": "2025-11-24T08:08:00.106Z",
+        "quotaResetTime": "00:00",
+        "apiKey": "ec2a6b5074567007c2fd02ef6f9e9cb8:1c2402def71f9c63427334ce50b711f09e6a56cba108e02cc6b89a921d12e813dd1f188a2eaf5389b1a20d88cca3a4b1b1980aa3d0efbc5bcae78b7754097c8fadb979d243dfabf693b77b08d120d21f",
+        "lastResetDate": "2025-11-11",
+        "status": "active",
+        "quotaAutoStopped": ""
+      },
+      {
+        "stoppedReason": "",
+        "errorMessage": "",
+        "apiUrl": "https://api.gpt.ge/v1",
+        "dailyUsage": "0",
+        "dailyQuota": "0",
+        "proxy": "",
+        "accountType": "shared",
+        "quotaStoppedAt": "",
+        "supportedModels": "{}",
+        "platform": "claude-console",
+        "name": "gpt.ge",
+        "description": "sk-jtv1GwFRTYMBwFuzE45aB9D0Bf69445c9d51Dc0b4eCa67Db",
+        "id": "7f75ec51-b579-4fe8-b015-5e625767657f",
+        "rateLimitDuration": "60",
+        "rateLimitedAt": "",
+        "autoStoppedAt": "",
+        "priority": "50",
+        "subscriptionExpiresAt": "",
+        "schedulable": "false",
+        "isActive": "true",
+        "updatedAt": "2025-11-13T11:04:07.783Z",
+        "userAgent": "",
+        "createdAt": "2025-11-13T11:03:56.904Z",
+        "rateLimitStatus": "",
+        "lastUsedAt": "",
+        "quotaResetTime": "00:00",
+        "apiKey": "4094ce6d5c09d35d4fbb4887294d2072:6ec5174b5ac87731660445d6b07de26151270d26b1e3dbd2cbf568fb0443127c8790d30f1f60321e4028e19629f4787f2be7eb491589a0d091a90d81ce2e5888",
+        "rateLimitAutoStopped": "",
+        "lastResetDate": "2025-11-13",
+        "quotaAutoStopped": "",
+        "status": "active"
+      }
+    ],
+    "openaiAccounts": [],
+    "openaiResponsesAccounts": [
+      {
+        "errorMessage": "",
+        "dailyUsage": "0",
+        "dailyQuota": "0",
+        "proxy": "",
+        "accountType": "shared",
+        "quotaStoppedAt": "",
+        "platform": "openai-responses",
+        "name": "leeson转发codex",
+        "description": "cr_dc8c3a7be5381c0e18c5f4a6f01baf99b84f3ee820ee09464eaee0303be2b7ef",
+        "totalUsedTokens": "121814076",
+        "rateLimitDuration": "60",
+        "id": "e0a775e5-1218-4314-9651-f97133aec9a2",
+        "rateLimitedAt": "",
+        "priority": "50",
+        "schedulable": "false",
+        "isActive": "true",
+        "baseApi": "http://cc.leeson.top/openai",
+        "userAgent": "",
+        "createdAt": "2025-09-24T02:10:07.514Z",
+        "rateLimitStatus": "",
+        "lastUsedAt": "2025-10-06T03:20:26.186Z",
+        "quotaResetTime": "00:00",
+        "apiKey": "cr_dc8c3a7be5381c0e18c5f4a6f01baf99b84f3ee820ee09464eaee0303be2b7ef",
+        "modelMapping": "",
+        "lastResetDate": "2025-11-24",
+        "status": "active"
+      },
+      {
+        "errorMessage": "",
+        "dailyUsage": "0",
+        "dailyQuota": "0",
+        "proxy": "",
+        "accountType": "shared",
+        "quotaStoppedAt": "",
+        "platform": "openai-responses",
+        "name": "anyrouter-codex",
+        "description": "sk-ah6coK1ZCu6jNeYkOEYiTyOE6InE0N7ecr24dmPDwcIQrXHG",
+        "totalUsedTokens": "62397560",
+        "rateLimitDuration": "60",
+        "id": "8a983f2a-e8ad-4129-8823-7d081c5f3e6a",
+        "rateLimitedAt": "",
+        "priority": "50",
+        "schedulable": "false",
+        "isActive": "true",
+        "baseApi": "https://q.quuvv.cn/v1",
+        "userAgent": "",
+        "createdAt": "2025-10-16T00:01:48.413Z",
+        "rateLimitStatus": "",
+        "lastUsedAt": "2025-11-10T10:07:45.395Z",
+        "quotaResetTime": "00:00",
+        "apiKey": "sk-ah6coK1ZCu6jNeYkOEYiTyOE6InE0N7ecr24dmPDwcIQrXHG",
+        "modelMapping": "",
+        "lastResetDate": "2025-11-24",
+        "status": "active"
+      },
+      {
+        "errorMessage": "",
+        "dailyUsage": "0",
+        "dailyQuota": "0",
+        "proxy": "",
+        "accountType": "shared",
+        "quotaStoppedAt": "",
+        "platform": "openai-responses",
+        "name": "mirror转发codex",
+        "description": "sk-2xY7KDM8KUcRJAHLF7pQfcJFacfEpoNuAeuziitbUXQtAmmW\nsk-YEuG35ObKsVzQu55OEgdmXxFD3YeaT7tq8VZd4CJrueiuerD",
+        "totalUsedTokens": "3682944",
+        "rateLimitDuration": "60",
+        "id": "f83aab81-67b1-4494-92e6-f63e474773f4",
+        "rateLimitedAt": "",
+        "priority": "50",
+        "schedulable": "false",
+        "isActive": "true",
+        "baseApi": "https://api.codemirror.codes/v1",
+        "userAgent": "",
+        "createdAt": "2025-09-30T04:08:07.407Z",
+        "rateLimitStatus": "",
+        "lastUsedAt": "2025-11-13T12:13:06.731Z",
+        "quotaResetTime": "00:00",
+        "apiKey": "sk-2xY7KDM8KUcRJAHLF7pQfcJFacfEpoNuAeuziitbUXQtAmmW",
+        "modelMapping": "",
+        "lastResetDate": "2025-11-24",
+        "status": "active"
+      },
+      {
+        "errorMessage": "",
+        "dailyUsage": "0",
+        "dailyQuota": "0",
+        "proxy": "",
+        "accountType": "shared",
+        "quotaStoppedAt": "",
+        "platform": "openai-responses",
+        "name": "agent-router-lee-codex",
+        "description": "sk-JMDG2oX58COFlZ0PpCMvp9gicu28aLecy0BVdazs0vRtPAyk\nsk-YweFzYwXMuFh6V9p1tT5a8tDf7nH2ys8Nog4DC9p4DwGmHDO",
+        "totalUsedTokens": "150",
+        "rateLimitDuration": "60",
+        "id": "b25e6048-da32-40ab-8f07-8b82605e7338",
+        "rateLimitedAt": "",
+        "priority": "50",
+        "schedulable": "false",
+        "isActive": "true",
+        "baseApi": "https://agentrouter.org/v1",
+        "userAgent": "",
+        "createdAt": "2025-10-20T03:45:50.679Z",
+        "rateLimitStatus": "",
+        "lastUsedAt": "2025-11-13T12:12:36.460Z",
+        "quotaResetTime": "00:00",
+        "apiKey": "sk-YweFzYwXMuFh6V9p1tT5a8tDf7nH2ys8Nog4DC9p4DwGmHDO",
+        "modelMapping": "",
+        "lastResetDate": "2025-11-24",
+        "status": "active"
+      },
+      {
+        "errorMessage": "",
+        "dailyUsage": "0",
+        "dailyQuota": "0",
+        "proxy": "",
+        "accountType": "shared",
+        "quotaStoppedAt": "",
+        "supportedModels": "{\"gpt-5\":\"codex-MiniMax-M2\",\"gpt-5-codex\":\"codex-MiniMax-M2\"}",
+        "platform": "openai-responses",
+        "name": "minimax-codex",
+        "description": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJHcm91cE5hbWUiOiLpmYjliJfmlrAiLCJVc2VyTmFtZSI6IumZiOWIl-aWsCIsIkFjY291bnQiOiIiLCJTdWJqZWN0SUQiOiIxODk0NjI2NzcyMjUxNTc4NjgzIiwiUGhvbmUiOiIxMzgxMzg2NjcxOSIsIkdyb3VwSUQiOiIxODk0NjI2NzcyMjQzMTkwMDc1IiwiUGFnZU5hbWUiOiIiLCJNYWlsIjoiIiwiQ3JlYXRlVGltZSI6IjIwMjUtMTAtMjggMTE6Mzc6NDQiLCJUb2tlblR5cGUiOjEsImlzcyI6Im1pbmltYXgifQ.iuIwn7i2dE207LVNVPKQR7IhJdrPYm6cf2V-8jQM-ksi4qEp8OAnEgPuSESRwLueHN1ezPd5kssuGEq9zhzwVxWyeAVj8atdzNNsvSYn5I_HgT7eN6S3RZPTrl2waPmGa8pRtiBIHvQa_1q79Pa9uslQp_dVR-iMmtwQnh4rm7TR7MhVfFxSmoF5XptBDvQXmG1-WaJS-TabUFuiW9OwdE5lOXSnuvfmsXJNEJ8WXjYBSgY5cpkfa1bLOjJpEnplG9DzDp3j_FvwjOZFl2luLXKFoTJ39FFql7CaLCjsGm90r9cSwZPtAcL_4YuRDaQtZ4uezxmn5atKC72ORGOTOQ",
+        "totalUsedTokens": "951345",
+        "rateLimitDuration": "60",
+        "id": "73a0d574-8aff-4e06-87ba-699d8f2b1bf0",
+        "rateLimitedAt": "",
+        "priority": "50",
+        "subscriptionExpiresAt": "",
+        "schedulable": "false",
+        "isActive": "true",
+        "baseApi": "https://api.minimaxi.com/v1",
+        "userAgent": "",
+        "createdAt": "2025-11-13T10:50:41.116Z",
+        "rateLimitStatus": "",
+        "lastUsedAt": "2025-11-14T02:24:13.259Z",
+        "quotaResetTime": "00:00",
+        "apiKey": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJHcm91cE5hbWUiOiLpmYjliJfmlrAiLCJVc2VyTmFtZSI6IumZiOWIl-aWsCIsIkFjY291bnQiOiIiLCJTdWJqZWN0SUQiOiIxODk0NjI2NzcyMjUxNTc4NjgzIiwiUGhvbmUiOiIxMzgxMzg2NjcxOSIsIkdyb3VwSUQiOiIxODk0NjI2NzcyMjQzMTkwMDc1IiwiUGFnZU5hbWUiOiIiLCJNYWlsIjoiIiwiQ3JlYXRlVGltZSI6IjIwMjUtMTAtMjggMTE6Mzc6NDQiLCJUb2tlblR5cGUiOjEsImlzcyI6Im1pbmltYXgifQ.iuIwn7i2dE207LVNVPKQR7IhJdrPYm6cf2V-8jQM-ksi4qEp8OAnEgPuSESRwLueHN1ezPd5kssuGEq9zhzwVxWyeAVj8atdzNNsvSYn5I_HgT7eN6S3RZPTrl2waPmGa8pRtiBIHvQa_1q79Pa9uslQp_dVR-iMmtwQnh4rm7TR7MhVfFxSmoF5XptBDvQXmG1-WaJS-TabUFuiW9OwdE5lOXSnuvfmsXJNEJ8WXjYBSgY5cpkfa1bLOjJpEnplG9DzDp3j_FvwjOZFl2luLXKFoTJ39FFql7CaLCjsGm90r9cSwZPtAcL_4YuRDaQtZ4uezxmn5atKC72ORGOTOQ",
+        "lastResetDate": "2025-11-24",
+        "status": "active"
+      }
+    ],
+    "openaiChatAccounts": [],
+    "geminiAccounts": [],
+    "admins": [],
+    "globalModelStats": {
+      "daily": {
+        "2025-10-29": {
+          "glm-4.5-air": {
+            "inputTokens": "5617",
+            "outputTokens": "7505",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "56",
+            "allTokens": "13178",
+            "requests": "8"
+          },
+          "MiniMax-M2": {
+            "inputTokens": "902723",
+            "outputTokens": "38397",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "941120",
+            "requests": "87"
+          },
+          "glm-4.6": {
+            "inputTokens": "1406487",
+            "outputTokens": "492530",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "729856",
+            "allTokens": "2628873",
+            "requests": "3518"
+          },
+          "claude-sonnet-4-5-20250929": {
+            "inputTokens": "273",
+            "outputTokens": "7130",
+            "cacheCreateTokens": "2082620",
+            "cacheReadTokens": "1392793",
+            "allTokens": "3482816",
+            "requests": "26"
+          },
+          "claude-haiku-4-5-20251001": {
+            "inputTokens": "12610",
+            "outputTokens": "631",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "13241",
+            "requests": "20"
+          }
+        },
+        "2025-10-23": {
+          "glm-4.6": {
+            "inputTokens": "14158",
+            "outputTokens": "344424",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "1624156",
+            "allTokens": "1982738",
+            "requests": "1936"
+          }
+        },
+        "2025-10-27": {
+          "glm-4.6": {
+            "inputTokens": "305329",
+            "outputTokens": "389453",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "770871",
+            "allTokens": "1465653",
+            "requests": "1941"
+          }
+        },
+        "2025-11-14": {
+          "MiniMax-M2": {
+            "inputTokens": "312061",
+            "outputTokens": "178006",
+            "cacheCreateTokens": "2086129",
+            "cacheReadTokens": "19657130",
+            "allTokens": "22233326",
+            "requests": "454"
+          },
+          "gpt-5.1-codex": {
+            "inputTokens": "10030",
+            "outputTokens": "31",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "10061",
+            "requests": "2"
+          }
+        },
+        "2025-11-04": {
+          "glm-4.6": {
+            "inputTokens": "0",
+            "outputTokens": "102788",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "102788",
+            "requests": "331"
+          },
+          "MiniMax-M2": {
+            "inputTokens": "6930987",
+            "outputTokens": "35143",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "6966130",
+            "requests": "83"
+          }
+        },
+        "2025-10-20": {
+          "claude-haiku-4-5-20251001": {
+            "inputTokens": "5068",
+            "outputTokens": "285",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "5353",
+            "requests": "6"
+          },
+          "claude-sonnet-4-5-20250929": {
+            "inputTokens": "3974202",
+            "outputTokens": "29972",
+            "cacheCreateTokens": "61530",
+            "cacheReadTokens": "830655",
+            "allTokens": "4896359",
+            "requests": "59"
+          },
+          "glm-4.6": {
+            "inputTokens": "125081",
+            "outputTokens": "245331",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "288618",
+            "allTokens": "659030",
+            "requests": "1721"
+          }
+        },
+        "2025-11-05": {
+          "gpt-5-codex": {
+            "inputTokens": "19607",
+            "outputTokens": "253",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "19860",
+            "requests": "3"
+          },
+          "glm-4.6": {
+            "inputTokens": "0",
+            "outputTokens": "123178",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "123178",
+            "requests": "399"
+          },
+          "MiniMax-M2": {
+            "inputTokens": "3244464",
+            "outputTokens": "22291",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "3266755",
+            "requests": "86"
+          }
+        },
+        "2025-10-21": {
+          "claude-sonnet-4-20250514": {
+            "inputTokens": "44",
+            "outputTokens": "127",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "171",
+            "requests": "2"
+          },
+          "glm-4.6": {
+            "inputTokens": "457048",
+            "outputTokens": "518049",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "1177031",
+            "allTokens": "2152128",
+            "requests": "2388"
+          },
+          "claude-3-5-haiku-20241022": {
+            "inputTokens": "22",
+            "outputTokens": "42",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "64",
+            "requests": "1"
+          }
+        },
+        "2025-10-13": {
+          "glm-4.5-air": {
+            "inputTokens": "0",
+            "outputTokens": "21002",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "21002",
+            "requests": "614"
+          },
+          "glm-4.6": {
+            "inputTokens": "106298",
+            "outputTokens": "329802",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "139456",
+            "allTokens": "575556",
+            "requests": "1262"
+          }
+        },
+        "2025-10-12": {
+          "glm-4.6": {
+            "inputTokens": "0",
+            "outputTokens": "30875",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "30875",
+            "requests": "159"
+          },
+          "glm-4.5-air": {
+            "inputTokens": "0",
+            "outputTokens": "3759",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "3759",
+            "requests": "97"
+          }
+        },
+        "2025-10-25": {
+          "gpt-5-codex": {
+            "inputTokens": "10372115",
+            "outputTokens": "100942",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "2547840",
+            "allTokens": "13020897",
+            "requests": "217"
+          },
+          "glm-4.6": {
+            "inputTokens": "3256",
+            "outputTokens": "440312",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "495904",
+            "allTokens": "939472",
+            "requests": "2201"
+          }
+        },
+        "2025-11-22": {
+          "kimi-for-coding": {
+            "inputTokens": "456",
+            "outputTokens": "2689",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "3145",
+            "requests": "2"
+          }
+        },
+        "2025-10-16": {
+          "glm-4.6": {
+            "inputTokens": "152258",
+            "outputTokens": "214274",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "476192",
+            "allTokens": "842724",
+            "requests": "975"
+          },
+          "claude-sonnet-4-5-20250929": {
+            "inputTokens": "185",
+            "outputTokens": "11496",
+            "cacheCreateTokens": "544531",
+            "cacheReadTokens": "1954169",
+            "allTokens": "2510381",
+            "requests": "22"
+          },
+          "glm-4.5-air": {
+            "inputTokens": "0",
+            "outputTokens": "798",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "798",
+            "requests": "24"
+          },
+          "gpt-5-codex": {
+            "inputTokens": "15626721",
+            "outputTokens": "109342",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "8276736",
+            "allTokens": "24012799",
+            "requests": "244"
+          },
+          "claude-3-5-haiku-20241022": {
+            "inputTokens": "25816",
+            "outputTokens": "648",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "26464",
+            "requests": "31"
+          }
+        },
+        "2025-11-13": {
+          "kimi-for-coding": {
+            "inputTokens": "2983990",
+            "outputTokens": "8363",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "2992353",
+            "requests": "132"
+          },
+          "gpt-5.1-codex": {
+            "inputTokens": "5015",
+            "outputTokens": "16",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "5031",
+            "requests": "1"
+          },
+          "gpt-5-codex": {
+            "inputTokens": "951293",
+            "outputTokens": "0",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "951293",
+            "requests": "64"
+          },
+          "gpt-5": {
+            "inputTokens": "100",
+            "outputTokens": "50",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "150",
+            "requests": "1"
+          },
+          "MiniMax-M2": {
+            "inputTokens": "298575",
+            "outputTokens": "173653",
+            "cacheCreateTokens": "3772724",
+            "cacheReadTokens": "38405547",
+            "allTokens": "42650499",
+            "requests": "553"
+          }
+        },
+        "2025-10-19": {
+          "claude-haiku-4-5-20251001": {
+            "inputTokens": "8257",
+            "outputTokens": "881",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "9138",
+            "requests": "3"
+          },
+          "claude-3-5-haiku-20241022": {
+            "inputTokens": "85",
+            "outputTokens": "136",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "221",
+            "requests": "3"
+          },
+          "glm-4.6": {
+            "inputTokens": "623",
+            "outputTokens": "94670",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "126432",
+            "allTokens": "221725",
+            "requests": "424"
+          },
+          "claude-sonnet-4-5-20250929": {
+            "inputTokens": "257123",
+            "outputTokens": "406",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "257529",
+            "requests": "2"
+          }
+        },
+        "2025-10-22": {
+          "glm-4.6": {
+            "inputTokens": "247528",
+            "outputTokens": "291817",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "633105",
+            "allTokens": "1172450",
+            "requests": "1551"
+          }
+        },
+        "2025-10-17": {
+          "glm-4.6": {
+            "inputTokens": "253786",
+            "outputTokens": "221387",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "640",
+            "allTokens": "475813",
+            "requests": "819"
+          },
+          "gpt-5-codex": {
+            "inputTokens": "12392819",
+            "outputTokens": "33068",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "16436480",
+            "allTokens": "28862367",
+            "requests": "122"
+          }
+        },
+        "2025-10-30": {
+          "glm-4.5-air": {
+            "inputTokens": "905648",
+            "outputTokens": "10054",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "62",
+            "allTokens": "915764",
+            "requests": "14"
+          },
+          "glm-4.6": {
+            "inputTokens": "680155",
+            "outputTokens": "43932",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "724087",
+            "requests": "172"
+          },
+          "claude-3-5-haiku-20241022": {
+            "inputTokens": "1704",
+            "outputTokens": "1170",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "2874",
+            "requests": "5"
+          },
+          "MiniMax-M2": {
+            "inputTokens": "119773513",
+            "outputTokens": "561579",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "120335092",
+            "requests": "1513"
+          }
+        },
+        "2025-11-11": {
+          "glm-4.5-air": {
+            "inputTokens": "15",
+            "outputTokens": "65",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "53",
+            "allTokens": "133",
+            "requests": "2"
+          },
+          "glm-4.6": {
+            "inputTokens": "131996",
+            "outputTokens": "20540",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "152633",
+            "allTokens": "305169",
+            "requests": "149"
+          },
+          "MiniMax-M2": {
+            "inputTokens": "73159113",
+            "outputTokens": "413543",
+            "cacheCreateTokens": "2264859",
+            "cacheReadTokens": "17123165",
+            "allTokens": "92960680",
+            "requests": "1106"
+          },
+          "claude-haiku-4-5-20251001": {
+            "inputTokens": "388",
+            "outputTokens": "70",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "458",
+            "requests": "3"
+          }
+        },
+        "2025-11-10": {
+          "glm-4.6": {
+            "inputTokens": "372372",
+            "outputTokens": "60174",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "1504",
+            "allTokens": "434050",
+            "requests": "341"
+          },
+          "kimi-for-coding": {
+            "inputTokens": "102467",
+            "outputTokens": "168",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "102635",
+            "requests": "1"
+          },
+          "claude-3-5-haiku-20241022": {
+            "inputTokens": "16032",
+            "outputTokens": "101",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "16133",
+            "requests": "2"
+          },
+          "gpt-5-codex": {
+            "inputTokens": "5015",
+            "outputTokens": "9",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "5024",
+            "requests": "1"
+          },
+          "MiniMax-M2": {
+            "inputTokens": "91060001",
+            "outputTokens": "428967",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "91488968",
+            "requests": "1390"
+          }
+        },
+        "2025-11-08": {
+          "glm-4.6": {
+            "inputTokens": "0",
+            "outputTokens": "6069",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "6069",
+            "requests": "20"
+          },
+          "MiniMax-M2": {
+            "inputTokens": "42290967",
+            "outputTokens": "314416",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "42605383",
+            "requests": "834"
+          }
+        },
+        "2025-10-15": {
+          "glm-4.5-air": {
+            "inputTokens": "0",
+            "outputTokens": "27221",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "27221",
+            "requests": "781"
+          },
+          "glm-4.6": {
+            "inputTokens": "864161",
+            "outputTokens": "443674",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "805344",
+            "allTokens": "2113179",
+            "requests": "1332"
+          }
+        },
+        "2025-11-01": {
+          "glm-4.6": {
+            "inputTokens": "11383",
+            "outputTokens": "324695",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "416840",
+            "allTokens": "752918",
+            "requests": "1537"
+          },
+          "claude-haiku-4-5-20251001": {
+            "inputTokens": "71365",
+            "outputTokens": "1303",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "72668",
+            "requests": "30"
+          },
+          "MiniMax-M2": {
+            "inputTokens": "36134172",
+            "outputTokens": "106494",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "36240666",
+            "requests": "439"
+          },
+          "claude-sonnet-4-5-20250929": {
+            "inputTokens": "1250",
+            "outputTokens": "82002",
+            "cacheCreateTokens": "5572297",
+            "cacheReadTokens": "7688079",
+            "allTokens": "13343628",
+            "requests": "113"
+          }
+        },
+        "2025-10-28": {
+          "glm-4.6": {
+            "inputTokens": "172653",
+            "outputTokens": "334596",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "901312",
+            "allTokens": "1408561",
+            "requests": "1991"
+          },
+          "MiniMax-M2": {
+            "inputTokens": "455426",
+            "outputTokens": "138164",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "593590",
+            "requests": "450"
+          },
+          "glm-4.5-air": {
+            "inputTokens": "5756",
+            "outputTokens": "5436",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "272",
+            "allTokens": "11464",
+            "requests": "25"
+          }
+        },
+        "2025-10-14": {
+          "glm-4.6": {
+            "inputTokens": "1669",
+            "outputTokens": "253895",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "90720",
+            "allTokens": "346284",
+            "requests": "823"
+          },
+          "glm-4.5-air": {
+            "inputTokens": "0",
+            "outputTokens": "16748",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "16748",
+            "requests": "450"
+          }
+        },
+        "2025-11-03": {
+          "MiniMax-M2": {
+            "inputTokens": "28439316",
+            "outputTokens": "108975",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "28548291",
+            "requests": "285"
+          },
+          "glm-4.6": {
+            "inputTokens": "0",
+            "outputTokens": "30108",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "30108",
+            "requests": "47"
+          }
+        },
+        "2025-11-15": {
+          "kimi-for-coding": {
+            "inputTokens": "12514493",
+            "outputTokens": "57438",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "12571931",
+            "requests": "167"
+          },
+          "MiniMax-M2": {
+            "inputTokens": "102818",
+            "outputTokens": "26700",
+            "cacheCreateTokens": "1160330",
+            "cacheReadTokens": "8338684",
+            "allTokens": "9628532",
+            "requests": "88"
+          }
+        },
+        "2025-11-12": {
+          "MiniMax-M2": {
+            "inputTokens": "692071",
+            "outputTokens": "238376",
+            "cacheCreateTokens": "5201681",
+            "cacheReadTokens": "41284006",
+            "allTokens": "47416134",
+            "requests": "665"
+          }
+        },
+        "2025-11-07": {
+          "MiniMax-M2": {
+            "inputTokens": "33760838",
+            "outputTokens": "166201",
+            "cacheCreateTokens": "3344",
+            "cacheReadTokens": "0",
+            "allTokens": "33930383",
+            "requests": "460"
+          },
+          "glm-4.6": {
+            "inputTokens": "0",
+            "outputTokens": "18559",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "18559",
+            "requests": "33"
+          }
+        },
+        "2025-11-24": {
+          "kimi-for-coding": {
+            "inputTokens": "26641932",
+            "outputTokens": "114547",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "26756479",
+            "requests": "611"
+          }
+        },
+        "2025-11-09": {
+          "glm-4.6": {
+            "inputTokens": "0",
+            "outputTokens": "1422",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "1422",
+            "requests": "5"
+          },
+          "MiniMax-M2": {
+            "inputTokens": "907",
+            "outputTokens": "7475",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "8382",
+            "requests": "2"
+          }
+        },
+        "2025-10-31": {
+          "glm-4.6": {
+            "inputTokens": "4510",
+            "outputTokens": "163973",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "63296",
+            "allTokens": "231779",
+            "requests": "1096"
+          },
+          "MiniMax-M2": {
+            "inputTokens": "80221632",
+            "outputTokens": "422483",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "80644115",
+            "requests": "1049"
+          }
+        },
+        "2025-11-02": {
+          "glm-4.6": {
+            "inputTokens": "2800",
+            "outputTokens": "24926",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "27726",
+            "requests": "23"
+          },
+          "MiniMax-M2": {
+            "inputTokens": "115391235",
+            "outputTokens": "420384",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "115811619",
+            "requests": "1135"
+          }
+        },
+        "2025-10-18": {
+          "glm-4.6": {
+            "inputTokens": "276278",
+            "outputTokens": "681253",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "536960",
+            "allTokens": "1494491",
+            "requests": "3107"
+          },
+          "glm-4.5-air": {
+            "inputTokens": "374128",
+            "outputTokens": "237591",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "253352",
+            "allTokens": "865071",
+            "requests": "656"
+          }
+        },
+        "2025-11-06": {
+          "glm-4.6": {
+            "inputTokens": "0",
+            "outputTokens": "22672",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "22672",
+            "requests": "40"
+          },
+          "gpt-5-codex": {
+            "inputTokens": "148021",
+            "outputTokens": "2239",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "150260",
+            "requests": "13"
+          },
+          "MiniMax-M2": {
+            "inputTokens": "16003183",
+            "outputTokens": "63483",
+            "cacheCreateTokens": "4342",
+            "cacheReadTokens": "0",
+            "allTokens": "16071008",
+            "requests": "246"
+          }
+        },
+        "2025-10-24": {
+          "glm-4.6": {
+            "inputTokens": "133488",
+            "outputTokens": "420640",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "612800",
+            "allTokens": "1166928",
+            "requests": "1968"
+          }
+        },
+        "2025-10-26": {
+          "glm-4.6": {
+            "inputTokens": "5838",
+            "outputTokens": "168382",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "553248",
+            "allTokens": "727468",
+            "requests": "863"
+          }
+        },
+        "2025-11-19": {
+          "kimi-for-coding": {
+            "inputTokens": "394",
+            "outputTokens": "94",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "488",
+            "requests": "1"
+          }
+        }
+      },
+      "monthly": {
+        "2025-09": {
+          "claude-3-5-haiku-20241022": {
+            "inputTokens": "6462226",
+            "outputTokens": "485437",
+            "cacheCreateTokens": "1106834",
+            "cacheReadTokens": "18115539",
+            "allTokens": "26170036",
+            "requests": "4188"
+          },
+          "claude-opus-4-1-20250805": {
+            "inputTokens": "411",
+            "outputTokens": "76051",
+            "cacheCreateTokens": "1585643",
+            "cacheReadTokens": "5446038",
+            "allTokens": "7108143",
+            "requests": "105"
+          },
+          "claude-sonnet-4-5-20250929": {
+            "inputTokens": "2250",
+            "outputTokens": "123957",
+            "cacheCreateTokens": "4956848",
+            "cacheReadTokens": "23884660",
+            "allTokens": "28967715",
+            "requests": "285"
+          },
+          "gpt-5-codex-medium": {
+            "inputTokens": "70",
+            "outputTokens": "32",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "2048",
+            "allTokens": "2150",
+            "requests": "1"
+          },
+          "gpt-5-2025-08-07": {
+            "inputTokens": "176",
+            "outputTokens": "29",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "9856",
+            "allTokens": "10061",
+            "requests": "2"
+          },
+          "glm-4.5-air": {
+            "inputTokens": "0",
+            "outputTokens": "3960",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "3960",
+            "requests": "97"
+          },
+          "glm-4.5": {
+            "inputTokens": "261814",
+            "outputTokens": "117415",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "301",
+            "allTokens": "379530",
+            "requests": "185"
+          },
+          "claude-sonnet-4-20250514": {
+            "inputTokens": "112280",
+            "outputTokens": "5243758",
+            "cacheCreateTokens": "80152114",
+            "cacheReadTokens": "889742297",
+            "allTokens": "975250449",
+            "requests": "10615"
+          },
+          "claude-opus-4-20250514": {
+            "inputTokens": "53",
+            "outputTokens": "159",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "212",
+            "requests": "1"
+          }
+        },
+        "2025-11": {
+          "gpt-5": {
+            "inputTokens": "100",
+            "outputTokens": "50",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "150",
+            "requests": "1"
+          },
+          "gpt-5.1-codex": {
+            "inputTokens": "5015",
+            "outputTokens": "16",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "5031",
+            "requests": "1"
+          },
+          "claude-3-5-haiku-20241022": {
+            "inputTokens": "16032",
+            "outputTokens": "101",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "16133",
+            "requests": "2"
+          },
+          "claude-sonnet-4-5-20250929": {
+            "inputTokens": "1250",
+            "outputTokens": "82002",
+            "cacheCreateTokens": "5572297",
+            "cacheReadTokens": "7688079",
+            "allTokens": "13343628",
+            "requests": "113"
+          },
+          "glm-4.5-air": {
+            "inputTokens": "15",
+            "outputTokens": "65",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "53",
+            "allTokens": "133",
+            "requests": "2"
+          },
+          "glm-4.6": {
+            "inputTokens": "518551",
+            "outputTokens": "735131",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "570977",
+            "allTokens": "1824659",
+            "requests": "2925"
+          },
+          "claude-haiku-4-5-20251001": {
+            "inputTokens": "71753",
+            "outputTokens": "1373",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "73126",
+            "requests": "33"
+          },
+          "kimi-for-coding": {
+            "inputTokens": "39259742",
+            "outputTokens": "174936",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "39434678",
+            "requests": "782"
+          },
+          "MiniMax-M2": {
+            "inputTokens": "447820708",
+            "outputTokens": "2704107",
+            "cacheCreateTokens": "14493409",
+            "cacheReadTokens": "124808532",
+            "allTokens": "589826756",
+            "requests": "7826"
+          },
+          "gpt-5-codex": {
+            "inputTokens": "1123936",
+            "outputTokens": "2501",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "1126437",
+            "requests": "81"
+          }
+        },
+        "2025-10": {
+          "claude-haiku-4-5-20251001": {
+            "inputTokens": "25935",
+            "outputTokens": "1797",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "27732",
+            "requests": "29"
+          },
+          "glm-4.5-air": {
+            "inputTokens": "1291149",
+            "outputTokens": "421219",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "253742",
+            "allTokens": "1966110",
+            "requests": "5469"
+          },
+          "gpt-5-codex-medium": {
+            "inputTokens": "59",
+            "outputTokens": "9",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "2048",
+            "allTokens": "2116",
+            "requests": "1"
+          },
+          "gpt-5-2025-08-07": {
+            "inputTokens": "153",
+            "outputTokens": "15",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "4864",
+            "allTokens": "5032",
+            "requests": "1"
+          },
+          "glm-4.6": {
+            "inputTokens": "6103488",
+            "outputTokens": "7273939",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "11059828",
+            "allTokens": "24437255",
+            "requests": "34266"
+          },
+          "claude-sonnet-4-5-20250929": {
+            "inputTokens": "4333585",
+            "outputTokens": "1779114",
+            "cacheCreateTokens": "44259673",
+            "cacheReadTokens": "263254219",
+            "allTokens": "313626591",
+            "requests": "2868"
+          },
+          "glm-4.5": {
+            "inputTokens": "0",
+            "outputTokens": "94545",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "94545",
+            "requests": "133"
+          },
+          "claude-3-5-haiku-20241022": {
+            "inputTokens": "42955984",
+            "outputTokens": "150686",
+            "cacheCreateTokens": "60705",
+            "cacheReadTokens": "6533707",
+            "allTokens": "49701082",
+            "requests": "69734"
+          },
+          "claude-sonnet-4-20250514": {
+            "inputTokens": "899",
+            "outputTokens": "137350",
+            "cacheCreateTokens": "3015884",
+            "cacheReadTokens": "24059208",
+            "allTokens": "27213341",
+            "requests": "279"
+          },
+          "MiniMax-M2": {
+            "inputTokens": "201353294",
+            "outputTokens": "1160623",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "202513917",
+            "requests": "3099"
+          },
+          "gpt-5-codex": {
+            "inputTokens": "44130462",
+            "outputTokens": "639694",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "142929920",
+            "allTokens": "187700076",
+            "requests": "1656"
+          },
+          "claude-3-5-sonnet-20241022": {
+            "inputTokens": "96620",
+            "outputTokens": "200",
+            "cacheCreateTokens": "10951",
+            "cacheReadTokens": "5305",
+            "allTokens": "113076",
+            "requests": "153"
+          }
+        }
+      },
+      "hourly": {
+        "2025-11-11:17": {
+          "MiniMax-M2": {
+            "inputTokens": "23967",
+            "outputTokens": "18803",
+            "cacheCreateTokens": "217499",
+            "cacheReadTokens": "3156681",
+            "allTokens": "3416950",
+            "requests": "45"
+          }
+        },
+        "2025-11-08:17": {
+          "glm-4.6": {
+            "inputTokens": "0",
+            "outputTokens": "510",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "510",
+            "requests": "2"
+          },
+          "MiniMax-M2": {
+            "inputTokens": "1158",
+            "outputTokens": "8304",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "9462",
+            "requests": "2"
+          }
+        },
+        "2025-11-06:19": {
+          "glm-4.6": {
+            "inputTokens": "0",
+            "outputTokens": "3339",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "3339",
+            "requests": "8"
+          }
+        },
+        "2025-11-06:23": {
+          "glm-4.6": {
+            "inputTokens": "0",
+            "outputTokens": "1755",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "1755",
+            "requests": "3"
+          }
+        },
+        "2025-11-07:16": {
+          "MiniMax-M2": {
+            "inputTokens": "8059989",
+            "outputTokens": "38520",
+            "cacheCreateTokens": "3344",
+            "cacheReadTokens": "0",
+            "allTokens": "8101853",
+            "requests": "113"
+          },
+          "glm-4.6": {
+            "inputTokens": "0",
+            "outputTokens": "1353",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "1353",
+            "requests": "8"
+          }
+        },
+        "2025-11-09:17": {
+          "MiniMax-M2": {
+            "inputTokens": "907",
+            "outputTokens": "7475",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "8382",
+            "requests": "2"
+          },
+          "glm-4.6": {
+            "inputTokens": "0",
+            "outputTokens": "126",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "126",
+            "requests": "1"
+          }
+        },
+        "2025-11-06:21": {
+          "MiniMax-M2": {
+            "inputTokens": "42692",
+            "outputTokens": "738",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "43430",
+            "requests": "2"
+          },
+          "glm-4.6": {
+            "inputTokens": "0",
+            "outputTokens": "1220",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "1220",
+            "requests": "2"
+          }
+        },
+        "2025-11-10:18": {
+          "gpt-5-codex": {
+            "inputTokens": "5015",
+            "outputTokens": "9",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "5024",
+            "requests": "1"
+          },
+          "MiniMax-M2": {
+            "inputTokens": "11429571",
+            "outputTokens": "54367",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "11483938",
+            "requests": "187"
+          },
+          "glm-4.6": {
+            "inputTokens": "124623",
+            "outputTokens": "5539",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "416",
+            "allTokens": "130578",
+            "requests": "32"
+          }
+        },
+        "2025-11-09:19": {
+          "glm-4.6": {
+            "inputTokens": "0",
+            "outputTokens": "1221",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "1221",
+            "requests": "3"
+          }
+        },
+        "2025-11-11:13": {
+          "MiniMax-M2": {
+            "inputTokens": "13783079",
+            "outputTokens": "56684",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "13839763",
+            "requests": "135"
+          }
+        },
+        "2025-11-13:11": {
+          "MiniMax-M2": {
+            "inputTokens": "68051",
+            "outputTokens": "19027",
+            "cacheCreateTokens": "630747",
+            "cacheReadTokens": "8029912",
+            "allTokens": "8747737",
+            "requests": "77"
+          }
+        },
+        "2025-11-11:15": {
+          "MiniMax-M2": {
+            "inputTokens": "425134",
+            "outputTokens": "5339",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "430473",
+            "requests": "8"
+          },
+          "claude-haiku-4-5-20251001": {
+            "inputTokens": "150",
+            "outputTokens": "28",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "178",
+            "requests": "1"
+          }
+        },
+        "2025-11-09:18": {
+          "glm-4.6": {
+            "inputTokens": "0",
+            "outputTokens": "75",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "75",
+            "requests": "1"
+          }
+        },
+        "2025-11-08:10": {
+          "MiniMax-M2": {
+            "inputTokens": "7885322",
+            "outputTokens": "61117",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "7946439",
+            "requests": "175"
+          },
+          "glm-4.6": {
+            "inputTokens": "0",
+            "outputTokens": "131",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "131",
+            "requests": "1"
+          }
+        },
+        "2025-11-07:14": {
+          "MiniMax-M2": {
+            "inputTokens": "2494818",
+            "outputTokens": "14186",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "2509004",
+            "requests": "32"
+          }
+        },
+        "2025-11-11:16": {
+          "MiniMax-M2": {
+            "inputTokens": "2470475",
+            "outputTokens": "10634",
+            "cacheCreateTokens": "181604",
+            "cacheReadTokens": "335133",
+            "allTokens": "2997846",
+            "requests": "40"
+          },
+          "claude-haiku-4-5-20251001": {
+            "inputTokens": "238",
+            "outputTokens": "42",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "280",
+            "requests": "2"
+          }
+        },
+        "2025-11-06:20": {
+          "glm-4.6": {
+            "inputTokens": "0",
+            "outputTokens": "2484",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "2484",
+            "requests": "5"
+          }
+        },
+        "2025-11-24:11": {
+          "kimi-for-coding": {
+            "inputTokens": "357873",
+            "outputTokens": "1798",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "359671",
+            "requests": "11"
+          }
+        },
+        "2025-11-10:11": {
+          "MiniMax-M2": {
+            "inputTokens": "31541829",
+            "outputTokens": "134497",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "31676326",
+            "requests": "498"
+          }
+        },
+        "2025-11-13:19": {
+          "gpt-5-codex": {
+            "inputTokens": "856513",
+            "outputTokens": "0",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "856513",
+            "requests": "50"
+          },
+          "MiniMax-M2": {
+            "inputTokens": "4030",
+            "outputTokens": "12763",
+            "cacheCreateTokens": "180328",
+            "cacheReadTokens": "1425136",
+            "allTokens": "1622257",
+            "requests": "31"
+          }
+        },
+        "2025-11-24:15": {
+          "kimi-for-coding": {
+            "inputTokens": "2415313",
+            "outputTokens": "12671",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "2427984",
+            "requests": "51"
+          }
+        },
+        "2025-11-24:16": {
+          "kimi-for-coding": {
+            "inputTokens": "3324578",
+            "outputTokens": "8189",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "3332767",
+            "requests": "41"
+          }
+        },
+        "2025-11-13:18": {
+          "gpt-5-codex": {
+            "inputTokens": "94780",
+            "outputTokens": "0",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "94780",
+            "requests": "14"
+          },
+          "MiniMax-M2": {
+            "inputTokens": "31107",
+            "outputTokens": "9119",
+            "cacheCreateTokens": "157338",
+            "cacheReadTokens": "899899",
+            "allTokens": "1097463",
+            "requests": "30"
+          }
+        },
+        "2025-11-08:13": {
+          "MiniMax-M2": {
+            "inputTokens": "24692208",
+            "outputTokens": "116539",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "24808747",
+            "requests": "371"
+          }
+        },
+        "2025-11-10:16": {
+          "MiniMax-M2": {
+            "inputTokens": "3737397",
+            "outputTokens": "18619",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "3756016",
+            "requests": "59"
+          }
+        },
+        "2025-11-22:17": {
+          "kimi-for-coding": {
+            "inputTokens": "456",
+            "outputTokens": "2689",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "3145",
+            "requests": "2"
+          }
+        },
+        "2025-11-12:09": {
+          "MiniMax-M2": {
+            "inputTokens": "53439",
+            "outputTokens": "24889",
+            "cacheCreateTokens": "847390",
+            "cacheReadTokens": "5002497",
+            "allTokens": "5928215",
+            "requests": "71"
+          }
+        },
+        "2025-11-07:11": {
+          "glm-4.6": {
+            "inputTokens": "0",
+            "outputTokens": "1700",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "1700",
+            "requests": "3"
+          }
+        },
+        "2025-11-07:08": {
+          "MiniMax-M2": {
+            "inputTokens": "47270",
+            "outputTokens": "3182",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "50452",
+            "requests": "14"
+          },
+          "glm-4.6": {
+            "inputTokens": "0",
+            "outputTokens": "8507",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "8507",
+            "requests": "10"
+          }
+        },
+        "2025-11-24:09": {
+          "kimi-for-coding": {
+            "inputTokens": "10416200",
+            "outputTokens": "33929",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "10450129",
+            "requests": "197"
+          }
+        },
+        "2025-11-12:12": {
+          "MiniMax-M2": {
+            "inputTokens": "29281",
+            "outputTokens": "21384",
+            "cacheCreateTokens": "394114",
+            "cacheReadTokens": "4490865",
+            "allTokens": "4935644",
+            "requests": "53"
+          }
+        },
+        "2025-11-14:13": {
+          "MiniMax-M2": {
+            "inputTokens": "1111",
+            "outputTokens": "1508",
+            "cacheCreateTokens": "107361",
+            "cacheReadTokens": "211321",
+            "allTokens": "321301",
+            "requests": "6"
+          }
+        },
+        "2025-11-13:20": {
+          "gpt-5.1-codex": {
+            "inputTokens": "5015",
+            "outputTokens": "16",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "5031",
+            "requests": "1"
+          },
+          "gpt-5": {
+            "inputTokens": "100",
+            "outputTokens": "50",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "150",
+            "requests": "1"
+          },
+          "MiniMax-M2": {
+            "inputTokens": "270",
+            "outputTokens": "10121",
+            "cacheCreateTokens": "144822",
+            "cacheReadTokens": "2413281",
+            "allTokens": "2568494",
+            "requests": "28"
+          }
+        },
+        "2025-11-11:09": {
+          "MiniMax-M2": {
+            "inputTokens": "11652782",
+            "outputTokens": "42123",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "11694905",
+            "requests": "131"
+          }
+        },
+        "2025-11-11:10": {
+          "MiniMax-M2": {
+            "inputTokens": "11718905",
+            "outputTokens": "42372",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "11761277",
+            "requests": "147"
+          },
+          "glm-4.6": {
+            "inputTokens": "131996",
+            "outputTokens": "14510",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "152633",
+            "allTokens": "299139",
+            "requests": "111"
+          }
+        },
+        "2025-11-12:11": {
+          "MiniMax-M2": {
+            "inputTokens": "195082",
+            "outputTokens": "34891",
+            "cacheCreateTokens": "1043461",
+            "cacheReadTokens": "5263836",
+            "allTokens": "6537270",
+            "requests": "107"
+          }
+        },
+        "2025-11-12:14": {
+          "MiniMax-M2": {
+            "inputTokens": "229",
+            "outputTokens": "3018",
+            "cacheCreateTokens": "147784",
+            "cacheReadTokens": "1251962",
+            "allTokens": "1402993",
+            "requests": "11"
+          }
+        },
+        "2025-11-10:20": {
+          "glm-4.6": {
+            "inputTokens": "247749",
+            "outputTokens": "51078",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "1088",
+            "allTokens": "299915",
+            "requests": "287"
+          },
+          "MiniMax-M2": {
+            "inputTokens": "5938431",
+            "outputTokens": "30151",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "5968582",
+            "requests": "70"
+          }
+        },
+        "2025-11-10:21": {
+          "glm-4.6": {
+            "inputTokens": "0",
+            "outputTokens": "3557",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "3557",
+            "requests": "22"
+          }
+        },
+        "2025-11-08:20": {
+          "MiniMax-M2": {
+            "inputTokens": "2698",
+            "outputTokens": "4344",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "7042",
+            "requests": "4"
+          },
+          "glm-4.6": {
+            "inputTokens": "0",
+            "outputTokens": "1856",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "1856",
+            "requests": "11"
+          }
+        },
+        "2025-11-10:12": {
+          "MiniMax-M2": {
+            "inputTokens": "2623685",
+            "outputTokens": "10443",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "2634128",
+            "requests": "40"
+          }
+        },
+        "2025-11-11:12": {
+          "MiniMax-M2": {
+            "inputTokens": "2896590",
+            "outputTokens": "10472",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "2907062",
+            "requests": "36"
+          }
+        },
+        "2025-11-07:15": {
+          "MiniMax-M2": {
+            "inputTokens": "14684614",
+            "outputTokens": "52737",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "14737351",
+            "requests": "152"
+          },
+          "glm-4.6": {
+            "inputTokens": "0",
+            "outputTokens": "1311",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "1311",
+            "requests": "3"
+          }
+        },
+        "2025-11-11:21": {
+          "MiniMax-M2": {
+            "inputTokens": "296",
+            "outputTokens": "6370",
+            "cacheCreateTokens": "134029",
+            "cacheReadTokens": "828149",
+            "allTokens": "968844",
+            "requests": "9"
+          }
+        },
+        "2025-11-10:15": {
+          "MiniMax-M2": {
+            "inputTokens": "11214147",
+            "outputTokens": "65910",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "11280057",
+            "requests": "192"
+          }
+        },
+        "2025-11-12:17": {
+          "MiniMax-M2": {
+            "inputTokens": "228",
+            "outputTokens": "2356",
+            "cacheCreateTokens": "148175",
+            "cacheReadTokens": "719798",
+            "allTokens": "870557",
+            "requests": "7"
+          }
+        },
+        "2025-11-12:10": {
+          "MiniMax-M2": {
+            "inputTokens": "90720",
+            "outputTokens": "55016",
+            "cacheCreateTokens": "560601",
+            "cacheReadTokens": "4275809",
+            "allTokens": "4982146",
+            "requests": "128"
+          }
+        },
+        "2025-11-11:11": {
+          "MiniMax-M2": {
+            "inputTokens": "3097268",
+            "outputTokens": "18381",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "3115649",
+            "requests": "46"
+          },
+          "glm-4.6": {
+            "inputTokens": "0",
+            "outputTokens": "6030",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "6030",
+            "requests": "38"
+          }
+        },
+        "2025-11-07:09": {
+          "MiniMax-M2": {
+            "inputTokens": "406627",
+            "outputTokens": "945",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "407572",
+            "requests": "7"
+          },
+          "glm-4.6": {
+            "inputTokens": "0",
+            "outputTokens": "2038",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "2038",
+            "requests": "3"
+          }
+        },
+        "2025-11-11:18": {
+          "MiniMax-M2": {
+            "inputTokens": "105717",
+            "outputTokens": "84133",
+            "cacheCreateTokens": "1138729",
+            "cacheReadTokens": "8683704",
+            "allTokens": "10012283",
+            "requests": "128"
+          }
+        },
+        "2025-11-08:21": {
+          "glm-4.6": {
+            "inputTokens": "0",
+            "outputTokens": "601",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "601",
+            "requests": "2"
+          }
+        },
+        "2025-11-07:13": {
+          "glm-4.6": {
+            "inputTokens": "0",
+            "outputTokens": "938",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "938",
+            "requests": "1"
+          },
+          "MiniMax-M2": {
+            "inputTokens": "3362242",
+            "outputTokens": "27915",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "3390157",
+            "requests": "62"
+          }
+        },
+        "2025-11-07:10": {
+          "glm-4.6": {
+            "inputTokens": "0",
+            "outputTokens": "1971",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "1971",
+            "requests": "2"
+          },
+          "MiniMax-M2": {
+            "inputTokens": "3972435",
+            "outputTokens": "17750",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "3990185",
+            "requests": "53"
+          }
+        },
+        "2025-11-24:10": {
+          "kimi-for-coding": {
+            "inputTokens": "5107464",
+            "outputTokens": "24023",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "5131487",
+            "requests": "197"
+          }
+        },
+        "2025-11-11:20": {
+          "MiniMax-M2": {
+            "inputTokens": "1613",
+            "outputTokens": "4320",
+            "cacheCreateTokens": "235218",
+            "cacheReadTokens": "891280",
+            "allTokens": "1132431",
+            "requests": "12"
+          }
+        },
+        "2025-11-13:17": {
+          "MiniMax-M2": {
+            "inputTokens": "26539",
+            "outputTokens": "4054",
+            "cacheCreateTokens": "92747",
+            "cacheReadTokens": "172292",
+            "allTokens": "295632",
+            "requests": "6"
+          }
+        },
+        "2025-11-08:19": {
+          "MiniMax-M2": {
+            "inputTokens": "1474",
+            "outputTokens": "4709",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "6183",
+            "requests": "2"
+          }
+        },
+        "2025-11-12:21": {
+          "MiniMax-M2": {
+            "inputTokens": "129127",
+            "outputTokens": "49068",
+            "cacheCreateTokens": "823029",
+            "cacheReadTokens": "8408856",
+            "allTokens": "9410080",
+            "requests": "120"
+          }
+        },
+        "2025-11-06:22": {
+          "glm-4.6": {
+            "inputTokens": "0",
+            "outputTokens": "733",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "733",
+            "requests": "3"
+          }
+        },
+        "2025-11-19:19": {
+          "kimi-for-coding": {
+            "inputTokens": "394",
+            "outputTokens": "94",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "488",
+            "requests": "1"
+          }
+        },
+        "2025-11-07:12": {
+          "MiniMax-M2": {
+            "inputTokens": "732843",
+            "outputTokens": "10966",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "743809",
+            "requests": "27"
+          },
+          "glm-4.6": {
+            "inputTokens": "0",
+            "outputTokens": "741",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "741",
+            "requests": "3"
+          }
+        },
+        "2025-11-11:22": {
+          "MiniMax-M2": {
+            "inputTokens": "3729",
+            "outputTokens": "5064",
+            "cacheCreateTokens": "140588",
+            "cacheReadTokens": "2065799",
+            "allTokens": "2215180",
+            "requests": "24"
+          }
+        },
+        "2025-11-08:14": {
+          "MiniMax-M2": {
+            "inputTokens": "2498531",
+            "outputTokens": "20814",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "2519345",
+            "requests": "49"
+          }
+        },
+        "2025-11-12:20": {
+          "MiniMax-M2": {
+            "inputTokens": "123",
+            "outputTokens": "2346",
+            "cacheCreateTokens": "144107",
+            "cacheReadTokens": "411108",
+            "allTokens": "557684",
+            "requests": "5"
+          }
+        },
+        "2025-11-12:08": {
+          "MiniMax-M2": {
+            "inputTokens": "193575",
+            "outputTokens": "41247",
+            "cacheCreateTokens": "786937",
+            "cacheReadTokens": "10655473",
+            "allTokens": "11677232",
+            "requests": "153"
+          }
+        },
+        "2025-11-14:09": {
+          "MiniMax-M2": {
+            "inputTokens": "17441",
+            "outputTokens": "18927",
+            "cacheCreateTokens": "145061",
+            "cacheReadTokens": "2535666",
+            "allTokens": "2717095",
+            "requests": "52"
+          }
+        },
+        "2025-11-12:19": {
+          "MiniMax-M2": {
+            "inputTokens": "267",
+            "outputTokens": "4161",
+            "cacheCreateTokens": "306083",
+            "cacheReadTokens": "803802",
+            "allTokens": "1114313",
+            "requests": "10"
+          }
+        },
+        "2025-11-10:17": {
+          "MiniMax-M2": {
+            "inputTokens": "2055789",
+            "outputTokens": "22574",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "2078363",
+            "requests": "50"
+          }
+        },
+        "2025-11-13:07": {
+          "MiniMax-M2": {
+            "inputTokens": "14172",
+            "outputTokens": "12464",
+            "cacheCreateTokens": "141938",
+            "cacheReadTokens": "2715762",
+            "allTokens": "2884336",
+            "requests": "50"
+          }
+        },
+        "2025-11-08:15": {
+          "glm-4.6": {
+            "inputTokens": "0",
+            "outputTokens": "2971",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "2971",
+            "requests": "4"
+          }
+        },
+        "2025-11-10:19": {
+          "MiniMax-M2": {
+            "inputTokens": "12506171",
+            "outputTokens": "44974",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "12551145",
+            "requests": "143"
+          }
+        },
+        "2025-11-13:16": {
+          "MiniMax-M2": {
+            "inputTokens": "6614",
+            "outputTokens": "7151",
+            "cacheCreateTokens": "89851",
+            "cacheReadTokens": "845174",
+            "allTokens": "948790",
+            "requests": "29"
+          }
+        },
+        "2025-11-13:09": {
+          "MiniMax-M2": {
+            "inputTokens": "91353",
+            "outputTokens": "35573",
+            "cacheCreateTokens": "1344528",
+            "cacheReadTokens": "9889854",
+            "allTokens": "11361308",
+            "requests": "111"
+          }
+        },
+        "2025-11-24:14": {
+          "kimi-for-coding": {
+            "inputTokens": "5020504",
+            "outputTokens": "33937",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "5054441",
+            "requests": "114"
+          }
+        },
+        "2025-11-11:08": {
+          "MiniMax-M2": {
+            "inputTokens": "16872641",
+            "outputTokens": "62884",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "16935525",
+            "requests": "206"
+          }
+        },
+        "2025-11-08:11": {
+          "MiniMax-M2": {
+            "inputTokens": "7209576",
+            "outputTokens": "98589",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "7308165",
+            "requests": "231"
+          }
+        },
+        "2025-11-13:08": {
+          "MiniMax-M2": {
+            "inputTokens": "18471",
+            "outputTokens": "28348",
+            "cacheCreateTokens": "412434",
+            "cacheReadTokens": "4543005",
+            "allTokens": "5002258",
+            "requests": "80"
+          }
+        },
+        "2025-11-11:14": {
+          "MiniMax-M2": {
+            "inputTokens": "10096065",
+            "outputTokens": "37469",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "10133534",
+            "requests": "111"
+          }
+        },
+        "2025-11-13:12": {
+          "MiniMax-M2": {
+            "inputTokens": "4795",
+            "outputTokens": "8569",
+            "cacheCreateTokens": "129781",
+            "cacheReadTokens": "1536621",
+            "allTokens": "1679766",
+            "requests": "19"
+          }
+        },
+        "2025-11-13:10": {
+          "MiniMax-M2": {
+            "inputTokens": "33173",
+            "outputTokens": "26464",
+            "cacheCreateTokens": "448210",
+            "cacheReadTokens": "5934611",
+            "allTokens": "6442458",
+            "requests": "92"
+          }
+        },
+        "2025-11-14:07": {
+          "MiniMax-M2": {
+            "inputTokens": "49790",
+            "outputTokens": "20299",
+            "cacheCreateTokens": "315522",
+            "cacheReadTokens": "1643619",
+            "allTokens": "2029230",
+            "requests": "56"
+          }
+        },
+        "2025-11-10:14": {
+          "MiniMax-M2": {
+            "inputTokens": "10012981",
+            "outputTokens": "47432",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "10060413",
+            "requests": "151"
+          }
+        },
+        "2025-11-14:08": {
+          "MiniMax-M2": {
+            "inputTokens": "149221",
+            "outputTokens": "73996",
+            "cacheCreateTokens": "244197",
+            "cacheReadTokens": "7382152",
+            "allTokens": "7849566",
+            "requests": "246"
+          }
+        },
+        "2025-11-14:10": {
+          "MiniMax-M2": {
+            "inputTokens": "84",
+            "outputTokens": "20",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "104",
+            "requests": "2"
+          }
+        },
+        "2025-11-10:10": {
+          "kimi-for-coding": {
+            "inputTokens": "102467",
+            "outputTokens": "168",
+            "cacheCreateTokens": "0",
+            "cacheReadTokens": "0",
+            "allTokens": "102635",
+            "requests": "1"
+          }
+        },
+        "2025-11-11:19": {
+          "MiniMax-M2": {
+            "inputTokens": "10852",
+            "outputTokens": "8495",
+            "cacheCreateTokens": "217192",
+            "cacheReadTokens": "1162419",
+            "allTokens": "1398958",
+            "requests": "28"
+          }
+        }
+      }
+    }
+  }
+}

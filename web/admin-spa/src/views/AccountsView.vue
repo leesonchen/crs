@@ -564,11 +564,17 @@
                     class="flex items-center gap-1.5 rounded-lg border border-teal-200 bg-gradient-to-r from-teal-100 to-green-100 px-2.5 py-1 dark:border-teal-700 dark:from-teal-900/20 dark:to-green-900/20"
                   >
                     <i class="fas fa-server text-xs text-teal-700 dark:text-teal-400" />
-                    <span class="text-xs font-semibold text-teal-800 dark:text-teal-300"
-                      >OpenAI-Responses</span
+                  </div>
+                  <div
+                    v-else-if="account.platform === 'openai-chat'"
+                    class="flex items-center gap-1.5 rounded-lg border border-orange-200 bg-gradient-to-r from-orange-100 to-yellow-100 px-2.5 py-1 dark:border-orange-700 dark:from-orange-900/20 dark:to-yellow-900/20"
+                  >
+                    <i class="fas fa-comments text-xs text-orange-700 dark:text-orange-400" />
+                    <span class="text-xs font-semibold text-orange-800 dark:text-orange-300"
+                      >OpenAI-Chat</span
                     >
-                    <span class="mx-1 h-4 w-px bg-teal-300 dark:bg-teal-600" />
-                    <span class="text-xs font-medium text-teal-700 dark:text-teal-400"
+                    <span class="mx-1 h-4 w-px bg-orange-300 dark:bg-orange-600" />
+                    <span class="text-xs font-medium text-orange-700 dark:text-orange-400"
                       >API Key</span
                     >
                   </div>
@@ -765,6 +771,7 @@
                     account.platform === 'gemini' ||
                     account.platform === 'openai' ||
                     account.platform === 'openai-responses' ||
+                    account.platform === 'openai-chat' ||
                     account.platform === 'azure_openai' ||
                     account.platform === 'ccr' ||
                     account.platform === 'droid'
@@ -787,7 +794,11 @@
               </td>
               <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-600 dark:text-gray-300">
                 <span
-                  v-if="account.platform === 'openai' || account.platform === 'openai-responses'"
+                  v-if="
+                    account.platform === 'openai' ||
+                    account.platform === 'openai-responses' ||
+                    account.platform === 'openai-chat'
+                  "
                   :class="[
                     'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold',
                     account.allowClaudeBridge
@@ -1135,7 +1146,8 @@
                       (account.platform === 'claude' ||
                         account.platform === 'claude-console' ||
                         account.platform === 'openai' ||
-                        account.platform === 'openai-responses') &&
+                        account.platform === 'openai-responses' ||
+                        account.platform === 'openai-chat') &&
                       (account.status === 'unauthorized' ||
                         account.status !== 'active' ||
                         account.rateLimitStatus?.isRateLimited ||
@@ -1330,7 +1342,11 @@
           </div>
 
           <div
-            v-if="account.platform === 'openai' || account.platform === 'openai-responses'"
+            v-if="
+              account.platform === 'openai' ||
+              account.platform === 'openai-responses' ||
+              account.platform === 'openai-chat'
+            "
             class="mb-3 rounded-lg bg-gray-50 p-2 dark:bg-gray-800/50"
           >
             <div class="flex items-center justify-between text-xs">
@@ -1866,6 +1882,7 @@ const supportedUsagePlatforms = [
   'claude-console',
   'openai',
   'openai-responses',
+  'openai-chat',
   'gemini',
   'droid'
 ]
@@ -1898,6 +1915,7 @@ const platformOptions = ref([
   { value: 'azure_openai', label: 'Azure OpenAI', icon: 'fab fa-microsoft' },
   { value: 'bedrock', label: 'Bedrock', icon: 'fab fa-aws' },
   { value: 'openai-responses', label: 'OpenAI-Responses', icon: 'fa-server' },
+  { value: 'openai-chat', label: 'OpenAI-Chat', icon: 'fa-comments' },
   { value: 'ccr', label: 'CCR', icon: 'fa-code-branch' },
   { value: 'droid', label: 'Droid', icon: 'fa-robot' }
 ])
@@ -2246,6 +2264,7 @@ const loadAccounts = async (forceReload = false) => {
         apiClient.get('/admin/openai-accounts', { params }),
         apiClient.get('/admin/azure-openai-accounts', { params }),
         apiClient.get('/admin/openai-responses-accounts', { params }),
+        apiClient.get('/admin/openai-chat-accounts', { params }),
         apiClient.get('/admin/ccr-accounts', { params }),
         apiClient.get('/admin/droid-accounts', { params })
       )
@@ -2343,6 +2362,20 @@ const loadAccounts = async (forceReload = false) => {
             Promise.resolve({ success: true, data: [] }) // droid 占位
           )
           break
+        case 'openai-chat':
+          requests.push(
+            Promise.resolve({ success: true, data: [] }), // claude 占位
+            Promise.resolve({ success: true, data: [] }), // claude-console 占位
+            Promise.resolve({ success: true, data: [] }), // bedrock 占位
+            Promise.resolve({ success: true, data: [] }), // gemini 占位
+            Promise.resolve({ success: true, data: [] }), // openai 占位
+            Promise.resolve({ success: true, data: [] }), // azure-openai 占位
+            Promise.resolve({ success: true, data: [] }), // openai-responses 占位
+            apiClient.get('/admin/openai-chat-accounts', { params }),
+            Promise.resolve({ success: true, data: [] }), // ccr 占位
+            Promise.resolve({ success: true, data: [] }) // droid 占位
+          )
+          break
         case 'ccr':
           requests.push(
             Promise.resolve({ success: true, data: [] }), // claude 占位
@@ -2400,6 +2433,7 @@ const loadAccounts = async (forceReload = false) => {
       openaiData,
       azureOpenaiData,
       openaiResponsesData,
+      openaiChatData,
       ccrData,
       droidData
     ] = await Promise.all(requests)
@@ -2486,6 +2520,20 @@ const loadAccounts = async (forceReload = false) => {
       allAccounts.push(...openaiResponsesAccounts)
     }
 
+    // OpenAI-Chat 账户
+    if (openaiChatData && openaiChatData.success) {
+      const openaiChatAccounts = (openaiChatData.data || []).map((acc) => {
+        // 计算每个OpenAI-Chat账户绑定的API Key数量
+        // OpenAI-Chat账户使用 chat: 前缀
+        const boundApiKeysCount = apiKeys.value.filter(
+          (key) => key.openaiAccountId === `chat:${acc.id}`
+        ).length
+        // 后端已经包含了groupInfos，直接使用
+        return { ...acc, platform: 'openai-chat', boundApiKeysCount }
+      })
+      allAccounts.push(...openaiChatAccounts)
+    }
+
     // CCR 账户
     if (ccrData && ccrData.success) {
       const ccrAccounts = (ccrData.data || []).map((acc) => {
@@ -2540,8 +2588,8 @@ const loadAccounts = async (forceReload = false) => {
 
     // 异步加载 Claude OAuth 账户的 usage 数据
     if (filteredAccounts.some((acc) => acc.platform === 'claude')) {
-      loadClaudeUsage().catch((err) => {
-        console.debug('Claude usage loading failed:', err)
+      loadClaudeUsage().catch(() => {
+        // 静默处理错误，不显示日志
       })
     }
   } catch (error) {
@@ -2579,7 +2627,7 @@ const loadClaudeUsage = async () => {
       })
     }
   } catch (error) {
-    console.debug('Failed to load Claude usage data:', error)
+    // 静默处理错误
   }
 }
 
@@ -2885,6 +2933,8 @@ const resolveAccountDeleteEndpoint = (account) => {
       return `/admin/azure-openai-accounts/${account.id}`
     case 'openai-responses':
       return `/admin/openai-responses-accounts/${account.id}`
+    case 'openai-chat':
+      return `/admin/openai-chat-accounts/${account.id}`
     case 'ccr':
       return `/admin/ccr-accounts/${account.id}`
     case 'gemini':
@@ -3063,6 +3113,8 @@ const resetAccountStatus = async (account) => {
       endpoint = `/admin/openai-accounts/${account.id}/reset-status`
     } else if (account.platform === 'openai-responses') {
       endpoint = `/admin/openai-responses-accounts/${account.id}/reset-status`
+    } else if (account.platform === 'openai-chat') {
+      endpoint = `/admin/openai-chat-accounts/${account.id}/reset-status`
     } else if (account.platform === 'claude') {
       endpoint = `/admin/claude-accounts/${account.id}/reset-status`
     } else if (account.platform === 'claude-console') {
@@ -3115,6 +3167,8 @@ const toggleSchedulable = async (account) => {
       endpoint = `/admin/azure-openai-accounts/${account.id}/toggle-schedulable`
     } else if (account.platform === 'openai-responses') {
       endpoint = `/admin/openai-responses-accounts/${account.id}/toggle-schedulable`
+    } else if (account.platform === 'openai-chat') {
+      endpoint = `/admin/openai-chat-accounts/${account.id}/toggle-schedulable`
     } else if (account.platform === 'ccr') {
       endpoint = `/admin/ccr-accounts/${account.id}/toggle-schedulable`
     } else if (account.platform === 'droid') {
@@ -3382,6 +3436,11 @@ const getSchedulableReason = (account) => {
 
   // OpenAI-Responses 账户的错误状态
   if (account.platform === 'openai-responses') {
+    if (account.status === 'unauthorized') {
+      return '认证失败（401错误）'
+    }
+    // OpenAI-Chat 账户的错误状态
+  } else if (account.platform === 'openai-chat') {
     if (account.status === 'unauthorized') {
       return '认证失败（401错误）'
     }
@@ -3895,6 +3954,9 @@ const handleSaveAccountExpiry = async ({ accountId, expiresAt }) => {
         break
       case 'openai-responses':
         endpoint = `/admin/openai-responses-accounts/${accountId}` // 使用 :id
+        break
+      case 'openai-chat':
+        endpoint = `/admin/openai-chat-accounts/${accountId}` // 使用 :id
         break
       default:
         showToast(`不支持的平台类型: ${account.platform}`, 'error')

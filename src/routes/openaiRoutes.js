@@ -322,11 +322,12 @@ async function getOpenAIAuthToken(apiKeyData, sessionId = null, requestedModel =
   }
 }
 
-// 主处理函数，供两个路由共享
+// ✅ 统一处理函数，根据路径选择账户类型
 const handleResponses = async (req, res) => {
   let upstream = null
   let accountId = null
-  let accountType = 'openai'
+  // ✅ 根据请求路径确定账户类型
+  let accountType = req.path.includes('/chat/') ? 'openai-chat' : 'openai-responses'
   let sessionHash = null
   let account = null
   let proxy = null
@@ -1026,7 +1027,11 @@ const handleResponses = async (req, res) => {
   }
 }
 
-// 注册两个路由路径，都使用相同的处理函数
+// ✅ 新增：OpenAI Chat Completions API 路由
+router.post('/chat/completions', authenticateApiKey, handleResponses)
+router.post('/v1/chat/completions', authenticateApiKey, handleResponses)
+
+// OpenAI Responses API 路由（保持原有功能）
 router.post('/responses', authenticateApiKey, handleResponses)
 router.post('/v1/responses', authenticateApiKey, handleResponses)
 

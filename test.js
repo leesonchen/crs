@@ -1,0 +1,1 @@
+const config = require("./config/config"); console.log("密钥长度:", config.security.encryptionKey.length); console.log("是否默认:", config.security.encryptionKey === "CHANGE-THIS-32-CHARACTER-KEY-NOW");

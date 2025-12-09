@@ -11,6 +11,7 @@ export const useAccountsStore = defineStore('accounts', () => {
   const openaiAccounts = ref([])
   const azureOpenaiAccounts = ref([])
   const openaiResponsesAccounts = ref([])
+  const openaiChatAccounts = ref([])
   const droidAccounts = ref([])
   const loading = ref(false)
   const error = ref(null)
@@ -143,6 +144,25 @@ export const useAccountsStore = defineStore('accounts', () => {
         openaiResponsesAccounts.value = response.data || []
       } else {
         throw new Error(response.message || '获取OpenAI-Responses账户失败')
+      }
+    } catch (err) {
+      error.value = err.message
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  // 获取OpenAI-Chat账户列表
+  const fetchOpenAIChatAccounts = async () => {
+    loading.value = true
+    error.value = null
+    try {
+      const response = await apiClient.get('/admin/openai-chat-accounts')
+      if (response.success) {
+        openaiChatAccounts.value = response.data || []
+      } else {
+        throw new Error(response.message || '获取OpenAI-Chat账户失败')
       }
     } catch (err) {
       error.value = err.message
@@ -374,6 +394,26 @@ export const useAccountsStore = defineStore('accounts', () => {
     }
   }
 
+  // 创建OpenAI-Chat账户
+  const createOpenAIChatAccount = async (data) => {
+    loading.value = true
+    error.value = null
+    try {
+      const response = await apiClient.post('/admin/openai-chat-accounts', data)
+      if (response.success) {
+        await fetchOpenAIChatAccounts()
+        return response.data
+      } else {
+        throw new Error(response.message || '创建OpenAI-Chat账户失败')
+      }
+    } catch (err) {
+      error.value = err.message
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
   // 更新Claude账户
   const updateClaudeAccount = async (id, data) => {
     loading.value = true
@@ -514,6 +554,26 @@ export const useAccountsStore = defineStore('accounts', () => {
     }
   }
 
+  // 更新OpenAI-Chat账户
+  const updateOpenAIChatAccount = async (id, data) => {
+    loading.value = true
+    error.value = null
+    try {
+      const response = await apiClient.put(`/admin/openai-chat-accounts/${id}`, data)
+      if (response.success) {
+        await fetchOpenAIChatAccounts()
+        return response
+      } else {
+        throw new Error(response.message || '更新OpenAI-Chat账户失败')
+      }
+    } catch (err) {
+      error.value = err.message
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
   // 切换账户状态
   const toggleAccount = async (platform, id) => {
     loading.value = true
@@ -534,6 +594,8 @@ export const useAccountsStore = defineStore('accounts', () => {
         endpoint = `/admin/azure-openai-accounts/${id}/toggle`
       } else if (platform === 'openai-responses') {
         endpoint = `/admin/openai-responses-accounts/${id}/toggle`
+      } else if (platform === 'openai-chat') {
+        endpoint = `/admin/openai-chat-accounts/${id}/toggle`
       } else {
         endpoint = `/admin/openai-accounts/${id}/toggle`
       }
@@ -554,6 +616,8 @@ export const useAccountsStore = defineStore('accounts', () => {
           await fetchAzureOpenAIAccounts()
         } else if (platform === 'openai-responses') {
           await fetchOpenAIResponsesAccounts()
+        } else if (platform === 'openai-chat') {
+          await fetchOpenAIChatAccounts()
         } else {
           await fetchOpenAIAccounts()
         }
@@ -609,6 +673,8 @@ export const useAccountsStore = defineStore('accounts', () => {
           await fetchAzureOpenAIAccounts()
         } else if (platform === 'openai-responses') {
           await fetchOpenAIResponsesAccounts()
+        } else if (platform === 'openai-chat') {
+          await fetchOpenAIChatAccounts()
         } else {
           await fetchOpenAIAccounts()
         }
@@ -833,6 +899,7 @@ export const useAccountsStore = defineStore('accounts', () => {
     openaiAccounts,
     azureOpenaiAccounts,
     openaiResponsesAccounts,
+    openaiChatAccounts,
     droidAccounts,
     loading,
     error,
@@ -847,6 +914,7 @@ export const useAccountsStore = defineStore('accounts', () => {
     fetchOpenAIAccounts,
     fetchAzureOpenAIAccounts,
     fetchOpenAIResponsesAccounts,
+    fetchOpenAIChatAccounts,
     fetchDroidAccounts,
     fetchAllAccounts,
     createClaudeAccount,
@@ -858,6 +926,7 @@ export const useAccountsStore = defineStore('accounts', () => {
     updateDroidAccount,
     createAzureOpenAIAccount,
     createOpenAIResponsesAccount,
+    createOpenAIChatAccount,
     updateClaudeAccount,
     updateClaudeConsoleAccount,
     updateBedrockAccount,
@@ -865,6 +934,7 @@ export const useAccountsStore = defineStore('accounts', () => {
     updateOpenAIAccount,
     updateAzureOpenAIAccount,
     updateOpenAIResponsesAccount,
+    updateOpenAIChatAccount,
     toggleAccount,
     deleteAccount,
     refreshClaudeToken,

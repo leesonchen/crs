@@ -132,7 +132,7 @@ src/services/
 
 **桥接服务核心功能**:
 ```javascript
-// bridgeService.js 核心方法 (修正后)
+// bridgeService.js 核心方法
 class BridgeService {
   // 按需桥接格式转换
   async convertRequest(sourceRequest, targetPlatform, selectedAccount) {
@@ -142,7 +142,7 @@ class BridgeService {
       return sourceRequest // 无需桥接，直接返回
     }
 
-    // 2. 双层模型映射 (简化版)
+    // 2. 双层模型映射
     const mappedModel = await this.resolveModelMapping(sourceRequest.model, selectedAccount)
 
     // 3. 格式转换
@@ -180,8 +180,6 @@ class BridgeService {
 }
 ```
 
-#### 3.1.3 各层职责重新定义
-
 **调度器 (unifiedOpenAIScheduler.js)**:
 - **首要职责**: 根据可用性、优先级、负载选择最合适的账户
 - **桥接感知**: 考虑桥接配置进行账户选择，但不过度复杂
@@ -197,7 +195,7 @@ class BridgeService {
 - **真实统计**: 记录实际调用的模型和 token 使用量
 - **纯转发**: 专注于与上游 API 的通信和流式处理
 
-#### 2.3.3 统一调度器
+#### 3.2.4 统一调度器
 ```
 src/services/
 ├── unifiedClaudeScheduler.js    # Claude统一调度器
@@ -205,9 +203,9 @@ src/services/
 └── unifiedOpenAIScheduler.js    # OpenAI统一调度器
 ```
 
-### 2.4 数据层 (Data Layer)
+## 4. 数据层 (Data Layer)
 
-#### 2.4.1 Redis数据模型
+#### 4.1.1 Redis数据模型
 
 **API密钥存储**:
 ```
@@ -305,7 +303,7 @@ claude_console_account:{accountId} → Hash
   # 认证数据（加密存储）
   apiKey: "encrypted_api_key",
 
-  # 模型支持配置 - **统一使用映射表格式**
+  # 模型支持配置 - 统一使用映射表格式
   # supportedModels: 对象格式（映射表），键为源模型，值为目标模型
   supportedModels: "{\"claude-sonnet-4-20250514\": \"claude-sonnet-4-20250514\", \"claude-3-5-haiku-20241022\": \"claude-3-5-haiku-20241022\"}",
 
@@ -354,7 +352,7 @@ openai_responses_account:{accountId} → Hash
   # 认证数据（加密存储）
   apiKey: "encrypted_api_key",
 
-  # ✅ 模型支持配置 - **统一使用映射表格式**
+  # 模型支持配置 - 统一使用映射表格式
   # supportedModels: 对象格式（映射表），键为源模型，值为目标模型
   supportedModels: "{\"gpt-4o\": \"gpt-4o\", \"gpt-4o-mini\": \"gpt-4o-mini\", \"gpt-5\": \"claude-sonnet-4-20250514\", \"o3-mini\": \"claude-3-5-haiku-20241022\"}",
 
@@ -386,6 +384,43 @@ openai_responses_account:{accountId} → Hash
 }
 ```
 
+#### OpenAI Chat账户
+```
+openai_chat_account:{accountId} → Hash
+{
+  # 基础信息
+  id: "uuid",
+  platform: "openai-chat",
+  name: "Chat账户名称",
+  description: "描述",
+  status: "active",
+  isActive: "true",
+  accountType: "shared",
+
+  # OAuth认证数据（加密存储）
+  accessToken: "encrypted_access_token",
+  refreshToken: "encrypted_refresh_token",
+  tokenExpiresAt: "2025-01-01T11:00:00Z",
+
+  # 账户配置
+  chatgptUserId: "user_id",
+  baseApi: "https://chatgpt.com",
+  priority: "50",
+
+  # 状态管理
+  schedulable: "true",
+  subscriptionExpiresAt: "2025-12-31T23:59:59.000Z",
+
+  # 使用统计
+  totalUsedTokens: "150000",
+  lastUsedAt: "2025-01-01T10:00:00Z",
+
+  # 时间戳
+  createdAt: "2025-01-01T00:00:00.000Z",
+  updatedAt: "2025-01-01T10:30:00.000Z"
+}
+```
+
 #### Gemini账户
 ```
 gemini_account:{accountId} → Hash
@@ -406,7 +441,7 @@ gemini_account:{accountId} → Hash
   accessToken: "encrypted_access_token",
   tokenExpiresAt: "2025-01-01T11:00:00Z",
 
-  # 模型支持配置 - **统一使用映射表格式**
+  # 模型支持配置 - 统一使用映射表格式
   # supportedModels: 对象格式（映射表），键为源模型，值为目标模型
   supportedModels: "{\"gemini-1.5-pro\": \"gemini-1.5-pro\", \"gemini-1.5-flash\": \"gemini-1.5-flash\"}",
 
@@ -449,7 +484,7 @@ bedrock_account:{accountId} → Hash
   defaultModel: "anthropic.claude-3-5-sonnet-20241022-v1:0",
   smallFastModel: "anthropic.claude-3-haiku-20240307-v1:0",
 
-  # 模型支持配置 - **统一使用映射表格式**
+  # 模型支持配置 - 统一使用映射表格式
   # supportedModels: 对象格式（映射表），键为源模型，值为目标模型
   supportedModels: "{\"anthropic.claude-3-5-sonnet-20241022-v1:0\": \"anthropic.claude-3-5-sonnet-20241022-v1:0\", \"anthropic.claude-3-haiku-20240307-v1:0\": \"anthropic.claude-3-haiku-20240307-v1:0\"}",
 
@@ -464,7 +499,7 @@ bedrock_account:{accountId} → Hash
 }
 ```
 
-#### 2.4.2 缓存设计
+#### 4.1.2 缓存设计
 
 **多级缓存策略**:
 
@@ -482,11 +517,11 @@ bedrock_account:{accountId} → Hash
    - 模型价格配置
    - 静态资源缓存
 
-## 3. 核心流程设计
+## 5. 核心流程设计
 
-### 3.1 API请求处理流程与桥接架构
+### 5.1 API请求处理流程与桥接架构
 
-#### 3.1.1 修正后的数据流程
+#### 5.1.1 修正后的数据流程
 ```
 用户请求 → 路由层 → 调度器(选择账户) → 桥接判断 → [桥接服务] → 中继服务 → 上游 API
                                        ↓
@@ -494,7 +529,7 @@ bedrock_account:{accountId} → Hash
                               如果账户类型不匹配 → 启动桥接转换
 ```
 
-#### 3.1.2 桥接模式流程图
+#### 5.1.2 桥接模式流程图
 ```
 ┌─────────┐    ┌────────────┐    ┌─────────────┐    ┌────────────┐
 │  Client │───▶│ Load       │───▶│ Auth        │───▶│ Route      │
@@ -560,9 +595,9 @@ bedrock_account:{accountId} → Hash
             └─────────────────────────────┘
 ```
 
-### 3.2 统一调度算法
+### 5.2 统一调度算法
 
-#### 3.2.1 账号选择策略
+#### 5.2.1 账号选择策略
 
 **多优先级队列**:
 ```
@@ -579,7 +614,7 @@ bedrock_account:{accountId} → Hash
 - **最少连接**: 选择当前活跃请求最少的账户
 - **响应时间**: 选择响应时间最快的账户
 
-#### 3.2.2 会话粘性管理
+#### 5.2.2 会话粘性管理
 
 **粘性会话机制**:
 ```
@@ -589,9 +624,9 @@ TTL: 可配置 (默认1小时)
 续期阈值: 可配置 (默认5分钟)
 ```
 
-### 3.3 API转发逻辑差异分析
+### 5.3 API转发逻辑差异分析
 
-#### 3.3.1 Claude Code API转发逻辑
+#### 5.3.1 Claude Code API转发逻辑
 
 **特殊请求识别机制**:
 
@@ -640,7 +675,7 @@ logger.info(`📤 Processing API request for key: ${apiKeyData.name}, account: $
 apiKeyService.recordUsageWithDetails(req.apiKey.id, usageObject, model, usageAccountId, 'claude')
 ```
 
-#### 3.3.2 Codex API转发逻辑
+#### 5.3.2 Codex API转发逻辑
 
 **Codex CLI请求识别**:
 
@@ -673,7 +708,6 @@ const claudeRequest = openaiToClaudeConverter.convertRequest(req.body)
 ```
 
 **响应格式转换**:
-
 ```javascript
 // Claude响应 → OpenAI响应格式转换
 const openaiResponse = openaiToClaudeConverter.convertResponse(claudeResponse, requestModel)
@@ -695,7 +729,7 @@ logger.debug('📝 Converted OpenAI request to Claude format:', {
 })
 ```
 
-#### 3.3.3 日志记录策略对比
+#### 5.3.3 日志记录策略对比
 
 **Claude Code API日志记录**:
 
@@ -736,7 +770,7 @@ logger.debug('📝 Converted Claude response to OpenAI format:', {
 logger.info(`Selected OpenAI-Responses account: ${account.name} (${accountId})`)
 ```
 
-#### 3.3.4 转发内容记录策略
+#### 5.3.4 转发内容记录策略
 
 **敏感信息处理**:
 
@@ -810,11 +844,11 @@ const authDetailLogger = winston.createLogger({
 })
 ```
 
-## 4. 关键技术实现
+## 6. 关键技术实现
 
-### 4.1 分布式缓存设计
+### 6.1 分布式缓存设计
 
-#### 4.1.1 缓存层次结构
+#### 6.1.1 缓存层次结构
 
 ```
 ┌─────────────────┐
@@ -833,15 +867,15 @@ const authDetailLogger = winston.createLogger({
 └─────────────────┘
 ```
 
-#### 4.1.2 缓存失效策略
+#### 6.1.2 缓存失效策略
 
 - **主动失效**: 数据更新时主动清理相关缓存
 - **被动失效**: TTL过期自动清理
 - **事件驱动**: 通过Redis发布订阅实现缓存同步
 
-### 4.2 异步处理架构
+### 6.2 异步处理架构
 
-#### 4.2.1 统计数据处理
+#### 6.2.1 统计数据处理
 
 ```javascript
 // 使用Redis Pipeline批量处理
@@ -862,15 +896,15 @@ pipeline.hincrby(`usage:model:daily:${model}:${today}`, 'tokens', tokens);
 await pipeline.exec();
 ```
 
-#### 4.2.2 费用计算
+#### 6.2.2 费用计算
 
 - **实时计算**: 请求完成后立即计算费用
 - **批量处理**: 定期批量计算历史费用
 - **缓存优化**: 频繁使用的价格信息缓存
 
-### 4.3 容错和恢复机制
+### 6.3 容错和恢复机制
 
-#### 4.3.1 账户健康检查
+#### 6.3.1 账户健康检查
 
 ```javascript
 // 健康检查状态机
@@ -883,17 +917,17 @@ const AccountStates = {
 };
 ```
 
-#### 4.3.2 故障转移策略
+#### 6.3.2 故障转移策略
 
 - **即时切换**: 单个请求失败立即切换账户
 - **熔断机制**: 连续失败达到阈值时暂时禁用账户
 - **恢复机制**: 定期尝试恢复暂时禁用的账户
 
-## 5. 安全设计
+## 7. 安全设计
 
-### 5.1 认证体系
+### 7.1 认证体系
 
-#### 5.1.1 API密钥认证
+#### 7.1.1 API密钥认证
 
 ```javascript
 // 双重哈希机制
@@ -914,7 +948,7 @@ if (!keyData) {
 }
 ```
 
-#### 5.1.2 客户端限制
+#### 7.1.2 客户端限制
 
 ```javascript
 // User-Agent模式匹配
@@ -930,17 +964,17 @@ const isAllowed = apiKey.allowedClients.some(pattern =>
 );
 ```
 
-### 5.2 数据加密
+### 7.2 数据加密
 
 - **API密钥**: bcrypt哈希存储
 - **账户凭据**: AES加密存储
 - **传输数据**: HTTPS/TLS加密
 
-## 6. 监控和可观测性
+## 8. 监控和可观测性
 
-### 6.1 指标收集
+### 8.1 指标收集
 
-#### 6.1.1 系统指标
+#### 8.1.1 系统指标
 
 ```javascript
 // 实时指标收集
@@ -954,7 +988,7 @@ const systemMetrics = {
 };
 ```
 
-#### 6.1.2 业务指标
+#### 8.1.2 业务指标
 
 ```javascript
 // 业务指标收集
@@ -967,9 +1001,9 @@ const businessMetrics = {
 };
 ```
 
-### 6.2 日志系统
+### 8.2 日志系统
 
-#### 6.2.1 分层日志
+#### 8.2.1 分层日志
 
 ```javascript
 const logger = require('./utils/logger');
@@ -983,7 +1017,7 @@ logger.api('API request details');      // API相关日志
 logger.auth('Authentication events');   // 认证相关日志
 ```
 
-#### 6.2.2 结构化日志
+#### 8.2.2 结构化日志
 
 ```json
 {
@@ -1001,9 +1035,9 @@ logger.auth('Authentication events');   // 认证相关日志
 }
 ```
 
-## 7. 部署架构
+## 9. 部署架构
 
-### 7.1 单实例部署
+### 9.1 单实例部署
 
 ```
 ┌─────────────────────────────────────┐
@@ -1017,7 +1051,7 @@ logger.auth('Authentication events');   // 认证相关日志
 └─────────────────────────────────────┘
 ```
 
-### 7.2 多实例部署
+### 9.2 多实例部署
 
 ```
 ┌─────────┐    ┌─────────┐    ┌─────────┐
@@ -1034,7 +1068,7 @@ logger.auth('Authentication events');   // 认证相关日志
             └───────────────┘
 ```
 
-### 7.3 高可用部署
+### 9.3 高可用部署
 
 ```
 ┌─────────────────┐    ┌─────────────────┐
@@ -1052,18 +1086,18 @@ logger.auth('Authentication events');   // 认证相关日志
 └────────┴──────────┘    └────────┴──────────┘
 ```
 
-## 8. 性能优化
+## 10. 性能优化
 
-### 8.1 数据库优化
+### 10.1 数据库优化
 
-#### 8.1.1 Redis优化策略
+#### 10.1.1 Redis优化策略
 
 - **连接池**: 复用Redis连接减少开销
 - **Pipeline**: 批量操作减少网络往返
 - **数据结构**: 选择合适的Redis数据结构
 - **过期策略**: 合理设置TTL避免内存泄露
 
-#### 8.1.2 查询优化
+#### 10.1.2 查询优化
 
 ```javascript
 // 使用Pipeline批量查询
@@ -1081,9 +1115,9 @@ const script = `
 await redis.eval(script, 1, 'counter', 1);
 ```
 
-### 8.2 缓存优化
+### 10.2 缓存优化
 
-#### 8.2.1 多级缓存
+#### 10.2.1 多级缓存
 
 ```javascript
 // 缓存查找策略
@@ -1108,7 +1142,7 @@ async function getCachedData(key) {
 }
 ```
 
-#### 8.2.2 缓存失效策略
+#### 10.2.2 缓存失效策略
 
 ```javascript
 // 主动失效
@@ -1126,9 +1160,9 @@ redis.subscribe('cache:invalidated', (key) => {
 });
 ```
 
-### 8.3 并发控制
+### 10.3 并发控制
 
-#### 8.3.1 连接池管理
+#### 10.3.1 连接池管理
 
 ```javascript
 // HTTP客户端连接池
@@ -1149,7 +1183,7 @@ const redisClient = new Redis({
 });
 ```
 
-#### 8.3.2 异步处理
+#### 10.3.2 异步处理
 
 ```javascript
 // 使用Promise.all并发处理
@@ -1167,11 +1201,11 @@ eventEmitter.on('api:request:complete', async (data) => {
 });
 ```
 
-## 9. 扩展性设计
+## 11. 扩展性设计
 
-### 9.1 模块化架构
+### 11.1 模块化架构
 
-#### 9.1.1 服务接口定义
+#### 11.1.1 服务接口定义
 
 ```javascript
 // 统一的AI服务接口
@@ -1193,7 +1227,7 @@ class BedrockService extends BaseAIService {
 }
 ```
 
-#### 9.1.2 插件系统
+#### 11.1.2 插件系统
 
 ```javascript
 // 插件接口
@@ -1209,9 +1243,9 @@ pluginManager.register('logging', new LoggingPlugin());
 pluginManager.register('caching', new CachingPlugin());
 ```
 
-### 9.2 API扩展机制
+### 11.2 API扩展机制
 
-#### 9.2.1 动态路由注册
+#### 11.2.1 动态路由注册
 
 ```javascript
 // 动态路由注册器
@@ -1235,7 +1269,7 @@ RouteRegistry.registerService('custom-ai', [
 ]);
 ```
 
-#### 9.2.2 配置驱动的扩展
+#### 11.2.2 配置驱动的扩展
 
 ```javascript
 // 基于配置的动态扩展
@@ -1248,31 +1282,31 @@ extensions.forEach(extension => {
 });
 ```
 
-## 10. 测试策略
+## 12. 测试策略
 
-### 10.1 单元测试
+### 12.1 单元测试
 
 - **服务层测试**: 独立测试各个服务模块
 - **工具函数测试**: 测试缓存、日志等工具函数
 - **数据模型测试**: 测试Redis数据操作
 
-### 10.2 集成测试
+### 12.2 集成测试
 
 - **API端到端测试**: 完整的API请求流程测试
 - **服务集成测试**: 多服务间的集成测试
 - **缓存测试**: 缓存机制的正确性测试
 
-### 10.3 性能测试
+### 12.3 性能测试
 
 - **负载测试**: 高并发请求下的性能表现
 - **压力测试**: 极限负载下的系统稳定性
 - **基准测试**: 不同配置下的性能基准
 
-## 11. 部署和运维
+## 13. 部署和运维
 
-### 11.1 容器化部署
+### 13.1 容器化部署
 
-#### 11.1.1 Docker配置
+#### 13.1.1 Docker配置
 
 ```dockerfile
 FROM node:18-alpine
@@ -1288,7 +1322,7 @@ EXPOSE 3000
 CMD ["npm", "start"]
 ```
 
-#### 11.1.2 Docker Compose配置
+#### 13.1.2 Docker Compose配置
 
 ```yaml
 version: '3.8'
@@ -1312,9 +1346,9 @@ volumes:
   redis_data:
 ```
 
-### 11.2 健康检查
+### 13.2 健康检查
 
-#### 11.2.1 应用健康检查
+#### 13.2.1 应用健康检查
 
 ```javascript
 // 健康检查端点
@@ -1333,7 +1367,7 @@ app.get('/health', async (req, res) => {
 });
 ```
 
-#### 11.2.2 监控指标暴露
+#### 13.2.2 监控指标暴露
 
 ```javascript
 // Prometheus指标暴露
@@ -1344,9 +1378,9 @@ app.get('/metrics', async (req, res) => {
 });
 ```
 
-### 11.3 日志管理
+### 13.3 日志管理
 
-#### 11.3.1 结构化日志
+#### 13.3.1 结构化日志
 
 ```javascript
 // 结构化日志格式
@@ -1369,7 +1403,7 @@ const logData = {
 logger.info(logData);
 ```
 
-#### 11.3.2 日志轮转
+#### 13.3.2 日志轮转
 
 ```javascript
 // Winston日志轮转配置
@@ -1381,24 +1415,218 @@ const transport = new DailyRotateFile({
 });
 ```
 
-## 12. 风险评估和缓解策略
+## 14. 风险评估和缓解策略
 
-### 12.1 性能风险
+### 14.1 性能风险
 
 - **风险**: 高并发下的性能下降
 - **缓解**: 连接池、缓存优化、异步处理
 
-### 12.2 可用性风险
+### 14.2 可用性风险
 
 - **风险**: 单点故障导致服务不可用
 - **缓解**: 多账户轮换、故障转移、健康检查
 
-### 12.3 安全风险
+### 14.3 安全风险
 
 - **风险**: API密钥泄露或滥用
 - **缓解**: 加密存储、访问控制、审计日志
 
-### 12.4 扩展性风险
+### 14.4 扩展性风险
 
 - **风险**: 业务增长导致性能瓶颈
 - **缓解**: 水平扩展、微服务架构、容器化部署
+
+## 15. OpenAI Chat 与 Responses 账户独立转发架构
+
+### 15.1 架构设计原则
+
+**独立转发，无需转换**
+
+OpenAI Chat和OpenAI Responses是两种完全独立的账户类型：
+- **不同的URL入口**: 客户端通过URL路径决定使用哪种协议
+- **不同的协议格式**: 各自使用原生的请求/响应格式
+- **独立转发**: 项目如实转发，不做任何格式转换
+- **统一管理**: 账户调度、统计、限流等管理功能统一
+
+### 15.2 URL路由设计
+
+#### Chat Completions 路由
+```
+POST /openai/v1/chat/completions     # 主要Chat端点
+POST /openai/chat/completions        # 兼容性别名
+```
+
+#### Responses API 路由
+```
+POST /openai/v1/responses           # 主要Responses端点
+POST /openai/responses              # 兼容性别名
+```
+
+### 15.3 账户类型映射
+
+#### OpenAI Chat 账户
+- **账户类型**: `openai-chat`
+- **认证方式**: OAuth Bearer Token
+- **API端点**: Chat Completions API
+- **请求格式**:
+```javascript
+{
+  "model": "gpt-4",
+  "messages": [...],
+  "stream": false
+}
+```
+- **响应格式**:
+```javascript
+{
+  "id": "chatcmpl-abc123",
+  "object": "chat.completion",
+  "choices": [...],
+  "usage": {...}
+}
+```
+
+#### OpenAI Responses 账户
+- **账户类型**: `openai-responses`
+- **认证方式**: API Key
+- **API端点**: Responses API
+- **请求格式**:
+```javascript
+{
+  "model": "gpt-4",
+  "input": [...],
+  "stream": false
+}
+```
+- **响应格式**:
+```javascript
+{
+  "id": "resp_abc123",
+  "object": "response",
+  "output": [...],
+  "usage": {...}
+}
+```
+
+### 15.4 转发流程设计
+
+#### Chat 账户转发流程
+```
+客户端请求 → API认证 → 统一调度器 → 选择openai-chat账户 → Chat中继服务 → OpenAI Chat API → 响应转发
+```
+
+#### Responses 账户转发流程
+```
+客户端请求 → API认证 → 统一调度器 → 选择openai-responses账户 → Responses中继服务 → OpenAI Responses API → 响应转发
+```
+
+### 15.5 现有实现分析
+
+#### 已实现功能 (Responses)
+- ✅ `openaiResponsesAccountService` - 账户管理
+- ✅ `openaiResponsesRelayService` - 中继转发
+- ✅ `/openai/v1/responses` 路由 - 端点支持
+- ✅ 完整的使用统计和错误处理
+
+#### 待实现功能 (Chat)
+- ✅ `openaiChatAccountService` - Chat账户管理
+- ✅ `openaiChatRelayService` - Chat中继服务
+- ✅ `/openai/v1/chat/completions` 路由 - 端点支持
+- ✅ Chat格式的使用统计适配
+
+### 15.6 技术实现方案
+
+#### Chat账户服务 (需新建)
+```javascript
+// src/services/openaiChatAccountService.js
+class OpenAIChatAccountService {
+  // 类似openaiResponsesAccountService的实现
+  // 支持OAuth token管理和刷新
+  // 账户状态监控和调度
+}
+```
+
+#### Chat中继服务 (需新建)
+```javascript
+// src/services/openaiChatRelayService.js
+class OpenAIChatRelayService {
+  // 处理Chat格式的请求/响应
+  // 流式和非流式响应支持
+  // 使用统计捕获 (prompt_tokens → completion_tokens)
+}
+```
+
+#### 路由集成 (需修改)
+```javascript
+// src/routes/openaiRoutes.js
+router.post('/v1/chat/completions', authenticateApiKey, handleChat)
+router.post('/chat/completions', authenticateApiKey, handleChat)
+
+async function handleChat(req, res) {
+  // 复用统一调度器和认证逻辑
+  // 路由到Chat中继服务
+}
+```
+
+#### 统一调度器扩展 (需微调)
+```javascript
+// src/services/unifiedOpenAIScheduler.js
+// 新增openai-chat账户类型支持
+// 复用现有的账户选择和负载均衡逻辑
+```
+
+### 15.7 开发工作量估算
+
+#### 核心组件开发
+| 组件 | 文件路径 | 工作量 | 复杂度 |
+|------|----------|--------|--------|
+| **Chat账户服务** | `src/services/openaiChatAccountService.js` | 2天 | 中等 |
+| **Chat中继服务** | `src/services/openaiChatRelayService.js` | 2天 | 中等 |
+| **路由端点** | `src/routes/openaiRoutes.js` | 0.5天 | 简单 |
+| **调度器扩展** | `src/services/unifiedOpenAIScheduler.js` | 0.5天 | 简单 |
+| **测试用例** | `__tests__/services/` | 1天 | 中等 |
+
+#### 总计开发时间
+**约6个工作日** (含测试和集成)
+
+### 15.8 风险评估
+
+**低风险**
+
+主要风险和缓解措施:
+
+| 风险 | 概率 | 影响 | 缓解措施 |
+|------|------|------|----------|
+| OAuth token管理复杂 | 中 | 中 | 复用现有的token刷新机制 |
+| Chat格式统计差异 | 低 | 低 | 适配prompt/completion_tokens统计 |
+| 并发控制冲突 | 极低 | 中 | 独立的账户类型，独立计数 |
+| 现有功能影响 | 极低 | 高 | 独立实现，零影响现有功能 |
+
+### 15.9 实施建议
+
+**建议实施**
+
+**实施优先级**: 中等 - 可在后续迭代中实施
+
+**实施路径**:
+1. **Phase 1**: 创建Chat账户服务 (2天)
+2. **Phase 2**: 实现Chat中继服务 (2天)
+3. **Phase 3**: 集成路由和调度器 (1天)
+4. **Phase 4**: 测试和优化 (1天)
+
+**预期收益**:
+- ✅ 支持标准OpenAI Chat API格式
+- ✅ 为Chat和Responses提供统一的账户管理
+- ✅ 保持现有Responses功能完全不变
+- ✅ 提升项目对OpenAI生态的完整支持
+
+### 15.10 结论
+
+OpenAI Chat和Responses是两种独立的账户类型，应该通过不同的URL入口提供服务，项目只需要如实转发，无需格式转换。这种设计：
+
+- **架构清晰**: 两种协议完全独立，互不干扰
+- **易于维护**: 各自独立的实现和测试
+- **用户友好**: 标准的OpenAI API体验
+- **可扩展性**: 未来可轻松支持更多OpenAI API类型
+

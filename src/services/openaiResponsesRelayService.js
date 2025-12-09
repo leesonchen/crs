@@ -965,7 +965,7 @@ class OpenAIResponsesRelayService {
           // 如果仍然没有内容，使用默认值
           if (estimatedInputTokens === 0 && estimatedOutputTokens === 0) {
             estimatedInputTokens = 100 // 默认输入token
-            estimatedOutputTokens = 50  // 默认输出token
+            estimatedOutputTokens = 50 // 默认输出token
           }
 
           const modelToRecord = actualModel || requestedModel || 'unknown'
@@ -987,7 +987,10 @@ class OpenAIResponsesRelayService {
           // 更新账户的使用统计
           const accountService = getAccountService(accountType)
           if (accountService.updateAccountUsage) {
-            await accountService.updateAccountUsage(account.id, estimatedInputTokens + estimatedOutputTokens)
+            await accountService.updateAccountUsage(
+              account.id,
+              estimatedInputTokens + estimatedOutputTokens
+            )
           }
 
           // 更新账户使用额度（如果设置了额度限制）
@@ -1287,7 +1290,7 @@ class OpenAIResponsesRelayService {
             }
           }
         } else if (responseData?.choices?.[0]?.message?.content) {
-          const content = responseData.choices[0].message.content
+          const { content } = responseData.choices[0].message
           estimatedOutputTokens = Math.ceil(String(content).length / 4)
         } else if (responseData?.content) {
           estimatedOutputTokens = Math.ceil(String(responseData.content).length / 4)
@@ -1296,7 +1299,7 @@ class OpenAIResponsesRelayService {
         // 如果仍然没有内容，使用默认值
         if (estimatedInputTokens === 0 && estimatedOutputTokens === 0) {
           estimatedInputTokens = 100 // 默认输入token
-          estimatedOutputTokens = 50  // 默认输出token
+          estimatedOutputTokens = 50 // 默认输出token
         }
 
         const modelToRecord = actualModel || requestedModel || 'unknown'
@@ -1318,7 +1321,10 @@ class OpenAIResponsesRelayService {
         // 更新账户的使用统计
         const accountService = getAccountService(accountType)
         if (accountService.updateAccountUsage) {
-          await accountService.updateAccountUsage(account.id, estimatedInputTokens + estimatedOutputTokens)
+          await accountService.updateAccountUsage(
+            account.id,
+            estimatedInputTokens + estimatedOutputTokens
+          )
         }
 
         // 更新账户使用额度（如果设置了额度限制）

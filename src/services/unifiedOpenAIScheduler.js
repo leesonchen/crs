@@ -1,5 +1,6 @@
 const openaiAccountService = require('./openaiAccountService')
 const openaiResponsesAccountService = require('./openaiResponsesAccountService')
+const openaiChatAccountService = require('./openaiChatAccountService') // ✅ 新增：Chat账户服务
 const accountGroupService = require('./accountGroupService')
 const redis = require('../models/redis')
 const logger = require('../utils/logger')
@@ -17,6 +18,21 @@ const logger = require('../utils/logger')
 class UnifiedOpenAIScheduler {
   constructor() {
     this.SESSION_MAPPING_PREFIX = 'unified_openai_session_mapping:'
+  }
+
+  // ✅ 根据账户类型获取对应的账户服务
+  _getAccountService(accountType) {
+    switch (accountType) {
+      case 'openai':
+        return openaiAccountService
+      case 'openai-responses':
+        return openaiResponsesAccountService
+      case 'openai-chat':
+        return openaiChatAccountService
+      default:
+        logger.warn(`❌ Unknown account type: ${accountType}, defaulting to openai-responses`)
+        return openaiResponsesAccountService
+    }
   }
 
   // 🔧 辅助方法：检查账户是否可调度（兼容字符串和布尔值）
@@ -151,7 +167,7 @@ class UnifiedOpenAIScheduler {
           return await this.selectAccountFromGroup(groupId, sessionHash, requestedModel, apiKeyData)
         }
 
-        // 普通专属账户 - 根据前缀判断是 OpenAI 还是 OpenAI-Responses 类型
+        // ✅ 普通专属账户 - 根据前缀判断是 OpenAI、OpenAI-Responses 还是 OpenAI-Chat 类型
         let boundAccount = null
         let accountType = 'openai'
 
@@ -160,6 +176,11 @@ class UnifiedOpenAIScheduler {
           const accountId = apiKeyData.openaiAccountId.replace('responses:', '')
           boundAccount = await openaiResponsesAccountService.getAccount(accountId)
           accountType = 'openai-responses'
+        } else if (apiKeyData.openaiAccountId.startsWith('chat:')) {
+          // ✅ 检查是否有 chat: 前缀（用于区分 OpenAI-Chat 账户）
+          const accountId = apiKeyData.openaiAccountId.replace('chat:', '')
+          boundAccount = await openaiChatAccountService.getAccount(accountId)
+          accountType = 'openai-chat'
         } else {
           // 普通 OpenAI 账户
           boundAccount = await openaiAccountService.getAccount(apiKeyData.openaiAccountId)
@@ -193,9 +214,17 @@ class UnifiedOpenAIScheduler {
           } else {
             const hasRateLimitFlag = this._isRateLimited(boundAccount.rateLimitStatus)
             if (hasRateLimitFlag) {
-              const isRateLimitCleared = await openaiResponsesAccountService.checkAndClearRateLimit(
-                boundAccount.id
-              )
+              // ✅ 根据账户类型选择对应的服务进行限流检查
+              let isRateLimitCleared = false
+              if (accountType === 'openai-responses') {
+                isRateLimitCleared = await openaiResponsesAccountService.checkAndClearRateLimit(
+                  boundAccount.id
+                )
+              } else if (accountType === 'openai-chat') {
+                // Chat 账户暂时不处理限流状态
+                isRateLimitCleared = true
+              }
+
               if (!isRateLimitCleared) {
                 const errorMsg = `Dedicated account ${boundAccount.name} is currently rate limited`
                 logger.warn(`⚠️ ${errorMsg}`)
@@ -204,7 +233,8 @@ class UnifiedOpenAIScheduler {
                 throw error
               }
               // 限流已解除，刷新账户最新状态，确保后续调度信息准确
-              boundAccount = await openaiResponsesAccountService.getAccount(boundAccount.id)
+              const accountService = this._getAccountService(accountType)
+              boundAccount = await accountService.getAccount(boundAccount.id)
               if (!boundAccount) {
                 const errorMsg = `Dedicated account ${apiKeyData.openaiAccountId} not found after rate limit reset`
                 logger.warn(`⚠️ ${errorMsg}`)
@@ -519,6 +549,38 @@ class UnifiedOpenAIScheduler {
       }
     }
 
+    // ✅ 获取所有 OpenAI-Chat 账户（共享池）
+    const openaiChatAccounts = await openaiChatAccountService.getAllAccounts()
+    for (const account of openaiChatAccounts) {
+      if (
+        (account.isActive === true || account.isActive === 'true') &&
+        account.status !== 'error' &&
+        account.status !== 'rateLimited'
+      ) {
+        const hasRateLimitFlag = this._hasRateLimitFlag(account.rateLimitStatus)
+        const schedulable = this._isSchedulable(account.schedulable)
+
+        if (!schedulable && !hasRateLimitFlag) {
+          logger.debug(`⏭️ Skipping OpenAI-Chat account ${account.name} - not schedulable`)
+          continue
+        }
+
+        // 检查订阅过期
+        if (openaiChatAccountService.isSubscriptionExpired(account)) {
+          logger.debug(`⏭️ Skipping OpenAI-Chat account ${account.name} - subscription expired`)
+          continue
+        }
+
+        availableAccounts.push({
+          ...account,
+          accountId: account.id,
+          accountType: 'openai-chat',
+          priority: parseInt(account.priority) || 50,
+          lastUsedAt: account.lastUsedAt || '0'
+        })
+      }
+    }
+
     // 🌉 检查配置了桥接的 Claude 账户，直接参与调度池
     // 注意：移除了"没有OpenAI账户可用"的前提条件限制
     try {
@@ -791,6 +853,9 @@ class UnifiedOpenAIScheduler {
             ? new Date(Date.now() + resetsInSeconds * 1000).toISOString()
             : new Date(Date.now() + 3600000).toISOString() // 默认1小时
         })
+      } else if (accountType === 'openai-chat') {
+        // ✅ 对于 OpenAI-Chat 账户，暂时不处理限流状态
+        logger.debug(`OpenAI-Chat account ${accountId} rate limiting not implemented yet`)
       }
 
       // 删除会话映射
@@ -820,6 +885,9 @@ class UnifiedOpenAIScheduler {
         await openaiAccountService.markAccountUnauthorized(accountId, reason)
       } else if (accountType === 'openai-responses') {
         await openaiResponsesAccountService.markAccountUnauthorized(accountId, reason)
+      } else if (accountType === 'openai-chat') {
+        // ✅ OpenAI-Chat 账户支持未授权标记
+        await openaiChatAccountService.markAccountUnauthorized(accountId, reason)
       } else {
         logger.warn(
           `⚠️ Unsupported account type ${accountType} when marking unauthorized for account ${accountId}`

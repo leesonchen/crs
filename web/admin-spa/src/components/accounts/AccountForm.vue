@@ -414,6 +414,39 @@
                       <label
                         class="group relative flex cursor-pointer items-center rounded-md border p-2 transition-all"
                         :class="[
+                          form.platform === 'openai-chat'
+                            ? 'border-green-500 bg-green-50 dark:border-green-400 dark:bg-green-900/30'
+                            : 'border-gray-300 bg-white hover:border-green-400 hover:bg-green-50/50 dark:border-gray-600 dark:bg-gray-700 dark:hover:border-green-500 dark:hover:bg-green-900/20'
+                        ]"
+                      >
+                        <input
+                          v-model="form.platform"
+                          class="sr-only"
+                          type="radio"
+                          value="openai-chat"
+                        />
+                        <div class="flex items-center gap-2">
+                          <i class="fas fa-comments text-sm text-green-600 dark:text-green-400"></i>
+                          <div>
+                            <span class="block text-xs font-medium text-gray-900 dark:text-gray-100"
+                              >Chat</span
+                            >
+                            <span class="text-xs text-gray-500 dark:text-gray-400"
+                              >Openai-Chat</span
+                            >
+                          </div>
+                        </div>
+                        <div
+                          v-if="form.platform === 'openai-chat'"
+                          class="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-green-500"
+                        >
+                          <i class="fas fa-check text-xs text-white"></i>
+                        </div>
+                      </label>
+
+                      <label
+                        class="group relative flex cursor-pointer items-center rounded-md border p-2 transition-all"
+                        :class="[
                           form.platform === 'azure_openai'
                             ? 'border-blue-500 bg-blue-50 dark:border-blue-400 dark:bg-blue-900/30'
                             : 'border-gray-300 bg-white hover:border-blue-400 hover:bg-blue-50/50 dark:border-gray-600 dark:bg-gray-700 dark:hover:border-blue-500 dark:hover:bg-blue-900/20'
@@ -519,7 +552,8 @@
                 form.platform !== 'ccr' &&
                 form.platform !== 'bedrock' &&
                 form.platform !== 'azure_openai' &&
-                form.platform !== 'openai-responses'
+                form.platform !== 'openai-responses' &&
+                form.platform !== 'openai-chat'
               "
             >
               <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
@@ -1466,6 +1500,56 @@
               <input v-model.number="form.rateLimitDuration" type="hidden" value="60" />
             </div>
 
+            <!-- OpenAI-Chat 特定字段 -->
+            <div v-if="form.platform === 'openai-chat' && !isEdit" class="space-y-4">
+              <div>
+                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
+                  >API 基础地址 *</label
+                >
+                <input
+                  v-model="form.baseApi"
+                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                  placeholder="https://api.openai.com/v1"
+                  required
+                  type="url"
+                />
+                <p v-if="errors.baseApi" class="mt-1 text-sm text-red-500">
+                  {{ errors.baseApi }}
+                </p>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  OpenAI Chat API 的基础地址
+                </p>
+              </div>
+
+              <div>
+                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
+                  >API Key *</label
+                >
+                <div class="relative">
+                  <input
+                    v-model="form.apiKey"
+                    class="form-input w-full border-gray-300 pr-10 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                    placeholder="输入 API Key"
+                    required
+                    :type="showApiKey ? 'text' : 'password'"
+                  />
+                  <button
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-400"
+                    type="button"
+                    @click="showApiKey = !showApiKey"
+                  >
+                    <i :class="showApiKey ? 'fas fa-eye-slash' : 'fas fa-eye'" />
+                  </button>
+                </div>
+                <p v-if="errors.apiKey" class="mt-1 text-sm text-red-500">
+                  {{ errors.apiKey }}
+                </p>
+              </div>
+
+              <!-- 限流时长字段 - 隐藏不显示，使用默认值60 -->
+              <input v-model.number="form.rateLimitDuration" type="hidden" value="60" />
+            </div>
+
             <!-- Claude 订阅类型选择 -->
             <div v-if="form.platform === 'claude'">
               <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
@@ -1645,7 +1729,8 @@
                 form.platform !== 'ccr' &&
                 form.platform !== 'bedrock' &&
                 form.platform !== 'azure_openai' &&
-                form.platform !== 'openai-responses'
+                form.platform !== 'openai-responses' &&
+                form.platform !== 'openai-chat'
               "
               class="space-y-4 rounded-lg border border-blue-200 bg-blue-50 p-4"
             >
@@ -1800,7 +1885,7 @@
               </div>
 
               <!-- OpenAI / OpenAI-Responses：Claude 桥接开关 -->
-              <div v-if="form.platform !== 'openai' && form.platform !== 'openai-responses'">
+              <div v-if="form.platform !== 'openai' && form.platform !== 'openai-responses' && form.platform !== 'openai-chat'">
                 <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
                   >Refresh Token (可选)</label
                 >
@@ -2447,7 +2532,7 @@
 
           <!-- OpenAI / OpenAI-Responses 特定字段（编辑模式） -->
           <div
-            v-if="form.platform === 'openai' || form.platform === 'openai-responses'"
+            v-if="form.platform === 'openai' || form.platform === 'openai-responses' || form.platform === 'openai-chat'"
             class="space-y-4"
           >
             <div>
