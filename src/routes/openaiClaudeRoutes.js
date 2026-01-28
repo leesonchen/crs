@@ -13,24 +13,32 @@ const openaiToClaude = require('../services/openaiToClaude')
 const apiKeyService = require('../services/apiKeyService')
 const unifiedClaudeScheduler = require('../services/unifiedClaudeScheduler')
 const claudeCodeHeadersService = require('../services/claudeCodeHeadersService')
+const { getSafeMessage } = require('../utils/errorSanitizer')
 const sessionHelper = require('../utils/sessionHelper')
 const { updateRateLimitCounters } = require('../utils/rateLimitHelper')
 const pricingService = require('../services/pricingService')
+const { getEffectiveModel } = require('../utils/modelHelper')
 
 // 🔧 辅助函数：检查 API Key 权限
 function checkPermissions(apiKeyData, requiredPermission = 'claude') {
-  const permissions = apiKeyData.permissions || 'all'
-  return permissions === 'all' || permissions === requiredPermission
+  return apiKeyService.hasPermission(apiKeyData?.permissions, requiredPermission)
 }
 
-function queueRateLimitUpdate(rateLimitInfo, usageSummary, model, context = '') {
+function queueRateLimitUpdate(
+  rateLimitInfo,
+  usageSummary,
+  model,
+  context = '',
+  keyId = null,
+  accountType = null
+) {
   if (!rateLimitInfo) {
     return
   }
 
   const label = context ? ` (${context})` : ''
 
-  updateRateLimitCounters(rateLimitInfo, usageSummary, model)
+  updateRateLimitCounters(rateLimitInfo, usageSummary, model, keyId, accountType)
     .then(({ totalTokens, totalCost }) => {
       if (totalTokens > 0) {
         logger.api(`📊 Updated rate limit token count${label}: +${totalTokens} tokens`)
@@ -76,9 +84,9 @@ router.get('/v1/models', authenticateApiKey, async (req, res) => {
       }
     ]
 
-    // 如果启用了模型限制，过滤模型列表
+    // 如果启用了模型限制，视为黑名单：过滤掉受限模型
     if (apiKeyData.enableModelRestriction && apiKeyData.restrictedModels?.length > 0) {
-      models = models.filter((model) => apiKeyData.restrictedModels.includes(model.id))
+      models = models.filter((model) => !apiKeyData.restrictedModels.includes(model.id))
     }
 
     res.json({
@@ -115,9 +123,9 @@ router.get('/v1/models/:model', authenticateApiKey, async (req, res) => {
       })
     }
 
-    // 检查模型限制
+    // 模型限制（黑名单）：命中则直接拒绝
     if (apiKeyData.enableModelRestriction && apiKeyData.restrictedModels?.length > 0) {
-      if (!apiKeyData.restrictedModels.includes(modelId)) {
+      if (apiKeyData.restrictedModels.includes(modelId)) {
         return res.status(404).json({
           error: {
             message: `Model '${modelId}' not found`,
@@ -200,9 +208,10 @@ async function handleChatCompletion(req, res, apiKeyData) {
     // 转换 OpenAI 请求为 Claude 格式
     const claudeRequest = openaiToClaude.convertRequest(req.body)
 
-    // 检查模型限制
+    // 模型限制（黑名单）：命中受限模型则拒绝
     if (apiKeyData.enableModelRestriction && apiKeyData.restrictedModels?.length > 0) {
-      if (!apiKeyData.restrictedModels.includes(claudeRequest.model)) {
+      const effectiveModel = getEffectiveModel(claudeRequest.model || '')
+      if (apiKeyData.restrictedModels.includes(effectiveModel)) {
         return res.status(403).json({
           error: {
             message: `Model ${req.body.model} is not allowed for this API key`,
@@ -263,16 +272,8 @@ async function handleChatCompletion(req, res, apiKeyData) {
           abortController.abort()
         }
       })
-
-      // 流转换器（Claude→OpenAI）
-      const streamTransformer = (() => {
-        const sessionId = `chatcmpl-${Math.random().toString(36).substring(2, 15)}${Math.random().toString(36).substring(2, 15)}`
-        return (chunk) => openaiToClaude.convertStreamChunk(chunk, req.body.model, sessionId)
-      })()
-
-      // 使用转换后的响应流 (使用 OAuth-only beta header，添加 Claude Code 必需的 headers)
-
-      // 定义使用统计回调函数
+      // 使用转换后的响应流 (根据账户类型选择转发服务)
+      // 创建 usage 回调函数
       const usageCallback = (usage) => {
         // 记录使用统计
         if (usage && usage.input_tokens !== undefined && usage.output_tokens !== undefined) {
@@ -290,7 +291,8 @@ async function handleChatCompletion(req, res, apiKeyData) {
               apiKeyData.id,
               usage, // 直接传递整个 usage 对象，包含可能的 cache_creation 详细数据
               model,
-              accountId
+              accountId,
+              accountType
             )
             .catch((error) => {
               logger.error('❌ Failed to record usage:', error)
@@ -305,26 +307,21 @@ async function handleChatCompletion(req, res, apiKeyData) {
               cacheReadTokens
             },
             model,
-            'openai-claude-stream'
+            `openai-${accountType}-stream`,
+            req.apiKey?.id,
+            accountType
           )
         }
       }
 
-      // 按账号类型分发到对应Relay服务
-      if (accountType === 'claude-official') {
-        await claudeRelayService.relayStreamRequestWithUsageCapture(
-          claudeRequest,
-          apiKeyData,
-          res,
-          claudeCodeHeaders,
-          usageCallback,
-          streamTransformer,
-          {
-            betaHeader:
-              'oauth-2025-04-20,claude-code-20250219,interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14'
-          }
-        )
-      } else if (accountType === 'claude-console') {
+      // 创建流转换器
+      const sessionId = `chatcmpl-${Math.random().toString(36).substring(2, 15)}${Math.random().toString(36).substring(2, 15)}`
+      const streamTransformer = (chunk) =>
+        openaiToClaude.convertStreamChunk(chunk, req.body.model, sessionId)
+
+      // 根据账户类型选择转发服务
+      if (accountType === 'claude-console') {
+        // Claude Console 账户使用 Console 转发服务
         await claudeConsoleRelayService.relayStreamRequestWithUsageCapture(
           claudeRequest,
           apiKeyData,
@@ -332,6 +329,16 @@ async function handleChatCompletion(req, res, apiKeyData) {
           claudeCodeHeaders,
           usageCallback,
           accountId,
+          streamTransformer
+        )
+      } else if (accountType === 'claude-official') {
+        // Claude Official 账户使用标准转发服务
+        await claudeRelayService.relayStreamRequestWithUsageCapture(
+          claudeRequest,
+          apiKeyData,
+          res,
+          claudeCodeHeaders,
+          usageCallback,
           streamTransformer,
           {
             betaHeader:
@@ -351,25 +358,26 @@ async function handleChatCompletion(req, res, apiKeyData) {
       // 非流式请求
       logger.info(`📄 Processing OpenAI non-stream request for model: ${req.body.model}`)
 
-      // 发送请求到 Claude (使用 OAuth-only beta header，添加 Claude Code 必需的 headers)
+      // 根据账户类型选择转发服务
       let claudeResponse
-      if (accountType === 'claude-official') {
-        claudeResponse = await claudeRelayService.relayRequest(
-          claudeRequest,
-          apiKeyData,
-          req,
-          res,
-          claudeCodeHeaders,
-          { betaHeader: 'oauth-2025-04-20' }
-        )
-      } else if (accountType === 'claude-console') {
+      if (accountType === 'claude-console') {
+        // Claude Console 账户使用 Console 转发服务
         claudeResponse = await claudeConsoleRelayService.relayRequest(
           claudeRequest,
           apiKeyData,
           req,
           res,
           claudeCodeHeaders,
-          accountId,
+          accountId
+        )
+      } else if (accountType === 'claude-official') {
+        // Claude Official 账户使用标准转发服务
+        claudeResponse = await claudeRelayService.relayRequest(
+          claudeRequest,
+          apiKeyData,
+          req,
+          res,
+          claudeCodeHeaders,
           { betaHeader: 'oauth-2025-04-20' }
         )
       } else {
@@ -426,7 +434,8 @@ async function handleChatCompletion(req, res, apiKeyData) {
             apiKeyData.id,
             usage, // 直接传递整个 usage 对象，包含可能的 cache_creation 详细数据
             claudeRequest.model,
-            accountId
+            accountId,
+            accountType
           )
           .catch((error) => {
             logger.error('❌ Failed to record usage:', error)
@@ -441,7 +450,9 @@ async function handleChatCompletion(req, res, apiKeyData) {
             cacheReadTokens
           },
           claudeRequest.model,
-          'openai-claude-non-stream'
+          `openai-${accountType}-non-stream`,
+          req.apiKey?.id,
+          accountType
         )
       }
 
@@ -452,16 +463,29 @@ async function handleChatCompletion(req, res, apiKeyData) {
     const duration = Date.now() - startTime
     logger.info(`✅ OpenAI-Claude request completed in ${duration}ms`)
   } catch (error) {
-    logger.error('❌ OpenAI-Claude request error:', error)
+    // 客户端主动断开连接是正常情况，使用 INFO 级别
+    if (error.message === 'Client disconnected') {
+      logger.info('🔌 OpenAI-Claude stream ended: Client disconnected')
+    } else {
+      logger.error('❌ OpenAI-Claude request error:', error)
+    }
 
-    const status = error.status || 500
-    res.status(status).json({
-      error: {
-        message: error.message || 'Internal server error',
-        type: 'server_error',
-        code: 'internal_error'
+    // 检查响应是否已发送（流式响应场景），避免 ERR_HTTP_HEADERS_SENT
+    if (!res.headersSent) {
+      // 客户端断开使用 499 状态码 (Client Closed Request)
+      if (error.message === 'Client disconnected') {
+        res.status(499).end()
+      } else {
+        const status = error.status || 500
+        res.status(status).json({
+          error: {
+            message: getSafeMessage(error),
+            type: 'server_error',
+            code: 'internal_error'
+          }
+        })
       }
-    })
+    }
   } finally {
     // 清理资源
     if (abortController) {

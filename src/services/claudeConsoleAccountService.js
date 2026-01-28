@@ -66,7 +66,10 @@ class ClaudeConsoleAccountService {
       accountType = 'shared', // 'dedicated' or 'shared'
       schedulable = true, // 是否可被调度
       dailyQuota = 0, // 每日额度限制（美元），0表示不限制
-      quotaResetTime = '00:00' // 额度重置时间（HH:mm格式）
+      quotaResetTime = '00:00', // 额度重置时间（HH:mm格式）
+      maxConcurrentTasks = 0, // 最大并发任务数，0表示无限制
+      disableAutoProtection = false, // 是否关闭自动防护（429/401/400/529 不自动禁用）
+      interceptWarmup = false // 拦截预热请求（标题生成、Warmup等）
     } = options
 
     // 验证必填字段
@@ -113,7 +116,10 @@ class ClaudeConsoleAccountService {
       // 使用与统计一致的时区日期，避免边界问题
       lastResetDate: redis.getDateStringInTimezone(), // 最后重置日期（按配置时区）
       quotaResetTime, // 额度重置时间
-      quotaStoppedAt: '' // 因额度停用的时间
+      quotaStoppedAt: '', // 因额度停用的时间
+      maxConcurrentTasks: maxConcurrentTasks.toString(), // 最大并发任务数，0表示无限制
+      disableAutoProtection: disableAutoProtection.toString(), // 关闭自动防护
+      interceptWarmup: interceptWarmup.toString() // 拦截预热请求
     }
 
     const client = redis.getClientSafe()
@@ -123,6 +129,7 @@ class ClaudeConsoleAccountService {
     logger.debug(`[DEBUG] Account data to save: ${JSON.stringify(accountData, null, 2)}`)
 
     await client.hset(`${this.ACCOUNT_KEY_PREFIX}${accountId}`, accountData)
+    await redis.addToIndex('claude_console_account:index', accountId)
 
     // 如果是共享账户，添加到共享账户集合
     if (accountType === 'shared') {
@@ -149,7 +156,11 @@ class ClaudeConsoleAccountService {
       dailyUsage: 0,
       lastResetDate: accountData.lastResetDate,
       quotaResetTime,
-      quotaStoppedAt: null
+      quotaStoppedAt: null,
+      maxConcurrentTasks, // 新增：返回并发限制配置
+      disableAutoProtection, // 新增：返回自动防护开关
+      interceptWarmup, // 新增：返回预热请求拦截开关
+      activeTaskCount: 0 // 新增：新建账户当前并发数为0
     }
   }
 
@@ -157,11 +168,18 @@ class ClaudeConsoleAccountService {
   async getAllAccounts() {
     try {
       const client = redis.getClientSafe()
-      const keys = await client.keys(`${this.ACCOUNT_KEY_PREFIX}*`)
+      const accountIds = await redis.getAllIdsByIndex(
+        'claude_console_account:index',
+        `${this.ACCOUNT_KEY_PREFIX}*`,
+        /^claude_console_account:(.+)$/
+      )
+      const keys = accountIds.map((id) => `${this.ACCOUNT_KEY_PREFIX}${id}`)
       const accounts = []
+      const dataList = await redis.batchHgetallChunked(keys)
 
-      for (const key of keys) {
-        const accountData = await client.hgetall(key)
+      for (let i = 0; i < keys.length; i++) {
+        const key = keys[i]
+        const accountData = dataList[i]
         if (accountData && Object.keys(accountData).length > 0) {
           if (!accountData.id) {
             logger.warn(`⚠️ 检测到缺少ID的Claude Console账户数据，执行清理: ${key}`)
@@ -171,6 +189,9 @@ class ClaudeConsoleAccountService {
 
           // 获取限流状态信息
           const rateLimitInfo = this._getRateLimitInfo(accountData)
+
+          // 获取实时并发计数
+          const activeTaskCount = await redis.getConsoleAccountConcurrency(accountData.id)
 
           accounts.push({
             id: accountData.id,
@@ -210,7 +231,14 @@ class ClaudeConsoleAccountService {
             dailyUsage: parseFloat(accountData.dailyUsage || '0'),
             lastResetDate: accountData.lastResetDate || '',
             quotaResetTime: accountData.quotaResetTime || '00:00',
-            quotaStoppedAt: accountData.quotaStoppedAt || null
+            quotaStoppedAt: accountData.quotaStoppedAt || null,
+
+            // 并发控制相关
+            maxConcurrentTasks: parseInt(accountData.maxConcurrentTasks) || 0,
+            activeTaskCount,
+            disableAutoProtection: accountData.disableAutoProtection === 'true',
+            // 拦截预热请求
+            interceptWarmup: accountData.interceptWarmup === 'true'
           })
         }
       }
@@ -256,10 +284,16 @@ class ClaudeConsoleAccountService {
     }
     accountData.isActive = accountData.isActive === 'true'
     accountData.schedulable = accountData.schedulable !== 'false' // 默认为true
+    accountData.disableAutoProtection = accountData.disableAutoProtection === 'true'
 
     if (accountData.proxy) {
       accountData.proxy = JSON.parse(accountData.proxy)
     }
+
+    // 解析并发控制字段
+    accountData.maxConcurrentTasks = parseInt(accountData.maxConcurrentTasks) || 0
+    // 获取实时并发计数
+    accountData.activeTaskCount = await redis.getConsoleAccountConcurrency(accountId)
 
     logger.debug(
       `[DEBUG] Final account data - name: ${accountData.name}, hasApiUrl: ${!!accountData.apiUrl}, hasApiKey: ${!!accountData.apiKey}, supportedModels: ${JSON.stringify(accountData.supportedModels)}`
@@ -355,6 +389,17 @@ class ClaudeConsoleAccountService {
         updatedData.quotaStoppedAt = updates.quotaStoppedAt
       }
 
+      // 并发控制相关字段
+      if (updates.maxConcurrentTasks !== undefined) {
+        updatedData.maxConcurrentTasks = updates.maxConcurrentTasks.toString()
+      }
+      if (updates.disableAutoProtection !== undefined) {
+        updatedData.disableAutoProtection = updates.disableAutoProtection.toString()
+      }
+      if (updates.interceptWarmup !== undefined) {
+        updatedData.interceptWarmup = updates.interceptWarmup.toString()
+      }
+
       // ✅ 直接保存 subscriptionExpiresAt（如果提供）
       // Claude Console 没有 token 刷新逻辑，不会覆盖此字段
       if (updates.subscriptionExpiresAt !== undefined) {
@@ -420,6 +465,7 @@ class ClaudeConsoleAccountService {
 
       // 从Redis删除
       await client.del(`${this.ACCOUNT_KEY_PREFIX}${accountId}`)
+      await redis.removeFromIndex('claude_console_account:index', accountId)
 
       // 从共享账户集合中移除
       if (account.accountType === 'shared') {
@@ -548,7 +594,7 @@ class ClaudeConsoleAccountService {
           }
 
           await client.hset(accountKey, updateData)
-          logger.success(`✅ Rate limit removed and account re-enabled: ${accountId}`)
+          logger.success(`Rate limit removed and account re-enabled: ${accountId}`)
         }
       } else {
         if (await client.hdel(accountKey, 'rateLimitAutoStopped')) {
@@ -556,7 +602,7 @@ class ClaudeConsoleAccountService {
             `ℹ️ Removed stale auto-stop flag for Claude Console account ${accountId} during rate limit recovery`
           )
         }
-        logger.success(`✅ Rate limit removed for Claude Console account: ${accountId}`)
+        logger.success(`Rate limit removed for Claude Console account: ${accountId}`)
       }
 
       return { success: true }
@@ -829,7 +875,7 @@ class ClaudeConsoleAccountService {
           }
 
           await client.hset(accountKey, updateData)
-          logger.success(`✅ Blocked status removed and account re-enabled: ${accountId}`)
+          logger.success(`Blocked status removed and account re-enabled: ${accountId}`)
         }
       } else {
         if (await client.hdel(accountKey, 'blockedAutoStopped')) {
@@ -837,7 +883,7 @@ class ClaudeConsoleAccountService {
             `ℹ️ Removed stale auto-stop flag for Claude Console account ${accountId} during blocked status recovery`
           )
         }
-        logger.success(`✅ Blocked status removed for Claude Console account: ${accountId}`)
+        logger.success(`Blocked status removed for Claude Console account: ${accountId}`)
       }
 
       return { success: true }
@@ -938,7 +984,7 @@ class ClaudeConsoleAccountService {
 
       await client.hdel(`${this.ACCOUNT_KEY_PREFIX}${accountId}`, 'overloadedAt', 'overloadStatus')
 
-      logger.success(`✅ Overload status removed for Claude Console account: ${accountId}`)
+      logger.success(`Overload status removed for Claude Console account: ${accountId}`)
       return { success: true }
     } catch (error) {
       logger.error(
@@ -1257,7 +1303,7 @@ class ClaudeConsoleAccountService {
       }
 
       // 检查是否已经因额度停用（避免重复操作）
-      if (!accountData.isActive && accountData.quotaStoppedAt) {
+      if (accountData.quotaStoppedAt) {
         return
       }
 
@@ -1273,21 +1319,14 @@ class ClaudeConsoleAccountService {
           return // 已经被其他进程处理
         }
 
-        // 超过额度，停用账户
+        // 超过额度，停止调度但保持账户状态正常
+        // 不修改 isActive 和 status，只用独立字段标记配额超限
         const updates = {
-          isActive: false,
           quotaStoppedAt: new Date().toISOString(),
           errorMessage: `Daily quota exceeded: $${currentDailyCost.toFixed(2)} / $${dailyQuota.toFixed(2)}`,
           schedulable: false, // 停止调度
           // 使用独立的额度超限自动停止标记
           quotaAutoStopped: 'true'
-        }
-
-        // 只有当前状态是active时才改为quota_exceeded
-        // 如果是rate_limited等其他状态，保持原状态不变
-        const currentStatus = await client.hget(accountKey, 'status')
-        if (currentStatus === 'active') {
-          updates.status = 'quota_exceeded'
         }
 
         await this.updateAccount(accountId, updates)
@@ -1333,15 +1372,10 @@ class ClaudeConsoleAccountService {
         lastResetDate: today
       }
 
-      // 如果账户是因为超额被停用的，恢复账户
-      // 注意：状态可能是 quota_exceeded 或 rate_limited（如果429错误时也超额了）
-      if (
-        accountData.quotaStoppedAt &&
-        accountData.isActive === false &&
-        (accountData.status === 'quota_exceeded' || accountData.status === 'rate_limited')
-      ) {
-        updates.isActive = true
-        updates.status = 'active'
+      // 如果账户因配额超限被停用，恢复账户
+      // 新逻辑：不再依赖 isActive === false 和 status 判断
+      // 只要有 quotaStoppedAt 就说明是因配额超限被停止的
+      if (accountData.quotaStoppedAt) {
         updates.errorMessage = ''
         updates.quotaStoppedAt = ''
 
@@ -1351,16 +1385,7 @@ class ClaudeConsoleAccountService {
           updates.quotaAutoStopped = ''
         }
 
-        // 如果是rate_limited状态，也清除限流相关字段
-        if (accountData.status === 'rate_limited') {
-          const client = redis.getClientSafe()
-          const accountKey = `${this.ACCOUNT_KEY_PREFIX}${accountId}`
-          await client.hdel(accountKey, 'rateLimitedAt', 'rateLimitStatus', 'rateLimitAutoStopped')
-        }
-
-        logger.info(
-          `✅ Restored account ${accountId} after daily reset (was ${accountData.status})`
-        )
+        logger.info(`✅ Restored account ${accountId} after daily quota reset`)
       }
 
       await this.updateAccount(accountId, updates)
@@ -1387,7 +1412,7 @@ class ClaudeConsoleAccountService {
         }
       }
 
-      logger.success(`✅ Reset daily usage for ${resetCount} Claude Console accounts`)
+      logger.success(`Reset daily usage for ${resetCount} Claude Console accounts`)
     } catch (error) {
       logger.error('Failed to reset all daily usage:', error)
     }
@@ -1460,7 +1485,7 @@ class ClaudeConsoleAccountService {
       await client.hset(accountKey, updates)
       await client.hdel(accountKey, ...fieldsToDelete)
 
-      logger.success(`✅ Reset all error status for Claude Console account ${accountId}`)
+      logger.success(`Reset all error status for Claude Console account ${accountId}`)
 
       // 发送 Webhook 通知
       try {
@@ -1496,6 +1521,71 @@ class ClaudeConsoleAccountService {
     }
     const expiryDate = new Date(account.subscriptionExpiresAt)
     return expiryDate <= new Date()
+  }
+
+  // 🚫 标记账户的 count_tokens 端点不可用
+  async markCountTokensUnavailable(accountId) {
+    try {
+      const client = redis.getClientSafe()
+      const accountKey = `${this.ACCOUNT_KEY_PREFIX}${accountId}`
+
+      // 检查账户是否存在
+      const exists = await client.exists(accountKey)
+      if (!exists) {
+        logger.warn(
+          `⚠️ Cannot mark count_tokens unavailable for non-existent account: ${accountId}`
+        )
+        return { success: false, reason: 'Account not found' }
+      }
+
+      await client.hset(accountKey, {
+        countTokensUnavailable: 'true',
+        countTokensUnavailableAt: new Date().toISOString()
+      })
+
+      logger.info(
+        `🚫 Marked count_tokens endpoint as unavailable for Claude Console account: ${accountId}`
+      )
+      return { success: true }
+    } catch (error) {
+      logger.error(`❌ Failed to mark count_tokens unavailable for account ${accountId}:`, error)
+      throw error
+    }
+  }
+
+  // ✅ 移除账户的 count_tokens 不可用标记
+  async removeCountTokensUnavailable(accountId) {
+    try {
+      const client = redis.getClientSafe()
+      const accountKey = `${this.ACCOUNT_KEY_PREFIX}${accountId}`
+
+      await client.hdel(accountKey, 'countTokensUnavailable', 'countTokensUnavailableAt')
+
+      logger.info(
+        `✅ Removed count_tokens unavailable mark for Claude Console account: ${accountId}`
+      )
+      return { success: true }
+    } catch (error) {
+      logger.error(
+        `❌ Failed to remove count_tokens unavailable mark for account ${accountId}:`,
+        error
+      )
+      throw error
+    }
+  }
+
+  // 🔍 检查账户的 count_tokens 端点是否不可用
+  async isCountTokensUnavailable(accountId) {
+    try {
+      const client = redis.getClientSafe()
+      const accountKey = `${this.ACCOUNT_KEY_PREFIX}${accountId}`
+
+      const value = await client.hget(accountKey, 'countTokensUnavailable')
+      return value === 'true'
+    } catch (error) {
+      logger.error(`❌ Failed to check count_tokens availability for account ${accountId}:`, error)
+      return false // 出错时默认返回可用，避免误阻断
+    }
   }
 }
 

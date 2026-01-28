@@ -16,6 +16,22 @@ const {
 const tokenRefreshService = require('./tokenRefreshService')
 const LRUCache = require('../utils/lruCache')
 const { formatDateWithTimezone, getISOStringWithTimezone } = require('../utils/dateHelper')
+const { isOpus45OrNewer } = require('../utils/modelHelper')
+
+/**
+ * Check if account is Pro (not Max)
+ * Compatible with both API real-time data (hasClaudePro) and local config (accountType)
+ * @param {Object} info - Subscription info object
+ * @returns {boolean}
+ */
+function isProAccount(info) {
+  // API real-time status takes priority
+  if (info.hasClaudePro === true && info.hasClaudeMax !== true) {
+    return true
+  }
+  // Local configured account type
+  return info.accountType === 'claude_pro'
+}
 
 class ClaudeAccountService {
   constructor() {
@@ -75,7 +91,9 @@ class ClaudeAccountService {
       useUnifiedClientId = false, // 是否使用统一的客户端标识
       unifiedClientId = '', // 统一的客户端标识
       expiresAt = null, // 账户订阅到期时间
-      extInfo = null // 额外扩展信息
+      extInfo = null, // 额外扩展信息
+      maxConcurrency = 0, // 账户级用户消息串行队列：0=使用全局配置，>0=强制启用串行
+      interceptWarmup = false // 拦截预热请求（标题生成、Warmup等）
     } = options
 
     const accountId = uuidv4()
@@ -120,7 +138,11 @@ class ClaudeAccountService {
         // 账户订阅到期时间
         subscriptionExpiresAt: expiresAt || '',
         // 扩展信息
-        extInfo: normalizedExtInfo ? JSON.stringify(normalizedExtInfo) : ''
+        extInfo: normalizedExtInfo ? JSON.stringify(normalizedExtInfo) : '',
+        // 账户级用户消息串行队列限制
+        maxConcurrency: maxConcurrency.toString(),
+        // 拦截预热请求
+        interceptWarmup: interceptWarmup.toString()
       }
     } else {
       // 兼容旧格式
@@ -152,7 +174,11 @@ class ClaudeAccountService {
         // 账户订阅到期时间
         subscriptionExpiresAt: expiresAt || '',
         // 扩展信息
-        extInfo: normalizedExtInfo ? JSON.stringify(normalizedExtInfo) : ''
+        extInfo: normalizedExtInfo ? JSON.stringify(normalizedExtInfo) : '',
+        // 账户级用户消息串行队列限制
+        maxConcurrency: maxConcurrency.toString(),
+        // 拦截预热请求
+        interceptWarmup: interceptWarmup.toString()
       }
     }
 
@@ -200,7 +226,8 @@ class ClaudeAccountService {
       useUnifiedUserAgent,
       useUnifiedClientId,
       unifiedClientId,
-      extInfo: normalizedExtInfo
+      extInfo: normalizedExtInfo,
+      interceptWarmup
     }
   }
 
@@ -570,7 +597,11 @@ class ClaudeAccountService {
               ? JSON.parse(account.restrictedModels)
               : undefined,
             // 扩展信息
-            extInfo: parsedExtInfo
+            extInfo: parsedExtInfo,
+            // 账户级用户消息串行队列限制
+            maxConcurrency: parseInt(account.maxConcurrency || '0', 10),
+            // 拦截预热请求
+            interceptWarmup: account.interceptWarmup === 'true'
           }
         })
       )
@@ -662,7 +693,9 @@ class ClaudeAccountService {
         'useUnifiedClientId',
         'unifiedClientId',
         'subscriptionExpiresAt',
-        'extInfo'
+        'extInfo',
+        'maxConcurrency',
+        'interceptWarmup'
       ]
       const updatedData = { ...accountData }
       let shouldClearAutoStopFields = false
@@ -677,7 +710,7 @@ class ClaudeAccountService {
             updatedData[field] = this._encryptSensitiveData(value)
           } else if (field === 'proxy') {
             updatedData[field] = value ? JSON.stringify(value) : ''
-          } else if (field === 'priority') {
+          } else if (field === 'priority' || field === 'maxConcurrency') {
             updatedData[field] = value.toString()
           } else if (field === 'subscriptionInfo') {
             // 处理订阅信息更新
@@ -864,31 +897,39 @@ class ClaudeAccountService {
           !this.isSubscriptionExpired(account)
       )
 
-      // 如果请求的是 Opus 模型，过滤掉 Pro 和 Free 账号
+      // Filter Opus models based on account type and model version
       if (modelName && modelName.toLowerCase().includes('opus')) {
+        const isNewOpus = isOpus45OrNewer(modelName)
+
         activeAccounts = activeAccounts.filter((account) => {
-          // 检查账号的订阅信息
           if (account.subscriptionInfo) {
             try {
               const info = JSON.parse(account.subscriptionInfo)
-              // Pro 和 Free 账号不支持 Opus
-              if (info.hasClaudePro === true && info.hasClaudeMax !== true) {
-                return false // Claude Pro 不支持 Opus
+
+              // Free account: does not support any Opus model
+              if (info.accountType === 'free') {
+                return false
               }
-              if (info.accountType === 'claude_pro' || info.accountType === 'claude_free') {
-                return false // 明确标记为 Pro 或 Free 的账号不支持
+
+              // Pro account: only supports Opus 4.5+
+              if (isProAccount(info)) {
+                return isNewOpus
               }
+
+              // Max account: supports all Opus versions
+              return true
             } catch (e) {
-              // 解析失败，假设为旧数据，默认支持（兼容旧数据为 Max）
+              // Parse failed, assume legacy data (Max), default support
               return true
             }
           }
-          // 没有订阅信息的账号，默认当作支持（兼容旧数据）
+          // Account without subscription info, default to supported (legacy data compatibility)
           return true
         })
 
         if (activeAccounts.length === 0) {
-          throw new Error('No Claude accounts available that support Opus model')
+          const modelDesc = isNewOpus ? 'Opus 4.5+' : 'legacy Opus (requires Max subscription)'
+          throw new Error(`No Claude accounts available that support ${modelDesc} model`)
         }
       }
 
@@ -982,31 +1023,39 @@ class ClaudeAccountService {
           !this.isSubscriptionExpired(account)
       )
 
-      // 如果请求的是 Opus 模型，过滤掉 Pro 和 Free 账号
+      // Filter Opus models based on account type and model version
       if (modelName && modelName.toLowerCase().includes('opus')) {
+        const isNewOpus = isOpus45OrNewer(modelName)
+
         sharedAccounts = sharedAccounts.filter((account) => {
-          // 检查账号的订阅信息
           if (account.subscriptionInfo) {
             try {
               const info = JSON.parse(account.subscriptionInfo)
-              // Pro 和 Free 账号不支持 Opus
-              if (info.hasClaudePro === true && info.hasClaudeMax !== true) {
-                return false // Claude Pro 不支持 Opus
+
+              // Free account: does not support any Opus model
+              if (info.accountType === 'free') {
+                return false
               }
-              if (info.accountType === 'claude_pro' || info.accountType === 'claude_free') {
-                return false // 明确标记为 Pro 或 Free 的账号不支持
+
+              // Pro account: only supports Opus 4.5+
+              if (isProAccount(info)) {
+                return isNewOpus
               }
+
+              // Max account: supports all Opus versions
+              return true
             } catch (e) {
-              // 解析失败，假设为旧数据，默认支持（兼容旧数据为 Max）
+              // Parse failed, assume legacy data (Max), default support
               return true
             }
           }
-          // 没有订阅信息的账号，默认当作支持（兼容旧数据）
+          // Account without subscription info, default to supported (legacy data compatibility)
           return true
         })
 
         if (sharedAccounts.length === 0) {
-          throw new Error('No shared Claude accounts available that support Opus model')
+          const modelDesc = isNewOpus ? 'Opus 4.5+' : 'legacy Opus (requires Max subscription)'
+          throw new Error(`No shared Claude accounts available that support ${modelDesc} model`)
         }
       }
 
@@ -1533,7 +1582,7 @@ class ClaudeAccountService {
         'rateLimitAutoStopped'
       )
 
-      logger.success(`✅ Rate limit removed for account: ${accountData.name} (${accountId})`)
+      logger.success(`Rate limit removed for account: ${accountData.name} (${accountId})`)
 
       return { success: true }
     } catch (error) {
@@ -1872,7 +1921,7 @@ class ClaudeAccountService {
           'Content-Type': 'application/json',
           Accept: 'application/json',
           'anthropic-beta': 'oauth-2025-04-20',
-          'User-Agent': 'claude-cli/1.0.56 (external, cli)',
+          'User-Agent': 'claude-cli/2.0.53 (external, cli)',
           'Accept-Language': 'en-US,en;q=0.9'
         },
         timeout: 15000
@@ -1891,7 +1940,7 @@ class ClaudeAccountService {
           accountId,
           fiveHour: response.data.five_hour?.utilization,
           sevenDay: response.data.seven_day?.utilization,
-          sevenDayOpus: response.data.seven_day_opus?.utilization
+          sevenDayOpus: response.data.seven_day_sonnet?.utilization
         })
 
         return response.data
@@ -1993,12 +2042,12 @@ class ClaudeAccountService {
     }
 
     // 7天Opus窗口
-    if (usageData.seven_day_opus) {
-      if (usageData.seven_day_opus.utilization !== undefined) {
-        updates.claudeSevenDayOpusUtilization = String(usageData.seven_day_opus.utilization)
+    if (usageData.seven_day_sonnet) {
+      if (usageData.seven_day_sonnet.utilization !== undefined) {
+        updates.claudeSevenDayOpusUtilization = String(usageData.seven_day_sonnet.utilization)
       }
-      if (usageData.seven_day_opus.resets_at) {
-        updates.claudeSevenDayOpusResetsAt = usageData.seven_day_opus.resets_at
+      if (usageData.seven_day_sonnet.resets_at) {
+        updates.claudeSevenDayOpusResetsAt = usageData.seven_day_sonnet.resets_at
       }
     }
 
@@ -2205,7 +2254,7 @@ class ClaudeAccountService {
         await new Promise((resolve) => setTimeout(resolve, 1000))
       }
 
-      logger.success(`✅ Profile update completed: ${successCount} success, ${failureCount} failed`)
+      logger.success(`Profile update completed: ${successCount} success, ${failureCount} failed`)
 
       return {
         totalAccounts: accounts.length,
@@ -2273,11 +2322,11 @@ class ClaudeAccountService {
         }
       }
 
-      logger.success('✅ Session window initialization completed:')
-      logger.success(`   📊 Total accounts: ${accounts.length}`)
-      logger.success(`   ✅ Valid windows: ${validWindowCount}`)
-      logger.success(`   ⏰ Expired windows: ${expiredWindowCount}`)
-      logger.success(`   📭 No windows: ${noWindowCount}`)
+      logger.success('Session window initialization completed:')
+      logger.success(`   Total accounts: ${accounts.length}`)
+      logger.success(`   Valid windows: ${validWindowCount}`)
+      logger.success(`   Expired windows: ${expiredWindowCount}`)
+      logger.success(`   No windows: ${noWindowCount}`)
 
       return {
         total: accounts.length,

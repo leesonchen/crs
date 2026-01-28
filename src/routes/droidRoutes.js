@@ -4,12 +4,12 @@ const { authenticateApiKey } = require('../middleware/auth')
 const droidRelayService = require('../services/droidRelayService')
 const sessionHelper = require('../utils/sessionHelper')
 const logger = require('../utils/logger')
+const apiKeyService = require('../services/apiKeyService')
 
 const router = express.Router()
 
 function hasDroidPermission(apiKeyData) {
-  const permissions = apiKeyData?.permissions || 'all'
-  return permissions === 'all' || permissions === 'droid'
+  return apiKeyService.hasPermission(apiKeyData?.permissions, 'droid')
 }
 
 /**
@@ -18,6 +18,7 @@ function hasDroidPermission(apiKeyData) {
  * 支持的 Factory.ai 端点:
  * - /droid/claude - Anthropic (Claude) Messages API
  * - /droid/openai - OpenAI Responses API
+ * - /droid/comm   - OpenAI Chat Completions API
  */
 
 // Claude (Anthropic) 端点 - /v1/messages
@@ -53,6 +54,53 @@ router.post('/claude/v1/messages', authenticateApiKey, async (req, res) => {
     res.status(result.statusCode).set(result.headers).send(result.body)
   } catch (error) {
     logger.error('Droid Claude relay error:', error)
+    res.status(500).json({
+      error: 'internal_server_error',
+      message: error.message
+    })
+  }
+})
+
+// Comm 端点 - /v1/chat/completions（OpenAI Chat Completions 格式）
+router.post('/comm/v1/chat/completions', authenticateApiKey, async (req, res) => {
+  try {
+    const sessionId =
+      req.headers['session_id'] ||
+      req.headers['x-session-id'] ||
+      req.body?.session_id ||
+      req.body?.conversation_id ||
+      null
+
+    const sessionHash = sessionId
+      ? crypto.createHash('sha256').update(String(sessionId)).digest('hex')
+      : null
+
+    if (!hasDroidPermission(req.apiKey)) {
+      logger.security(
+        `🚫 API Key ${req.apiKey?.id || 'unknown'} 缺少 Droid 权限，拒绝访问 ${req.originalUrl}`
+      )
+      return res.status(403).json({
+        error: 'permission_denied',
+        message: '此 API Key 未启用 Droid 权限'
+      })
+    }
+
+    const result = await droidRelayService.relayRequest(
+      req.body,
+      req.apiKey,
+      req,
+      res,
+      req.headers,
+      { endpointType: 'comm', sessionHash }
+    )
+
+    if (result.streaming) {
+      return
+    }
+
+    res.status(result.statusCode).set(result.headers).send(result.body)
+  } catch (error) {
+    logger.error('Droid Comm relay error:', error)
     res.status(500).json({
       error: 'internal_server_error',
       message: error.message

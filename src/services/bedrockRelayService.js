@@ -6,6 +6,7 @@ const {
 const { fromEnv } = require('@aws-sdk/credential-providers')
 const logger = require('../utils/logger')
 const config = require('../../config/config')
+const userMessageQueueService = require('./userMessageQueueService')
 
 class BedrockRelayService {
   constructor() {
@@ -47,13 +48,17 @@ class BedrockRelayService {
         secretAccessKey: bedrockAccount.awsCredentials.secretAccessKey,
         sessionToken: bedrockAccount.awsCredentials.sessionToken
       }
+    } else if (bedrockAccount?.bearerToken) {
+      // Bearer Token 模式：AWS SDK >= 3.400.0 会自动检测环境变量
+      clientConfig.token = { token: bedrockAccount.bearerToken }
+      logger.debug(`🔑 使用 Bearer Token 认证 - 账户: ${bedrockAccount.name || 'unknown'}`)
     } else {
       // 检查是否有环境变量凭证
       if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
         clientConfig.credentials = fromEnv()
       } else {
         throw new Error(
-          'AWS凭证未配置。请在Bedrock账户中配置AWS访问密钥，或设置环境变量AWS_ACCESS_KEY_ID和AWS_SECRET_ACCESS_KEY'
+          'AWS凭证未配置。请在Bedrock账户中配置AWS访问密钥或Bearer Token，或设置环境变量AWS_ACCESS_KEY_ID和AWS_SECRET_ACCESS_KEY'
         )
       }
     }
@@ -69,7 +74,68 @@ class BedrockRelayService {
 
   // 处理非流式请求
   async handleNonStreamRequest(requestBody, bedrockAccount = null) {
+    const accountId = bedrockAccount?.id
+    let queueLockAcquired = false
+    let queueRequestId = null
+
     try {
+      // 📬 用户消息队列处理
+      if (userMessageQueueService.isUserMessageRequest(requestBody)) {
+        // 校验 accountId 非空，避免空值污染队列锁键
+        if (!accountId || accountId === '') {
+          logger.error('❌ accountId missing for queue lock in Bedrock handleNonStreamRequest')
+          throw new Error('accountId missing for queue lock')
+        }
+        const queueResult = await userMessageQueueService.acquireQueueLock(accountId)
+        if (!queueResult.acquired && !queueResult.skipped) {
+          // 区分 Redis 后端错误和队列超时
+          const isBackendError = queueResult.error === 'queue_backend_error'
+          const errorCode = isBackendError ? 'QUEUE_BACKEND_ERROR' : 'QUEUE_TIMEOUT'
+          const errorType = isBackendError ? 'queue_backend_error' : 'queue_timeout'
+          const errorMessage = isBackendError
+            ? 'Queue service temporarily unavailable, please retry later'
+            : 'User message queue wait timeout, please retry later'
+          const statusCode = isBackendError ? 500 : 503
+
+          // 结构化性能日志，用于后续统计
+          logger.performance('user_message_queue_error', {
+            errorType,
+            errorCode,
+            accountId,
+            statusCode,
+            backendError: isBackendError ? queueResult.errorMessage : undefined
+          })
+
+          logger.warn(
+            `📬 User message queue ${errorType} for Bedrock account ${accountId}`,
+            isBackendError ? { backendError: queueResult.errorMessage } : {}
+          )
+          return {
+            statusCode,
+            headers: {
+              'Content-Type': 'application/json',
+              'x-user-message-queue-error': errorType
+            },
+            body: JSON.stringify({
+              type: 'error',
+              error: {
+                type: errorType,
+                code: errorCode,
+                message: errorMessage
+              }
+            }),
+            success: false
+          }
+        }
+        if (queueResult.acquired && !queueResult.skipped) {
+          queueLockAcquired = true
+          queueRequestId = queueResult.requestId
+          logger.debug(
+            `📬 User message queue lock acquired for Bedrock account ${accountId}, requestId: ${queueRequestId}`
+          )
+        }
+      }
+
       const modelId = this._selectModel(requestBody, bedrockAccount)
       const region = this._selectRegion(modelId, bedrockAccount)
       const client = this._getBedrockClient(region, bedrockAccount)
@@ -90,6 +156,23 @@ class BedrockRelayService {
       const response = await client.send(command)
       const duration = Date.now() - startTime
 
+      // 📬 请求已发送成功，立即释放队列锁（无需等待响应处理完成）
+      // 因为限流基于请求发送时刻计算（RPM），不是请求完成时刻
+      if (queueLockAcquired && queueRequestId && accountId) {
+        try {
+          await userMessageQueueService.releaseQueueLock(accountId, queueRequestId)
+          queueLockAcquired = false // 标记已释放，防止 finally 重复释放
+          logger.debug(
+            `📬 User message queue lock released early for Bedrock account ${accountId}, requestId: ${queueRequestId}`
+          )
+        } catch (releaseError) {
+          logger.error(
+            `❌ Failed to release user message queue lock early for Bedrock account ${accountId}:`,
+            releaseError.message
+          )
+        }
+      }
+
       // 解析响应
       const responseBody = JSON.parse(new TextDecoder().decode(response.body))
       const claudeResponse = this._convertFromBedrockFormat(responseBody)
@@ -106,12 +189,94 @@ class BedrockRelayService {
     } catch (error) {
       logger.error('❌ Bedrock非流式请求失败:', error)
       throw this._handleBedrockError(error)
+    } finally {
+      // 📬 释放用户消息队列锁（兜底，正常情况下已在请求发送后提前释放）
+      if (queueLockAcquired && queueRequestId && accountId) {
+        try {
+          await userMessageQueueService.releaseQueueLock(accountId, queueRequestId)
+          logger.debug(
+            `📬 User message queue lock released in finally for Bedrock account ${accountId}, requestId: ${queueRequestId}`
+          )
+        } catch (releaseError) {
+          logger.error(
+            `❌ Failed to release user message queue lock for Bedrock account ${accountId}:`,
+            releaseError.message
+          )
+        }
+      }
     }
   }
 
   // 处理流式请求
   async handleStreamRequest(requestBody, bedrockAccount = null, res) {
+    const accountId = bedrockAccount?.id
+    let queueLockAcquired = false
+    let queueRequestId = null
+
     try {
+      // 📬 用户消息队列处理
+      if (userMessageQueueService.isUserMessageRequest(requestBody)) {
+        // 校验 accountId 非空，避免空值污染队列锁键
+        if (!accountId || accountId === '') {
+          logger.error('❌ accountId missing for queue lock in Bedrock handleStreamRequest')
+          throw new Error('accountId missing for queue lock')
+        }
+        const queueResult = await userMessageQueueService.acquireQueueLock(accountId)
+        if (!queueResult.acquired && !queueResult.skipped) {
+          // 区分 Redis 后端错误和队列超时
+          const isBackendError = queueResult.error === 'queue_backend_error'
+          const errorCode = isBackendError ? 'QUEUE_BACKEND_ERROR' : 'QUEUE_TIMEOUT'
+          const errorType = isBackendError ? 'queue_backend_error' : 'queue_timeout'
+          const errorMessage = isBackendError
+            ? 'Queue service temporarily unavailable, please retry later'
+            : 'User message queue wait timeout, please retry later'
+          const statusCode = isBackendError ? 500 : 503
+
+          // 结构化性能日志，用于后续统计
+          logger.performance('user_message_queue_error', {
+            errorType,
+            errorCode,
+            accountId,
+            statusCode,
+            stream: true,
+            backendError: isBackendError ? queueResult.errorMessage : undefined
+          })
+
+          logger.warn(
+            `📬 User message queue ${errorType} for Bedrock account ${accountId} (stream)`,
+            isBackendError ? { backendError: queueResult.errorMessage } : {}
+          )
+          if (!res.headersSent) {
+            const existingConnection = res.getHeader ? res.getHeader('Connection') : null
+            res.writeHead(statusCode, {
+              'Content-Type': 'text/event-stream',
+              'Cache-Control': 'no-cache',
+              Connection: existingConnection || 'keep-alive',
+              'x-user-message-queue-error': errorType
+            })
+          }
+          const errorEvent = `event: error\ndata: ${JSON.stringify({
+            type: 'error',
+            error: {
+              type: errorType,
+              code: errorCode,
+              message: errorMessage
+            }
+          })}\n\n`
+          res.write(errorEvent)
+          res.write('data: [DONE]\n\n')
+          res.end()
+          return { success: false, error: errorType }
+        }
+        if (queueResult.acquired && !queueResult.skipped) {
+          queueLockAcquired = true
+          queueRequestId = queueResult.requestId
+          logger.debug(
+            `📬 User message queue lock acquired for Bedrock account ${accountId} (stream), requestId: ${queueRequestId}`
+          )
+        }
+      }
+
       const modelId = this._selectModel(requestBody, bedrockAccount)
       const region = this._selectRegion(modelId, bedrockAccount)
       const client = this._getBedrockClient(region, bedrockAccount)
@@ -131,11 +296,35 @@ class BedrockRelayService {
       const startTime = Date.now()
       const response = await client.send(command)
 
+      // 📬 请求已发送成功，立即释放队列锁（无需等待响应处理完成）
+      // 因为限流基于请求发送时刻计算（RPM），不是请求完成时刻
+      if (queueLockAcquired && queueRequestId && accountId) {
+        try {
+          await userMessageQueueService.releaseQueueLock(accountId, queueRequestId)
+          queueLockAcquired = false // 标记已释放，防止 finally 重复释放
+          logger.debug(
+            `📬 User message queue lock released early for Bedrock stream account ${accountId}, requestId: ${queueRequestId}`
+          )
+        } catch (releaseError) {
+          logger.error(
+            `❌ Failed to release user message queue lock early for Bedrock stream account ${accountId}:`,
+            releaseError.message
+          )
+        }
+      }
+
       // 设置SSE响应头
+      // ⚠️ 关键修复：尊重 auth.js 提前设置的 Connection: close
+      const existingConnection = res.getHeader ? res.getHeader('Connection') : null
+      if (existingConnection) {
+        logger.debug(
+          `🔌 [Bedrock Stream] Preserving existing Connection header: ${existingConnection}`
+        )
+      }
       res.writeHead(200, {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
-        Connection: 'keep-alive',
+        Connection: existingConnection || 'keep-alive',
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Headers': 'Content-Type, Authorization'
       })
@@ -154,8 +343,8 @@ class BedrockRelayService {
             res.write(`event: ${claudeEvent.type}\n`)
             res.write(`data: ${JSON.stringify(claudeEvent.data)}\n\n`)
 
-            // 提取使用统计
-            if (claudeEvent.type === 'message_stop' && claudeEvent.data.usage) {
+            // 提取使用统计 (usage is reported in message_delta per Claude API spec)
+            if (claudeEvent.type === 'message_delta' && claudeEvent.data.usage) {
               totalUsage = claudeEvent.data.usage
             }
 
@@ -191,6 +380,21 @@ class BedrockRelayService {
       res.end()
 
       throw this._handleBedrockError(error)
+    } finally {
+      // 📬 释放用户消息队列锁（兜底，正常情况下已在请求发送后提前释放）
+      if (queueLockAcquired && queueRequestId && accountId) {
+        try {
+          await userMessageQueueService.releaseQueueLock(accountId, queueRequestId)
+          logger.debug(
+            `📬 User message queue lock released in finally for Bedrock stream account ${accountId}, requestId: ${queueRequestId}`
+          )
+        } catch (releaseError) {
+          logger.error(
+            `❌ Failed to release user message queue lock for Bedrock stream account ${accountId}:`,
+            releaseError.message
+          )
+        }
+      }
     }
   }
 
@@ -231,6 +435,18 @@ class BedrockRelayService {
   _mapToBedrockModel(modelName) {
     // 标准Claude模型名到Bedrock模型名的映射表
     const modelMapping = {
+      // Claude 4.5 Opus
+      'claude-opus-4-5': 'us.anthropic.claude-opus-4-5-20251101-v1:0',
+      'claude-opus-4-5-20251101': 'us.anthropic.claude-opus-4-5-20251101-v1:0',
+
+      // Claude 4.5 Sonnet
+      'claude-sonnet-4-5': 'us.anthropic.claude-sonnet-4-5-20250929-v1:0',
+      'claude-sonnet-4-5-20250929': 'us.anthropic.claude-sonnet-4-5-20250929-v1:0',
+
+      // Claude 4.5 Haiku
+      'claude-haiku-4-5': 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
+      'claude-haiku-4-5-20251001': 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
+
       // Claude Sonnet 4
       'claude-sonnet-4': 'us.anthropic.claude-sonnet-4-20250514-v1:0',
       'claude-sonnet-4-20250514': 'us.anthropic.claude-sonnet-4-20250514-v1:0',
@@ -360,14 +576,28 @@ class BedrockRelayService {
       return {
         type: 'message_start',
         data: {
-          type: 'message',
-          id: `msg_${Date.now()}_bedrock`,
-          role: 'assistant',
-          content: [],
-          model: this.defaultModel,
-          stop_reason: null,
-          stop_sequence: null,
-          usage: bedrockChunk.message?.usage || { input_tokens: 0, output_tokens: 0 }
+          type: 'message_start',
+          message: {
+            id: `msg_${Date.now()}_bedrock`,
+            type: 'message',
+            role: 'assistant',
+            content: [],
+            model: this.defaultModel,
+            stop_reason: null,
+            stop_sequence: null,
+            usage: bedrockChunk.message?.usage || { input_tokens: 0, output_tokens: 0 }
+          }
+        }
+      }
+    }
+
+    if (bedrockChunk.type === 'content_block_start') {
+      return {
+        type: 'content_block_start',
+        data: {
+          type: 'content_block_start',
+          index: bedrockChunk.index || 0,
+          content_block: bedrockChunk.content_block || { type: 'text', text: '' }
         }
       }
     }
@@ -376,8 +606,19 @@ class BedrockRelayService {
       return {
         type: 'content_block_delta',
         data: {
+          type: 'content_block_delta',
           index: bedrockChunk.index || 0,
           delta: bedrockChunk.delta || {}
+        }
+      }
+    }
+
+    if (bedrockChunk.type === 'content_block_stop') {
+      return {
+        type: 'content_block_stop',
+        data: {
+          type: 'content_block_stop',
+          index: bedrockChunk.index || 0
         }
       }
     }
@@ -386,6 +627,7 @@ class BedrockRelayService {
       return {
         type: 'message_delta',
         data: {
+          type: 'message_delta',
           delta: bedrockChunk.delta || {},
           usage: bedrockChunk.usage || {}
         }
@@ -396,7 +638,7 @@ class BedrockRelayService {
       return {
         type: 'message_stop',
         data: {
-          usage: bedrockChunk.usage || {}
+          type: 'message_stop'
         }
       }
     }

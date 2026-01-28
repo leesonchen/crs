@@ -1,6 +1,5 @@
 const redisClient = require('../models/redis')
 const { v4: uuidv4 } = require('uuid')
-const crypto = require('crypto')
 const axios = require('axios')
 const ProxyHelper = require('../utils/proxyHelper')
 const config = require('../../config/config')
@@ -13,106 +12,25 @@ const {
   logTokenUsage,
   logRefreshSkipped
 } = require('../utils/tokenRefreshLogger')
-const LRUCache = require('../utils/lruCache')
 const tokenRefreshService = require('./tokenRefreshService')
+const { createEncryptor } = require('../utils/commonHelper')
 
-// 加密相关常量
-const ALGORITHM = 'aes-256-cbc'
-const ENCRYPTION_SALT = 'openai-account-salt'
-const IV_LENGTH = 16
-
-// 🚀 性能优化：缓存派生的加密密钥，避免每次重复计算
-// scryptSync 是 CPU 密集型操作，缓存可以减少 95%+ 的 CPU 占用
-let _encryptionKeyCache = null
-
-// 🔄 解密结果缓存，提高解密性能
-const decryptCache = new LRUCache(500)
-
-// 生成加密密钥（使用与 claudeAccountService 相同的方法）
-function generateEncryptionKey() {
-  if (!_encryptionKeyCache) {
-    _encryptionKeyCache = crypto.scryptSync(config.security.encryptionKey, ENCRYPTION_SALT, 32)
-    logger.info('🔑 OpenAI encryption key derived and cached for performance optimization')
-  }
-  return _encryptionKeyCache
-}
+// 使用 commonHelper 的加密器
+const encryptor = createEncryptor('openai-account-salt')
+const { encrypt, decrypt } = encryptor
 
 // OpenAI 账户键前缀
 const OPENAI_ACCOUNT_KEY_PREFIX = 'openai:account:'
 const SHARED_OPENAI_ACCOUNTS_KEY = 'shared_openai_accounts'
 const ACCOUNT_SESSION_MAPPING_PREFIX = 'openai_session_account_mapping:'
 
-// 加密函数
-function encrypt(text) {
-  if (!text) {
-    return ''
-  }
-  const key = generateEncryptionKey()
-  const iv = crypto.randomBytes(IV_LENGTH)
-  const cipher = crypto.createCipheriv(ALGORITHM, key, iv)
-  let encrypted = cipher.update(text)
-  encrypted = Buffer.concat([encrypted, cipher.final()])
-  return `${iv.toString('hex')}:${encrypted.toString('hex')}`
-}
-
-// 解密函数
-function decrypt(text) {
-  if (!text || text === '') {
-    return ''
-  }
-
-  // 检查是否是有效的加密格式（至少需要 32 个字符的 IV + 冒号 + 加密文本）
-  if (text.length < 33 || text.charAt(32) !== ':') {
-    logger.warn('Invalid encrypted text format, returning empty string', {
-      textLength: text ? text.length : 0,
-      char32: text && text.length > 32 ? text.charAt(32) : 'N/A',
-      first50: text ? text.substring(0, 50) : 'N/A'
-    })
-    return ''
-  }
-
-  // 🎯 检查缓存
-  const cacheKey = crypto.createHash('sha256').update(text).digest('hex')
-  const cached = decryptCache.get(cacheKey)
-  if (cached !== undefined) {
-    return cached
-  }
-
-  try {
-    const key = generateEncryptionKey()
-    // IV 是固定长度的 32 个十六进制字符（16 字节）
-    const ivHex = text.substring(0, 32)
-    const encryptedHex = text.substring(33) // 跳过冒号
-
-    const iv = Buffer.from(ivHex, 'hex')
-    const encryptedText = Buffer.from(encryptedHex, 'hex')
-    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv)
-    let decrypted = decipher.update(encryptedText)
-    decrypted = Buffer.concat([decrypted, decipher.final()])
-    const result = decrypted.toString()
-
-    // 💾 存入缓存（5分钟过期）
-    decryptCache.set(cacheKey, result, 5 * 60 * 1000)
-
-    // 📊 定期打印缓存统计
-    if ((decryptCache.hits + decryptCache.misses) % 1000 === 0) {
-      decryptCache.printStats()
-    }
-
-    return result
-  } catch (error) {
-    logger.error('Decryption error:', error)
-    return ''
-  }
-}
-
 // 🧹 定期清理缓存（每10分钟）
 let decryptCacheCleanupInterval = null
 if (process.env.NODE_ENV !== 'test') {
   decryptCacheCleanupInterval = setInterval(
     () => {
-      decryptCache.cleanup()
-      logger.info('🧹 OpenAI decrypt cache cleanup completed', decryptCache.getStats())
+      encryptor.clearCache()
+      logger.info('🧹 OpenAI decrypt cache cleanup completed', encryptor.getStats())
     },
     10 * 60 * 1000
   )
@@ -652,6 +570,7 @@ async function createAccount(accountData) {
 
   const client = redisClient.getClientSafe()
   await client.hset(`${OPENAI_ACCOUNT_KEY_PREFIX}${accountId}`, account)
+  await redisClient.addToIndex('openai:account:index', accountId)
 
   // 如果是共享账户，添加到共享账户集合
   if (account.accountType === 'shared') {
@@ -780,19 +699,20 @@ async function deleteAccount(accountId) {
   // 从 Redis 删除
   const client = redisClient.getClientSafe()
   await client.del(`${OPENAI_ACCOUNT_KEY_PREFIX}${accountId}`)
+  await redisClient.removeFromIndex('openai:account:index', accountId)
 
   // 从共享账户集合中移除
   if (account.accountType === 'shared') {
     await client.srem(SHARED_OPENAI_ACCOUNTS_KEY, accountId)
   }
 
-  // 清理会话映射
-  const sessionMappings = await client.keys(`${ACCOUNT_SESSION_MAPPING_PREFIX}*`)
-  for (const key of sessionMappings) {
-    const mappedAccountId = await client.get(key)
-    if (mappedAccountId === accountId) {
-      await client.del(key)
-    }
+  // 清理会话映射（使用反向索引）
+  const sessionHashes = await client.smembers(`openai_account_sessions:${accountId}`)
+  if (sessionHashes.length > 0) {
+    const pipeline = client.pipeline()
+    sessionHashes.forEach((hash) => pipeline.del(`${ACCOUNT_SESSION_MAPPING_PREFIX}${hash}`))
+    pipeline.del(`openai_account_sessions:${accountId}`)
+    await pipeline.exec()
   }
 
   logger.info(`Deleted OpenAI account: ${accountId}`)
@@ -801,12 +721,18 @@ async function deleteAccount(accountId) {
 
 // 获取所有账户
 async function getAllAccounts() {
-  const client = redisClient.getClientSafe()
-  const keys = await client.keys(`${OPENAI_ACCOUNT_KEY_PREFIX}*`)
+  const _client = redisClient.getClientSafe()
+  const accountIds = await redisClient.getAllIdsByIndex(
+    'openai:account:index',
+    `${OPENAI_ACCOUNT_KEY_PREFIX}*`,
+    /^openai:account:(.+)$/
+  )
+  const keys = accountIds.map((id) => `${OPENAI_ACCOUNT_KEY_PREFIX}${id}`)
   const accounts = []
+  const dataList = await redisClient.batchHgetallChunked(keys)
 
-  for (const key of keys) {
-    const accountData = await client.hgetall(key)
+  for (let i = 0; i < keys.length; i++) {
+    const accountData = dataList[i]
     if (accountData && Object.keys(accountData).length > 0) {
       const codexUsage = buildCodexUsageSnapshot(accountData)
 
@@ -984,6 +910,9 @@ async function selectAvailableAccount(apiKeyId, sessionHash = null) {
           3600, // 1小时过期
           account.id
         )
+        // 反向索引：accountId -> sessionHash（用于删除账户时快速清理）
+        await client.sadd(`openai_account_sessions:${account.id}`, sessionHash)
+        await client.expire(`openai_account_sessions:${account.id}`, 3600)
       }
 
       return account
@@ -1034,6 +963,8 @@ async function selectAvailableAccount(apiKeyId, sessionHash = null) {
       3600, // 1小时过期
       selectedAccount.id
     )
+    await client.sadd(`openai_account_sessions:${selectedAccount.id}`, sessionHash)
+    await client.expire(`openai_account_sessions:${selectedAccount.id}`, 3600)
   }
 
   return selectedAccount
@@ -1337,6 +1268,5 @@ module.exports = {
   updateCodexUsageSnapshot,
   encrypt,
   decrypt,
-  generateEncryptionKey,
-  decryptCache // 暴露缓存对象以便测试和监控
+  encryptor // 暴露加密器以便测试和监控
 }

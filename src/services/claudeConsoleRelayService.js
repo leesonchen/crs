@@ -1,5 +1,7 @@
 const axios = require('axios')
+const { v4: uuidv4 } = require('uuid')
 const claudeConsoleAccountService = require('./claudeConsoleAccountService')
+const redis = require('../models/redis')
 const logger = require('../utils/logger')
 const config = require('../../config/config')
 const {
@@ -7,10 +9,13 @@ const {
   sanitizeErrorMessage,
   isAccountDisabledError
 } = require('../utils/errorSanitizer')
+const userMessageQueueService = require('./userMessageQueueService')
+const { isStreamWritable } = require('../utils/streamHelper')
+const { filterForClaude } = require('../utils/headerFilter')
 
 class ClaudeConsoleRelayService {
   constructor() {
-    this.defaultUserAgent = 'claude-cli/1.0.69 (external, cli)'
+    this.defaultUserAgent = 'claude-cli/2.0.52 (external, cli)'
   }
 
   // 🚀 转发请求到Claude Console API
@@ -25,17 +30,110 @@ class ClaudeConsoleRelayService {
   ) {
     let abortController = null
     let account = null
+    const requestId = uuidv4() // 用于并发追踪
+    let concurrencyAcquired = false
+    let queueLockAcquired = false
+    let queueRequestId = null
 
     try {
+      // 📬 用户消息队列处理：如果是用户消息请求，需要获取队列锁
+      if (userMessageQueueService.isUserMessageRequest(requestBody)) {
+        // 校验 accountId 非空，避免空值污染队列锁键
+        if (!accountId || accountId === '') {
+          logger.error('❌ accountId missing for queue lock in console relayRequest')
+          throw new Error('accountId missing for queue lock')
+        }
+        const queueResult = await userMessageQueueService.acquireQueueLock(accountId)
+        if (!queueResult.acquired && !queueResult.skipped) {
+          // 区分 Redis 后端错误和队列超时
+          const isBackendError = queueResult.error === 'queue_backend_error'
+          const errorCode = isBackendError ? 'QUEUE_BACKEND_ERROR' : 'QUEUE_TIMEOUT'
+          const errorType = isBackendError ? 'queue_backend_error' : 'queue_timeout'
+          const errorMessage = isBackendError
+            ? 'Queue service temporarily unavailable, please retry later'
+            : 'User message queue wait timeout, please retry later'
+          const statusCode = isBackendError ? 500 : 503
+
+          // 结构化性能日志，用于后续统计
+          logger.performance('user_message_queue_error', {
+            errorType,
+            errorCode,
+            accountId,
+            statusCode,
+            apiKeyName: apiKeyData.name,
+            backendError: isBackendError ? queueResult.errorMessage : undefined
+          })
+
+          logger.warn(
+            `📬 User message queue ${errorType} for console account ${accountId}, key: ${apiKeyData.name}`,
+            isBackendError ? { backendError: queueResult.errorMessage } : {}
+          )
+          return {
+            statusCode,
+            headers: {
+              'Content-Type': 'application/json',
+              'x-user-message-queue-error': errorType
+            },
+            body: JSON.stringify({
+              type: 'error',
+              error: {
+                type: errorType,
+                code: errorCode,
+                message: errorMessage
+              }
+            }),
+            accountId
+          }
+        }
+        if (queueResult.acquired && !queueResult.skipped) {
+          queueLockAcquired = true
+          queueRequestId = queueResult.requestId
+          logger.debug(
+            `📬 User message queue lock acquired for console account ${accountId}, requestId: ${queueRequestId}`
+          )
+        }
+      }
+
       // 获取账户信息
       account = await claudeConsoleAccountService.getAccount(accountId)
       if (!account) {
         throw new Error('Claude Console Claude account not found')
       }
 
+      const autoProtectionDisabled = account.disableAutoProtection === true
+
       logger.info(
-        `📤 Processing Claude Console API request for key: ${apiKeyData.name || apiKeyData.id}, account: ${account.name} (${accountId})`
+        `📤 Processing Claude Console API request for key: ${apiKeyData.name || apiKeyData.id}, account: ${account.name} (${accountId}), request: ${requestId}`
       )
+
+      // 🔒 并发控制：原子性抢占槽位
+      if (account.maxConcurrentTasks > 0) {
+        // 先抢占，再检查 - 避免竞态条件
+        const newConcurrency = Number(
+          await redis.incrConsoleAccountConcurrency(accountId, requestId, 600)
+        )
+        concurrencyAcquired = true
+
+        // 检查是否超过限制
+        if (newConcurrency > account.maxConcurrentTasks) {
+          // 超限，立即回滚
+          await redis.decrConsoleAccountConcurrency(accountId, requestId)
+          concurrencyAcquired = false
+
+          logger.warn(
+            `⚠️ Console account ${account.name} (${accountId}) concurrency limit exceeded: ${newConcurrency}/${account.maxConcurrentTasks} (request: ${requestId}, rolled back)`
+          )
+
+          const error = new Error('Console account concurrency limit reached')
+          error.code = 'CONSOLE_ACCOUNT_CONCURRENCY_FULL'
+          error.accountId = accountId
+          throw error
+        }
+
+        logger.debug(
+          `🔓 Acquired concurrency slot for account ${account.name} (${accountId}), current: ${newConcurrency}/${account.maxConcurrentTasks}, request: ${requestId}`
+        )
+      }
       logger.debug(`🌐 Account API URL: ${account.apiUrl}`)
       logger.debug(`🔍 Account supportedModels: ${JSON.stringify(account.supportedModels)}`)
       logger.debug(`🔑 Account has apiKey: ${!!account.apiKey}`)
@@ -168,6 +266,23 @@ class ClaudeConsoleRelayService {
       )
       const response = await axios(requestConfig)
 
+      // 📬 请求已发送成功，立即释放队列锁（无需等待响应处理完成）
+      // 因为 Claude API 限流基于请求发送时刻计算（RPM），不是请求完成时刻
+      if (queueLockAcquired && queueRequestId && accountId) {
+        try {
+          await userMessageQueueService.releaseQueueLock(accountId, queueRequestId)
+          queueLockAcquired = false // 标记已释放，防止 finally 重复释放
+          logger.debug(
+            `📬 User message queue lock released early for console account ${accountId}, requestId: ${queueRequestId}`
+          )
+        } catch (releaseError) {
+          logger.error(
+            `❌ Failed to release user message queue lock early for console account ${accountId}:`,
+            releaseError.message
+          )
+        }
+      }
+
       // 移除监听器（请求成功完成）
       if (clientRequest) {
         clientRequest.removeListener('close', handleClientDisconnect)
@@ -215,27 +330,41 @@ class ClaudeConsoleRelayService {
 
       // 检查错误状态并相应处理
       if (response.status === 401) {
-        logger.warn(`🚫 Unauthorized error detected for Claude Console account ${accountId}`)
-        await claudeConsoleAccountService.markAccountUnauthorized(accountId)
+        logger.warn(
+          `🚫 Unauthorized error detected for Claude Console account ${accountId}${autoProtectionDisabled ? ' (auto-protection disabled, skipping status change)' : ''}`
+        )
+        if (!autoProtectionDisabled) {
+          await claudeConsoleAccountService.markAccountUnauthorized(accountId)
+        }
       } else if (accountDisabledError) {
         logger.error(
-          `🚫 Account disabled error (400) detected for Claude Console account ${accountId}, marking as blocked`
+          `🚫 Account disabled error (400) detected for Claude Console account ${accountId}${autoProtectionDisabled ? ' (auto-protection disabled, skipping status change)' : ''}`
         )
         // 传入完整的错误详情到 webhook
         const errorDetails =
           typeof response.data === 'string' ? response.data : JSON.stringify(response.data)
-        await claudeConsoleAccountService.markConsoleAccountBlocked(accountId, errorDetails)
+        if (!autoProtectionDisabled) {
+          await claudeConsoleAccountService.markConsoleAccountBlocked(accountId, errorDetails)
+        }
       } else if (response.status === 429) {
-        logger.warn(`🚫 Rate limit detected for Claude Console account ${accountId}`)
+        logger.warn(
+          `🚫 Rate limit detected for Claude Console account ${accountId}${autoProtectionDisabled ? ' (auto-protection disabled, skipping status change)' : ''}`
+        )
         // 收到429先检查是否因为超过了手动配置的每日额度
         await claudeConsoleAccountService.checkQuotaUsage(accountId).catch((err) => {
           logger.error('❌ Failed to check quota after 429 error:', err)
         })
 
-        await claudeConsoleAccountService.markAccountRateLimited(accountId)
+        if (!autoProtectionDisabled) {
+          await claudeConsoleAccountService.markAccountRateLimited(accountId)
+        }
       } else if (response.status === 529) {
-        logger.warn(`🚫 Overload error detected for Claude Console account ${accountId}`)
-        await claudeConsoleAccountService.markAccountOverloaded(accountId)
+        logger.warn(
+          `🚫 Overload error detected for Claude Console account ${accountId}${autoProtectionDisabled ? ' (auto-protection disabled, skipping status change)' : ''}`
+        )
+        if (!autoProtectionDisabled) {
+          await claudeConsoleAccountService.markAccountOverloaded(accountId)
+        }
       } else if (response.status === 200 || response.status === 201) {
         // 如果请求成功，检查并移除错误状态
         const isRateLimited = await claudeConsoleAccountService.isAccountRateLimited(accountId)
@@ -284,7 +413,12 @@ class ClaudeConsoleRelayService {
       }
     } catch (error) {
       // 处理特定错误
-      if (error.name === 'AbortError' || error.code === 'ECONNABORTED') {
+      if (
+        error.name === 'AbortError' ||
+        error.name === 'CanceledError' ||
+        error.code === 'ECONNABORTED' ||
+        error.code === 'ERR_CANCELED'
+      ) {
         logger.info('Request aborted due to client disconnect')
         throw new Error('Client disconnected')
       }
@@ -297,6 +431,36 @@ class ClaudeConsoleRelayService {
       // 不再因为模型不支持而block账号
 
       throw error
+    } finally {
+      // 🔓 并发控制：释放并发槽位
+      if (concurrencyAcquired) {
+        try {
+          await redis.decrConsoleAccountConcurrency(accountId, requestId)
+          logger.debug(
+            `🔓 Released concurrency slot for account ${account?.name || accountId}, request: ${requestId}`
+          )
+        } catch (releaseError) {
+          logger.error(
+            `❌ Failed to release concurrency slot for account ${accountId}, request: ${requestId}:`,
+            releaseError.message
+          )
+        }
+      }
+
+      // 📬 释放用户消息队列锁（兜底，正常情况下已在请求发送后提前释放）
+      if (queueLockAcquired && queueRequestId && accountId) {
+        try {
+          await userMessageQueueService.releaseQueueLock(accountId, queueRequestId)
+          logger.debug(
+            `📬 User message queue lock released in finally for console account ${accountId}, requestId: ${queueRequestId}`
+          )
+        } catch (releaseError) {
+          logger.error(
+            `❌ Failed to release user message queue lock for account ${accountId}:`,
+            releaseError.message
+          )
+        }
+      }
     }
   }
 
@@ -312,7 +476,74 @@ class ClaudeConsoleRelayService {
     options = {}
   ) {
     let account = null
+    const requestId = uuidv4() // 用于并发追踪
+    let concurrencyAcquired = false
+    let leaseRefreshInterval = null // 租约刷新定时器
+    let queueLockAcquired = false
+    let queueRequestId = null
+
     try {
+      // 📬 用户消息队列处理：如果是用户消息请求，需要获取队列锁
+      if (userMessageQueueService.isUserMessageRequest(requestBody)) {
+        // 校验 accountId 非空，避免空值污染队列锁键
+        if (!accountId || accountId === '') {
+          logger.error(
+            '❌ accountId missing for queue lock in console relayStreamRequestWithUsageCapture'
+          )
+          throw new Error('accountId missing for queue lock')
+        }
+        const queueResult = await userMessageQueueService.acquireQueueLock(accountId)
+        if (!queueResult.acquired && !queueResult.skipped) {
+          // 区分 Redis 后端错误和队列超时
+          const isBackendError = queueResult.error === 'queue_backend_error'
+          const errorCode = isBackendError ? 'QUEUE_BACKEND_ERROR' : 'QUEUE_TIMEOUT'
+          const errorType = isBackendError ? 'queue_backend_error' : 'queue_timeout'
+          const errorMessage = isBackendError
+            ? 'Queue service temporarily unavailable, please retry later'
+            : 'User message queue wait timeout, please retry later'
+          const statusCode = isBackendError ? 500 : 503
+
+          // 结构化性能日志，用于后续统计
+          logger.performance('user_message_queue_error', {
+            errorType,
+            errorCode,
+            accountId,
+            statusCode,
+            stream: true,
+            apiKeyName: apiKeyData.name,
+            backendError: isBackendError ? queueResult.errorMessage : undefined
+          })
+
+          logger.warn(
+            `📬 User message queue ${errorType} for console account ${accountId} (stream), key: ${apiKeyData.name}`,
+            isBackendError ? { backendError: queueResult.errorMessage } : {}
+          )
+          if (!responseStream.headersSent) {
+            const existingConnection = responseStream.getHeader
+              ? responseStream.getHeader('Connection')
+              : null
+            responseStream.writeHead(statusCode, {
+              'Content-Type': 'text/event-stream',
+              'Cache-Control': 'no-cache',
+              Connection: existingConnection || 'keep-alive',
+              'x-user-message-queue-error': errorType
+            })
+          }
+          const errorEvent = `event: error\ndata: ${JSON.stringify({ type: 'error', error: { type: errorType, code: errorCode, message: errorMessage } })}\n\n`
+          responseStream.write(errorEvent)
+          responseStream.write('data: [DONE]\n\n')
+          responseStream.end()
+          return
+        }
+        if (queueResult.acquired && !queueResult.skipped) {
+          queueLockAcquired = true
+          queueRequestId = queueResult.requestId
+          logger.debug(
+            `📬 User message queue lock acquired for console account ${accountId} (stream), requestId: ${queueRequestId}`
+          )
+        }
+      }
+
       // 获取账户信息
       account = await claudeConsoleAccountService.getAccount(accountId)
       if (!account) {
@@ -320,8 +551,56 @@ class ClaudeConsoleRelayService {
       }
 
       logger.info(
-        `📡 Processing streaming Claude Console API request for key: ${apiKeyData.name || apiKeyData.id}, account: ${account.name} (${accountId})`
+        `📡 Processing streaming Claude Console API request for key: ${apiKeyData.name || apiKeyData.id}, account: ${account.name} (${accountId}), request: ${requestId}`
       )
+
+      // 🔒 并发控制：原子性抢占槽位
+      if (account.maxConcurrentTasks > 0) {
+        // 先抢占，再检查 - 避免竞态条件
+        const newConcurrency = Number(
+          await redis.incrConsoleAccountConcurrency(accountId, requestId, 600)
+        )
+        concurrencyAcquired = true
+
+        // 检查是否超过限制
+        if (newConcurrency > account.maxConcurrentTasks) {
+          // 超限，立即回滚
+          await redis.decrConsoleAccountConcurrency(accountId, requestId)
+          concurrencyAcquired = false
+
+          logger.warn(
+            `⚠️ Console account ${account.name} (${accountId}) concurrency limit exceeded: ${newConcurrency}/${account.maxConcurrentTasks} (stream request: ${requestId}, rolled back)`
+          )
+
+          const error = new Error('Console account concurrency limit reached')
+          error.code = 'CONSOLE_ACCOUNT_CONCURRENCY_FULL'
+          error.accountId = accountId
+          throw error
+        }
+
+        logger.debug(
+          `🔓 Acquired concurrency slot for stream account ${account.name} (${accountId}), current: ${newConcurrency}/${account.maxConcurrentTasks}, request: ${requestId}`
+        )
+
+        // 🔄 启动租约刷新定时器（每5分钟刷新一次，防止长连接租约过期）
+        leaseRefreshInterval = setInterval(
+          async () => {
+            try {
+              await redis.refreshConsoleAccountConcurrencyLease(accountId, requestId, 600)
+              logger.debug(
+                `🔄 Refreshed concurrency lease for stream account ${account.name} (${accountId}), request: ${requestId}`
+              )
+            } catch (refreshError) {
+              logger.error(
+                `❌ Failed to refresh concurrency lease for account ${accountId}, request: ${requestId}:`,
+                refreshError.message
+              )
+            }
+          },
+          5 * 60 * 1000
+        ) // 5分钟刷新一次
+      }
+
       logger.debug(`🌐 Account API URL: ${account.apiUrl}`)
 
       // 处理模型映射
@@ -393,18 +672,80 @@ class ClaudeConsoleRelayService {
           accountId,
           usageCallback,
           streamTransformer,
-          options
+          options,
+          // 📬 回调：在收到响应头时释放队列锁
+          async () => {
+            if (queueLockAcquired && queueRequestId && accountId) {
+              try {
+                await userMessageQueueService.releaseQueueLock(accountId, queueRequestId)
+                queueLockAcquired = false // 标记已释放，防止 finally 重复释放
+                logger.debug(
+                  `📬 User message queue lock released early for console stream account ${accountId}, requestId: ${queueRequestId}`
+                )
+              } catch (releaseError) {
+                logger.error(
+                  `❌ Failed to release user message queue lock early for console stream account ${accountId}:`,
+                  releaseError.message
+                )
+              }
+            }
+          }
         )
       }
 
       // 更新最后使用时间
       await this._updateLastUsedTime(accountId)
     } catch (error) {
-      logger.error(
-        `❌ Claude Console stream relay failed (Account: ${account?.name || accountId}):`,
-        error
-      )
+      // 客户端主动断开连接是正常情况，使用 INFO 级别
+      if (error.message === 'Client disconnected') {
+        logger.info(
+          `🔌 Claude Console stream relay ended: Client disconnected (Account: ${account?.name || accountId})`
+        )
+      } else {
+        logger.error(
+          `❌ Claude Console stream relay failed (Account: ${account?.name || accountId}):`,
+          error
+        )
+      }
       throw error
+    } finally {
+      // 🛑 清理租约刷新定时器
+      if (leaseRefreshInterval) {
+        clearInterval(leaseRefreshInterval)
+        logger.debug(
+          `🛑 Cleared lease refresh interval for stream account ${account?.name || accountId}, request: ${requestId}`
+        )
+      }
+
+      // 🔓 并发控制:释放并发槽位
+      if (concurrencyAcquired) {
+        try {
+          await redis.decrConsoleAccountConcurrency(accountId, requestId)
+          logger.debug(
+            `🔓 Released concurrency slot for stream account ${account?.name || accountId}, request: ${requestId}`
+          )
+        } catch (releaseError) {
+          logger.error(
+            `❌ Failed to release concurrency slot for stream account ${accountId}, request: ${requestId}:`,
+            releaseError.message
+          )
+        }
+      }
+
+      // 📬 释放用户消息队列锁（兜底，正常情况下已在收到响应头后提前释放）
+      if (queueLockAcquired && queueRequestId && accountId) {
+        try {
+          await userMessageQueueService.releaseQueueLock(accountId, queueRequestId)
+          logger.debug(
+            `📬 User message queue lock released in finally for console stream account ${accountId}, requestId: ${queueRequestId}`
+          )
+        } catch (releaseError) {
+          logger.error(
+            `❌ Failed to release user message queue lock for stream account ${accountId}:`,
+            releaseError.message
+          )
+        }
+      }
     }
   }
 
@@ -418,7 +759,8 @@ class ClaudeConsoleRelayService {
     accountId,
     usageCallback,
     streamTransformer = null,
-    requestOptions = {}
+    requestOptions = {},
+    onResponseHeaderReceived = null
   ) {
     return new Promise((resolve, reject) => {
       let aborted = false
@@ -481,8 +823,11 @@ class ClaudeConsoleRelayService {
       // 发送请求
       const request = axios(requestConfig)
 
+      // 注意：使用 .then(async ...) 模式处理响应
+      // - 内部的 releaseQueueLock 有独立的 try-catch，不会导致未捕获异常
+      // - queueLockAcquired = false 的赋值会在 finally 执行前完成（JS 单线程保证）
       request
-        .then((response) => {
+        .then(async (response) => {
           logger.debug(`🌊 Claude Console Claude stream response status: ${response.status}`)
 
           // 错误响应处理
@@ -501,6 +846,7 @@ class ClaudeConsoleRelayService {
             })
 
             response.data.on('end', async () => {
+              const autoProtectionDisabled = account.disableAutoProtection === true
               // 记录原始错误消息到日志（方便调试，包含供应商信息）
               logger.error(
                 `📝 [Stream] Upstream error response from ${account?.name || accountId}: ${errorDataForCheck.substring(0, 500)}`
@@ -513,24 +859,41 @@ class ClaudeConsoleRelayService {
               )
 
               if (response.status === 401) {
-                await claudeConsoleAccountService.markAccountUnauthorized(accountId)
+                logger.warn(
+                  `🚫 [Stream] Unauthorized error detected for Claude Console account ${accountId}${autoProtectionDisabled ? ' (auto-protection disabled, skipping status change)' : ''}`
+                )
+                if (!autoProtectionDisabled) {
+                  await claudeConsoleAccountService.markAccountUnauthorized(accountId)
+                }
               } else if (accountDisabledError) {
                 logger.error(
-                  `🚫 [Stream] Account disabled error (400) detected for Claude Console account ${accountId}, marking as blocked`
+                  `🚫 [Stream] Account disabled error (400) detected for Claude Console account ${accountId}${autoProtectionDisabled ? ' (auto-protection disabled, skipping status change)' : ''}`
                 )
                 // 传入完整的错误详情到 webhook
-                await claudeConsoleAccountService.markConsoleAccountBlocked(
-                  accountId,
-                  errorDataForCheck
-                )
+                if (!autoProtectionDisabled) {
+                  await claudeConsoleAccountService.markConsoleAccountBlocked(
+                    accountId,
+                    errorDataForCheck
+                  )
+                }
               } else if (response.status === 429) {
-                await claudeConsoleAccountService.markAccountRateLimited(accountId)
+                logger.warn(
+                  `🚫 [Stream] Rate limit detected for Claude Console account ${accountId}${autoProtectionDisabled ? ' (auto-protection disabled, skipping status change)' : ''}`
+                )
                 // 检查是否因为超过每日额度
                 claudeConsoleAccountService.checkQuotaUsage(accountId).catch((err) => {
                   logger.error('❌ Failed to check quota after 429 error:', err)
                 })
+                if (!autoProtectionDisabled) {
+                  await claudeConsoleAccountService.markAccountRateLimited(accountId)
+                }
               } else if (response.status === 529) {
-                await claudeConsoleAccountService.markAccountOverloaded(accountId)
+                logger.warn(
+                  `🚫 [Stream] Overload error detected for Claude Console account ${accountId}${autoProtectionDisabled ? ' (auto-protection disabled, skipping status change)' : ''}`
+                )
+                if (!autoProtectionDisabled) {
+                  await claudeConsoleAccountService.markAccountOverloaded(accountId)
+                }
               }
 
               // 设置响应头
@@ -552,7 +915,7 @@ class ClaudeConsoleRelayService {
                   `🧹 [Stream] [SANITIZED] Error response to client: ${JSON.stringify(sanitizedError)}`
                 )
 
-                if (!responseStream.destroyed) {
+                if (isStreamWritable(responseStream)) {
                   responseStream.write(JSON.stringify(sanitizedError))
                   responseStream.end()
                 }
@@ -560,7 +923,7 @@ class ClaudeConsoleRelayService {
                 const sanitizedText = sanitizeErrorMessage(errorDataForCheck)
                 logger.error(`🧹 [Stream] [SANITIZED] Error response to client: ${sanitizedText}`)
 
-                if (!responseStream.destroyed) {
+                if (isStreamWritable(responseStream)) {
                   responseStream.write(sanitizedText)
                   responseStream.end()
                 }
@@ -569,6 +932,19 @@ class ClaudeConsoleRelayService {
             })
 
             return
+          }
+
+          // 📬 收到成功响应头（HTTP 200），调用回调释放队列锁
+          // 此时请求已被 Claude API 接受并计入 RPM 配额，无需等待响应完成
+          if (onResponseHeaderReceived && typeof onResponseHeaderReceived === 'function') {
+            try {
+              await onResponseHeaderReceived()
+            } catch (callbackError) {
+              logger.error(
+                `❌ Failed to execute onResponseHeaderReceived callback for console stream account ${accountId}:`,
+                callbackError.message
+              )
+            }
           }
 
           // 成功响应，检查并移除错误状态
@@ -584,11 +960,22 @@ class ClaudeConsoleRelayService {
           })
 
           // 设置响应头
+          // ⚠️ 关键修复：尊重 auth.js 提前设置的 Connection: close
+          // 当并发队列功能启用时，auth.js 会设置 Connection: close 来禁用 Keep-Alive
           if (!responseStream.headersSent) {
+            const existingConnection = responseStream.getHeader
+              ? responseStream.getHeader('Connection')
+              : null
+            const connectionHeader = existingConnection || 'keep-alive'
+            if (existingConnection) {
+              logger.debug(
+                `🔌 [Console Stream] Preserving existing Connection header: ${existingConnection}`
+              )
+            }
             responseStream.writeHead(200, {
               'Content-Type': 'text/event-stream',
               'Cache-Control': 'no-cache',
-              Connection: 'keep-alive',
+              Connection: connectionHeader,
               'X-Accel-Buffering': 'no'
             })
           }
@@ -619,30 +1006,33 @@ class ClaudeConsoleRelayService {
               buffer = lines.pop() || ''
 
               // 转发数据并解析usage
-              if (lines.length > 0 && !responseStream.destroyed) {
-                const linesToForward = lines.join('\n') + (lines.length > 0 ? '\n' : '')
+              if (lines.length > 0) {
+                // 检查流是否可写（客户端连接是否有效）
+                if (isStreamWritable(responseStream)) {
+                  const linesToForward = lines.join('\n') + (lines.length > 0 ? '\n' : '')
 
-                // DEBUG: 记录即将转发的数据
-                logger.debug(
-                  `🌊 [Stream Forward] Sending ${linesToForward.length} bytes, ${lines.length} lines to client`
-                )
+                  // 应用流转换器如果有
+                  let dataToWrite = linesToForward
+                  if (streamTransformer) {
+                    const transformed = streamTransformer(linesToForward)
+                    if (transformed) {
+                      dataToWrite = transformed
+                    } else {
+                      dataToWrite = null
+                    }
+                  }
 
-                // 应用流转换器如果有
-                if (streamTransformer) {
-                  const transformed = streamTransformer(linesToForward)
-                  if (transformed) {
-                    logger.debug(
-                      `🌊 [Stream Transform] Transformed data: ${transformed.length} bytes`
-                    )
-                    responseStream.write(transformed)
-                  } else {
-                    logger.debug(`🌊 [Stream Transform] Transformer returned empty/null`)
+                  if (dataToWrite) {
+                    responseStream.write(dataToWrite)
                   }
                 } else {
-                  responseStream.write(linesToForward)
+                  // 客户端连接已断开，记录警告（但仍继续解析usage）
+                  logger.warn(
+                    `⚠️ [Console] Client disconnected during stream, skipping ${lines.length} lines for account: ${account?.name || accountId}`
+                  )
                 }
 
-                // 解析SSE数据寻找usage信息
+                // 解析SSE数据寻找usage信息（无论连接状态如何）
                 for (const line of lines) {
                   if (line.startsWith('data:')) {
                     const jsonStr = line.slice(5).trimStart()
@@ -731,7 +1121,9 @@ class ClaudeConsoleRelayService {
                             '🎯 [Console] Complete usage data collected:',
                             JSON.stringify(collectedUsageData)
                           )
-                          usageCallback({ ...collectedUsageData, accountId })
+                          if (usageCallback && typeof usageCallback === 'function') {
+                            usageCallback({ ...collectedUsageData, accountId })
+                          }
                           finalUsageReported = true
                         }
                       }
@@ -748,15 +1140,22 @@ class ClaudeConsoleRelayService {
                 `❌ Error processing Claude Console stream data (Account: ${account?.name || accountId}):`,
                 error
               )
-              if (!responseStream.destroyed) {
-                responseStream.write('event: error\n')
-                responseStream.write(
-                  `data: ${JSON.stringify({
-                    error: 'Stream processing error',
-                    message: error.message,
-                    timestamp: new Date().toISOString()
-                  })}\n\n`
-                )
+              if (isStreamWritable(responseStream)) {
+                // 如果有 streamTransformer（如测试请求），使用前端期望的格式
+                if (streamTransformer) {
+                  responseStream.write(
+                    `data: ${JSON.stringify({ type: 'error', error: error.message })}\n\n`
+                  )
+                } else {
+                  responseStream.write('event: error\n')
+                  responseStream.write(
+                    `data: ${JSON.stringify({
+                      error: 'Stream processing error',
+                      message: error.message,
+                      timestamp: new Date().toISOString()
+                    })}\n\n`
+                  )
+                }
               }
             }
           })
@@ -764,7 +1163,7 @@ class ClaudeConsoleRelayService {
           response.data.on('end', () => {
             try {
               // 处理缓冲区中剩余的数据
-              if (buffer.trim() && !responseStream.destroyed) {
+              if (buffer.trim() && isStreamWritable(responseStream)) {
                 if (streamTransformer) {
                   const transformed = streamTransformer(buffer)
                   if (transformed) {
@@ -801,7 +1200,9 @@ class ClaudeConsoleRelayService {
                   logger.info(
                     `📊 [Console] Saving incomplete usage data via fallback: ${JSON.stringify(collectedUsageData)}`
                   )
-                  usageCallback({ ...collectedUsageData, accountId })
+                  if (usageCallback && typeof usageCallback === 'function') {
+                    usageCallback({ ...collectedUsageData, accountId })
+                  }
                   finalUsageReported = true
                 } else {
                   logger.warn(
@@ -811,12 +1212,33 @@ class ClaudeConsoleRelayService {
               }
 
               // 确保流正确结束
-              if (!responseStream.destroyed) {
-                responseStream.end()
-              }
+              if (isStreamWritable(responseStream)) {
+                // 📊 诊断日志：流结束前状态
+                logger.info(
+                  `📤 [STREAM] Ending response | destroyed: ${responseStream.destroyed}, ` +
+                    `socketDestroyed: ${responseStream.socket?.destroyed}, ` +
+                    `socketBytesWritten: ${responseStream.socket?.bytesWritten || 0}`
+                )
 
-              logger.debug('🌊 Claude Console Claude stream response completed')
-              resolve()
+                // 禁用 Nagle 算法确保数据立即发送
+                if (responseStream.socket && !responseStream.socket.destroyed) {
+                  responseStream.socket.setNoDelay(true)
+                }
+
+                // 等待数据完全 flush 到客户端后再 resolve
+                responseStream.end(() => {
+                  logger.info(
+                    `✅ [STREAM] Response ended and flushed | socketBytesWritten: ${responseStream.socket?.bytesWritten || 'unknown'}`
+                  )
+                  resolve()
+                })
+              } else {
+                // 连接已断开，记录警告
+                logger.warn(
+                  `⚠️ [Console] Client disconnected before stream end, data may not have been received | account: ${account?.name || accountId}`
+                )
+                resolve()
+              }
             } catch (error) {
               logger.error('❌ Error processing stream end:', error)
               reject(error)
@@ -828,15 +1250,22 @@ class ClaudeConsoleRelayService {
               `❌ Claude Console stream error (Account: ${account?.name || accountId}):`,
               error
             )
-            if (!responseStream.destroyed) {
-              responseStream.write('event: error\n')
-              responseStream.write(
-                `data: ${JSON.stringify({
-                  error: 'Stream error',
-                  message: error.message,
-                  timestamp: new Date().toISOString()
-                })}\n\n`
-              )
+            if (isStreamWritable(responseStream)) {
+              // 如果有 streamTransformer（如测试请求），使用前端期望的格式
+              if (streamTransformer) {
+                responseStream.write(
+                  `data: ${JSON.stringify({ type: 'error', error: error.message })}\n\n`
+                )
+              } else {
+                responseStream.write('event: error\n')
+                responseStream.write(
+                  `data: ${JSON.stringify({
+                    error: 'Stream error',
+                    message: error.message,
+                    timestamp: new Date().toISOString()
+                  })}\n\n`
+                )
+              }
               responseStream.end()
             }
             reject(error)
@@ -869,22 +1298,32 @@ class ClaudeConsoleRelayService {
 
           // 发送错误响应
           if (!responseStream.headersSent) {
+            const existingConnection = responseStream.getHeader
+              ? responseStream.getHeader('Connection')
+              : null
             responseStream.writeHead(error.response?.status || 500, {
               'Content-Type': 'text/event-stream',
               'Cache-Control': 'no-cache',
-              Connection: 'keep-alive'
+              Connection: existingConnection || 'keep-alive'
             })
           }
 
-          if (!responseStream.destroyed) {
-            responseStream.write('event: error\n')
-            responseStream.write(
-              `data: ${JSON.stringify({
-                error: error.message,
-                code: error.code,
-                timestamp: new Date().toISOString()
-              })}\n\n`
-            )
+          if (isStreamWritable(responseStream)) {
+            // 如果有 streamTransformer（如测试请求），使用前端期望的格式
+            if (streamTransformer) {
+              responseStream.write(
+                `data: ${JSON.stringify({ type: 'error', error: error.message })}\n\n`
+              )
+            } else {
+              responseStream.write('event: error\n')
+              responseStream.write(
+                `data: ${JSON.stringify({
+                  error: error.message,
+                  code: error.code,
+                  timestamp: new Date().toISOString()
+                })}\n\n`
+              )
+            }
             responseStream.end()
           }
 
@@ -901,30 +1340,9 @@ class ClaudeConsoleRelayService {
 
   // 🔧 过滤客户端请求头
   _filterClientHeaders(clientHeaders) {
-    const sensitiveHeaders = [
-      'content-type',
-      'user-agent',
-      'authorization',
-      'x-api-key',
-      'host',
-      'content-length',
-      'connection',
-      'proxy-authorization',
-      'content-encoding',
-      'transfer-encoding',
-      'anthropic-version'
-    ]
-
-    const filteredHeaders = {}
-
-    Object.keys(clientHeaders || {}).forEach((key) => {
-      const lowerKey = key.toLowerCase()
-      if (!sensitiveHeaders.includes(lowerKey)) {
-        filteredHeaders[key] = clientHeaders[key]
-      }
-    })
-
-    return filteredHeaders
+    // 使用统一的 headerFilter 工具类（白名单模式）
+    // 与 claudeRelayService 保持一致，避免透传 CDN headers 触发上游 API 安全检查
+    return filterForClaude(clientHeaders)
   }
 
   // 🔄 将非流式响应转换为 SSE 流格式
@@ -1160,6 +1578,106 @@ class ClaudeConsoleRelayService {
         `⚠️ Failed to update last used time for Claude Console account ${accountId}:`,
         error.message
       )
+    }
+  }
+
+  // 🧪 创建测试用的流转换器，将 Claude API SSE 格式转换为前端期望的格式
+  _createTestStreamTransformer() {
+    let testStartSent = false
+
+    return (rawData) => {
+      const lines = rawData.split('\n')
+      const outputLines = []
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) {
+          // 保留空行用于 SSE 分隔
+          if (line.trim() === '') {
+            outputLines.push('')
+          }
+          continue
+        }
+
+        const jsonStr = line.substring(6).trim()
+        if (!jsonStr || jsonStr === '[DONE]') {
+          continue
+        }
+
+        try {
+          const data = JSON.parse(jsonStr)
+
+          // 发送 test_start 事件（只在第一次 message_start 时发送）
+          if (data.type === 'message_start' && !testStartSent) {
+            testStartSent = true
+            outputLines.push(`data: ${JSON.stringify({ type: 'test_start' })}`)
+            outputLines.push('')
+          }
+
+          // 转换 content_block_delta 为 content
+          if (data.type === 'content_block_delta' && data.delta && data.delta.text) {
+            outputLines.push(`data: ${JSON.stringify({ type: 'content', text: data.delta.text })}`)
+            outputLines.push('')
+          }
+
+          // 转换 message_stop 为 test_complete
+          if (data.type === 'message_stop') {
+            outputLines.push(`data: ${JSON.stringify({ type: 'test_complete', success: true })}`)
+            outputLines.push('')
+          }
+
+          // 处理错误事件
+          if (data.type === 'error') {
+            const errorMsg = data.error?.message || data.message || '未知错误'
+            outputLines.push(`data: ${JSON.stringify({ type: 'error', error: errorMsg })}`)
+            outputLines.push('')
+          }
+        } catch {
+          // 忽略解析错误
+        }
+      }
+
+      return outputLines.length > 0 ? outputLines.join('\n') : null
+    }
+  }
+
+  // 🧪 测试账号连接（供Admin API使用）
+  async testAccountConnection(accountId, responseStream) {
+    const { sendStreamTestRequest } = require('../utils/testPayloadHelper')
+
+    try {
+      const account = await claudeConsoleAccountService.getAccount(accountId)
+      if (!account) {
+        throw new Error('Account not found')
+      }
+
+      logger.info(`🧪 Testing Claude Console account connection: ${account.name} (${accountId})`)
+
+      const cleanUrl = account.apiUrl.replace(/\/$/, '')
+      const apiUrl = cleanUrl.endsWith('/v1/messages')
+        ? cleanUrl
+        : `${cleanUrl}/v1/messages?beta=true`
+
+      await sendStreamTestRequest({
+        apiUrl,
+        authorization: `Bearer ${account.apiKey}`,
+        responseStream,
+        proxyAgent: claudeConsoleAccountService._createProxyAgent(account.proxy),
+        extraHeaders: account.userAgent ? { 'User-Agent': account.userAgent } : {}
+      })
+    } catch (error) {
+      logger.error(`❌ Test account connection failed:`, error)
+      if (!responseStream.headersSent) {
+        responseStream.writeHead(200, {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache'
+        })
+      }
+      if (isStreamWritable(responseStream)) {
+        responseStream.write(
+          `data: ${JSON.stringify({ type: 'test_complete', success: false, error: error.message })}\n\n`
+        )
+        responseStream.end()
+      }
     }
   }
 

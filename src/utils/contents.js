@@ -79,10 +79,20 @@ const PROMPT_DEFINITIONS = {
     title: 'Claude Code Compact System Prompt Agent SDK2',
     text: "You are Claude Code, Anthropic's official CLI for Claude, running within the Claude Agent SDK."
   },
+  claudeOtherSystemPrompt5: {
+    category: 'system',
+    title: 'Claude CLI Billing Header',
+    text: 'x-anthropic-billing-header: cc_version=2.1.15.c5a; cc_entrypoint=cli'
+  },
   claudeOtherSystemPromptCompact: {
     category: 'system',
     title: 'Claude Code Compact System Prompt',
     text: 'You are a helpful AI assistant tasked with summarizing conversations.'
+  },
+  exploreAgentSystemPrompt: {
+    category: 'system',
+    title: 'Claude Code Explore Agent System Prompt',
+    text: "You are a file search specialist for Claude Code, Anthropic's official CLI for Claude."
   },
   outputStyleInsightsPrompt: {
     category: 'output_style',

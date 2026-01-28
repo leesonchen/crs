@@ -105,7 +105,7 @@ class OpenAIResponsesAccountService {
     // 保存到 Redis
     await this._saveAccount(accountId, accountData)
 
-    logger.success(`🚀 Created OpenAI-Responses account: ${name} (${accountId})`)
+    logger.success(`Created OpenAI-Responses account: ${name} (${accountId})`)
 
     return {
       ...accountData,
@@ -204,6 +204,9 @@ class OpenAIResponsesAccountService {
     // 从共享账户列表中移除
     await client.srem(this.SHARED_ACCOUNTS_KEY, accountId)
 
+    // 从索引中移除
+    await redis.removeFromIndex('openai_responses_account:index', accountId)
+
     // 删除账户数据
     await client.del(key)
 
@@ -215,108 +218,79 @@ class OpenAIResponsesAccountService {
   // 获取所有账户
   async getAllAccounts(includeInactive = false) {
     const client = redis.getClientSafe()
-    const accountIds = await client.smembers(this.SHARED_ACCOUNTS_KEY)
+
+    // 使用索引获取所有账户ID
+    const accountIds = await redis.getAllIdsByIndex(
+      'openai_responses_account:index',
+      `${this.ACCOUNT_KEY_PREFIX}*`,
+      /^openai_responses_account:(.+)$/
+    )
+    if (accountIds.length === 0) {
+      return []
+    }
+
+    const keys = accountIds.map((id) => `${this.ACCOUNT_KEY_PREFIX}${id}`)
+    // Pipeline 批量查询所有账户数据
+    const pipeline = client.pipeline()
+    keys.forEach((key) => pipeline.hgetall(key))
+    const results = await pipeline.exec()
+
     const accounts = []
+    results.forEach(([err, accountData]) => {
+      if (err || !accountData || !accountData.id) {
+        return
+      }
 
-    for (const accountId of accountIds) {
-      const account = await this.getAccount(accountId)
-      if (account) {
-        // 过滤非活跃账户
-        if (includeInactive || account.isActive === 'true') {
-          // 隐藏敏感信息
-          account.apiKey = '***'
+      // 过滤非活跃账户
+      if (!includeInactive && accountData.isActive !== 'true') {
+        return
+      }
 
-          // 获取限流状态信息（与普通OpenAI账号保持一致的格式）
-          const rateLimitInfo = this._getRateLimitInfo(account)
+      // 隐藏敏感信息
+      accountData.apiKey = '***'
 
-          // 格式化 rateLimitStatus 为对象（与普通 OpenAI 账号一致）
-          account.rateLimitStatus = rateLimitInfo.isRateLimited
-            ? {
-                isRateLimited: true,
-                rateLimitedAt: account.rateLimitedAt || null,
-                minutesRemaining: rateLimitInfo.remainingMinutes || 0
-              }
-            : {
-                isRateLimited: false,
-                rateLimitedAt: null,
-                minutesRemaining: 0
-              }
-
-          // 转换 schedulable 字段为布尔值（前端需要布尔值来判断）
-          account.schedulable = account.schedulable !== 'false'
-          // 转换 isActive 字段为布尔值
-          account.isActive = account.isActive === 'true'
-
-          // ✅ 前端显示订阅过期时间（业务字段）
-          account.expiresAt = account.subscriptionExpiresAt || null
-          account.platform = account.platform || 'openai-responses'
-
-          accounts.push(account)
+      // 解析 JSON 字段
+      if (accountData.proxy) {
+        try {
+          accountData.proxy = JSON.parse(accountData.proxy)
+        } catch {
+          accountData.proxy = null
         }
       }
-    }
 
-    // 直接从 Redis 获取所有账户（包括非共享账户）
-    const keys = await client.keys(`${this.ACCOUNT_KEY_PREFIX}*`)
-    for (const key of keys) {
-      const accountId = key.replace(this.ACCOUNT_KEY_PREFIX, '')
-      if (!accountIds.includes(accountId)) {
-        const accountData = await client.hgetall(key)
-        if (accountData && accountData.id) {
-          // 过滤非活跃账户
-          if (includeInactive || accountData.isActive === 'true') {
-            // 隐藏敏感信息
-            accountData.apiKey = '***'
-            // 解析 JSON 字段
-            if (accountData.proxy) {
-              try {
-                accountData.proxy = JSON.parse(accountData.proxy)
-              } catch (e) {
-                accountData.proxy = null
-              }
-            }
-
-            // 获取限流状态信息（与普通OpenAI账号保持一致的格式）
-            const rateLimitInfo = this._getRateLimitInfo(accountData)
-
-            // 格式化 rateLimitStatus 为对象（与普通 OpenAI 账号一致）
-            accountData.rateLimitStatus = rateLimitInfo.isRateLimited
-              ? {
-                  isRateLimited: true,
-                  rateLimitedAt: accountData.rateLimitedAt || null,
-                  minutesRemaining: rateLimitInfo.remainingMinutes || 0
-                }
-              : {
-                  isRateLimited: false,
-                  rateLimitedAt: null,
-                  minutesRemaining: 0
-                }
-
-            // 解析 supportedModels 字段（与Claude Console保持一致）
-            if (accountData.supportedModels) {
-              try {
-                accountData.supportedModels = JSON.parse(accountData.supportedModels || '[]')
-              } catch (e) {
-                accountData.supportedModels = []
-              }
-            } else {
-              accountData.supportedModels = []
-            }
-
-            // 转换 schedulable 字段为布尔值（前端需要布尔值来判断）
-            accountData.schedulable = accountData.schedulable !== 'false'
-            // 转换 isActive 字段为布尔值
-            accountData.isActive = accountData.isActive === 'true'
-
-            // ✅ 前端显示订阅过期时间（业务字段）
-            accountData.expiresAt = accountData.subscriptionExpiresAt || null
-            accountData.platform = accountData.platform || 'openai-responses'
-
-            accounts.push(accountData)
+      // 获取限流状态信息
+      const rateLimitInfo = this._getRateLimitInfo(accountData)
+      accountData.rateLimitStatus = rateLimitInfo.isRateLimited
+        ? {
+            isRateLimited: true,
+            rateLimitedAt: accountData.rateLimitedAt || null,
+            minutesRemaining: rateLimitInfo.remainingMinutes || 0
           }
+        : {
+            isRateLimited: false,
+            rateLimitedAt: null,
+            minutesRemaining: 0
+          }
+
+      // 解析 supportedModels 字段（映射表，与本服务 create/update 的存储格式保持一致）
+      if (accountData.supportedModels) {
+        try {
+          accountData.supportedModels = JSON.parse(accountData.supportedModels || '{}')
+        } catch {
+          accountData.supportedModels = {}
         }
+      } else {
+        accountData.supportedModels = {}
       }
-    }
+
+      // 转换字段类型
+      accountData.schedulable = accountData.schedulable !== 'false'
+      accountData.isActive = accountData.isActive === 'true'
+      accountData.expiresAt = accountData.subscriptionExpiresAt || null
+      accountData.platform = accountData.platform || 'openai-responses'
+
+      accounts.push(accountData)
+    })
 
     return accounts
   }
@@ -678,6 +652,9 @@ class OpenAIResponsesAccountService {
 
     // 保存账户数据
     await client.hset(key, accountData)
+
+    // 添加到索引
+    await redis.addToIndex('openai_responses_account:index', accountId)
 
     // 添加到共享账户列表
     if (accountData.accountType === 'shared') {

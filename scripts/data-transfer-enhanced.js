@@ -192,62 +192,110 @@ async function exportUsageStats(keyId) {
       daily: {},
       monthly: {},
       hourly: {},
-      models: {}
+      models: {},
+      // 费用统计（String 类型）
+      costTotal: null,
+      costDaily: {},
+      costMonthly: {},
+      costHourly: {},
+      opusTotal: null,
+      opusWeekly: {}
     }
 
-    // 导出总统计
-    const totalKey = `usage:${keyId}`
-    const totalData = await redis.client.hgetall(totalKey)
+    // 导出总统计（Hash）
+    const totalData = await redis.client.hgetall(`usage:${keyId}`)
     if (totalData && Object.keys(totalData).length > 0) {
       stats.total = totalData
     }
 
-    // 导出每日统计（最近30天）
-    const today = new Date()
-    for (let i = 0; i < 30; i++) {
-      const date = new Date(today)
-      date.setDate(date.getDate() - i)
-      const dateStr = date.toISOString().split('T')[0]
-      const dailyKey = `usage:daily:${keyId}:${dateStr}`
+    // 导出费用总统计（String）
+    const costTotal = await redis.client.get(`usage:cost:total:${keyId}`)
+    if (costTotal) {
+      stats.costTotal = costTotal
+    }
 
-      const dailyData = await redis.client.hgetall(dailyKey)
-      if (dailyData && Object.keys(dailyData).length > 0) {
-        stats.daily[dateStr] = dailyData
+    // 导出 Opus 费用总统计（String）
+    const opusTotal = await redis.client.get(`usage:opus:total:${keyId}`)
+    if (opusTotal) {
+      stats.opusTotal = opusTotal
+    }
+
+    // 导出每日统计（扫描现有 key，避免时区问题）
+    const dailyKeys = await redis.client.keys(`usage:daily:${keyId}:*`)
+    for (const key of dailyKeys) {
+      const date = key.split(':').pop()
+      const data = await redis.client.hgetall(key)
+      if (data && Object.keys(data).length > 0) {
+        stats.daily[date] = data
       }
     }
 
-    // 导出每月统计（最近12个月）
-    for (let i = 0; i < 12; i++) {
-      const date = new Date(today)
-      date.setMonth(date.getMonth() - i)
-      const monthStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
-      const monthlyKey = `usage:monthly:${keyId}:${monthStr}`
-
-      const monthlyData = await redis.client.hgetall(monthlyKey)
-      if (monthlyData && Object.keys(monthlyData).length > 0) {
-        stats.monthly[monthStr] = monthlyData
+    // 导出每日费用（扫描现有 key）
+    const costDailyKeys = await redis.client.keys(`usage:cost:daily:${keyId}:*`)
+    for (const key of costDailyKeys) {
+      const date = key.split(':').pop()
+      const value = await redis.client.get(key)
+      if (value) {
+        stats.costDaily[date] = value
       }
     }
 
-    // 导出小时统计（最近24小时）
-    for (let i = 0; i < 24; i++) {
-      const date = new Date(today)
-      date.setHours(date.getHours() - i)
-      const dateStr = date.toISOString().split('T')[0]
-      const hour = String(date.getHours()).padStart(2, '0')
-      const hourKey = `${dateStr}:${hour}`
-      const hourlyKey = `usage:hourly:${keyId}:${hourKey}`
-
-      const hourlyData = await redis.client.hgetall(hourlyKey)
-      if (hourlyData && Object.keys(hourlyData).length > 0) {
-        stats.hourly[hourKey] = hourlyData
+    // 导出每月统计（扫描现有 key）
+    const monthlyKeys = await redis.client.keys(`usage:monthly:${keyId}:*`)
+    for (const key of monthlyKeys) {
+      const month = key.split(':').pop()
+      const data = await redis.client.hgetall(key)
+      if (data && Object.keys(data).length > 0) {
+        stats.monthly[month] = data
       }
     }
 
-    // 导出模型统计
-    // 每日模型统计
-    const modelDailyPattern = `usage:${keyId}:model:daily:*`
-    const modelDailyKeys = await redis.client.keys(modelDailyPattern)
+    // 导出每月费用（扫描现有 key）
+    const costMonthlyKeys = await redis.client.keys(`usage:cost:monthly:${keyId}:*`)
+    for (const key of costMonthlyKeys) {
+      const month = key.split(':').pop()
+      const value = await redis.client.get(key)
+      if (value) {
+        stats.costMonthly[month] = value
+      }
+    }
+
+    // 导出 Opus 周费用（扫描现有 key）
+    const opusWeeklyKeys = await redis.client.keys(`usage:opus:weekly:${keyId}:*`)
+    for (const key of opusWeeklyKeys) {
+      const week = key.split(':').pop()
+      const value = await redis.client.get(key)
+      if (value) {
+        stats.opusWeekly[week] = value
+      }
+    }
+
+    // 导出小时统计（扫描现有 key）
+    // key 格式: usage:hourly:{keyId}:{YYYY-MM-DD}:{HH}
+    const hourlyKeys = await redis.client.keys(`usage:hourly:${keyId}:*`)
+    for (const key of hourlyKeys) {
+      const parts = key.split(':')
+      const hourKey = `${parts[parts.length - 2]}:${parts[parts.length - 1]}` // YYYY-MM-DD:HH
+      const data = await redis.client.hgetall(key)
+      if (data && Object.keys(data).length > 0) {
+        stats.hourly[hourKey] = data
+      }
+    }
+
+    // 导出小时费用（扫描现有 key）
+    // key 格式: usage:cost:hourly:{keyId}:{YYYY-MM-DD}:{HH}
+    const costHourlyKeys = await redis.client.keys(`usage:cost:hourly:${keyId}:*`)
+    for (const key of costHourlyKeys) {
+      const parts = key.split(':')
+      const hourKey = `${parts[parts.length - 2]}:${parts[parts.length - 1]}` // YYYY-MM-DD:HH
+      const value = await redis.client.get(key)
+      if (value) {
+        stats.costHourly[hourKey] = value
+      }
+    }
+
+    // 导出模型统计（每日）
+    const modelDailyKeys = await redis.client.keys(`usage:${keyId}:model:daily:*`)
     for (const key of modelDailyKeys) {
       const match = key.match(/usage:.+:model:daily:(.+):(\d{4}-\d{2}-\d{2})$/)
       if (match) {
@@ -263,9 +311,8 @@ async function exportUsageStats(keyId) {
       }
     }
 
-    // 每月模型统计
-    const modelMonthlyPattern = `usage:${keyId}:model:monthly:*`
-    const modelMonthlyKeys = await redis.client.keys(modelMonthlyPattern)
+    // 导出模型统计（每月）
+    const modelMonthlyKeys = await redis.client.keys(`usage:${keyId}:model:monthly:*`)
     for (const key of modelMonthlyKeys) {
       const match = key.match(/usage:.+:model:monthly:(.+):(\d{4}-\d{2})$/)
       if (match) {
@@ -298,7 +345,7 @@ async function importUsageStats(keyId, stats) {
     const pipeline = redis.client.pipeline()
     let importCount = 0
 
-    // 导入总统计
+    // 导入总统计（Hash）
     if (stats.total && Object.keys(stats.total).length > 0) {
       for (const [field, value] of Object.entries(stats.total)) {
         pipeline.hset(`usage:${keyId}`, field, value)
@@ -306,7 +353,19 @@ async function importUsageStats(keyId, stats) {
       importCount++
     }
 
-    // 导入每日统计
+    // 导入费用总统计（String）
+    if (stats.costTotal) {
+      pipeline.set(`usage:cost:total:${keyId}`, stats.costTotal)
+      importCount++
+    }
+
+    // 导入 Opus 费用总统计（String）
+    if (stats.opusTotal) {
+      pipeline.set(`usage:opus:total:${keyId}`, stats.opusTotal)
+      importCount++
+    }
+
+    // 导入每日统计（Hash）
     if (stats.daily) {
       for (const [date, data] of Object.entries(stats.daily)) {
         for (const [field, value] of Object.entries(data)) {
@@ -316,7 +375,15 @@ async function importUsageStats(keyId, stats) {
       }
     }
 
-    // 导入每月统计
+    // 导入每日费用（String）
+    if (stats.costDaily) {
+      for (const [date, value] of Object.entries(stats.costDaily)) {
+        pipeline.set(`usage:cost:daily:${keyId}:${date}`, value)
+        importCount++
+      }
+    }
+
+    // 导入每月统计（Hash）
     if (stats.monthly) {
       for (const [month, data] of Object.entries(stats.monthly)) {
         for (const [field, value] of Object.entries(data)) {
@@ -326,7 +393,23 @@ async function importUsageStats(keyId, stats) {
       }
     }
 
-    // 导入小时统计
+    // 导入每月费用（String）
+    if (stats.costMonthly) {
+      for (const [month, value] of Object.entries(stats.costMonthly)) {
+        pipeline.set(`usage:cost:monthly:${keyId}:${month}`, value)
+        importCount++
+      }
+    }
+
+    // 导入 Opus 周费用（String，不加 TTL 保留历史全量）
+    if (stats.opusWeekly) {
+      for (const [week, value] of Object.entries(stats.opusWeekly)) {
+        pipeline.set(`usage:opus:weekly:${keyId}:${week}`, value)
+        importCount++
+      }
+    }
+
+    // 导入小时统计（Hash）
     if (stats.hourly) {
       for (const [hour, data] of Object.entries(stats.hourly)) {
         for (const [field, value] of Object.entries(data)) {
@@ -336,10 +419,17 @@ async function importUsageStats(keyId, stats) {
       }
     }
 
-    // 导入模型统计
+    // 导入小时费用（String）
+    if (stats.costHourly) {
+      for (const [hour, value] of Object.entries(stats.costHourly)) {
+        pipeline.set(`usage:cost:hourly:${keyId}:${hour}`, value)
+        importCount++
+      }
+    }
+
+    // 导入模型统计（Hash）
     if (stats.models) {
       for (const [model, modelStats] of Object.entries(stats.models)) {
-        // 每日模型统计
         if (modelStats.daily) {
           for (const [date, data] of Object.entries(modelStats.daily)) {
             for (const [field, value] of Object.entries(data)) {
@@ -349,7 +439,6 @@ async function importUsageStats(keyId, stats) {
           }
         }
 
-        // 每月模型统计
         if (modelStats.monthly) {
           for (const [month, data] of Object.entries(modelStats.monthly)) {
             for (const [field, value] of Object.entries(data)) {
@@ -747,13 +836,54 @@ async function exportData() {
       const globalStats = {
         daily: {},
         monthly: {},
-        hourly: {}
+        hourly: {},
+        // 新增：索引和全局统计
+        monthlyMonths: [], // usage:model:monthly:months Set
+        globalTotal: null, // usage:global:total Hash
+        globalDaily: {}, // usage:global:daily:* Hash
+        globalMonthly: {} // usage:global:monthly:* Hash
       }
 
-      // 导出全局每日模型统计
-      const globalDailyPattern = 'usage:model:daily:*'
-      const globalDailyKeys = await redis.client.keys(globalDailyPattern)
+      // 导出月份索引
+      const monthlyMonths = await redis.client.smembers('usage:model:monthly:months')
+      if (monthlyMonths && monthlyMonths.length > 0) {
+        globalStats.monthlyMonths = monthlyMonths
+        logger.info(`📤 Found ${monthlyMonths.length} months in index`)
+      }
+
+      // 导出全局统计
+      const globalTotal = await redis.client.hgetall('usage:global:total')
+      if (globalTotal && Object.keys(globalTotal).length > 0) {
+        globalStats.globalTotal = globalTotal
+        logger.info('📤 Found global total stats')
+      }
+
+      // 导出全局每日统计
+      const globalDailyKeys = await redis.client.keys('usage:global:daily:*')
       for (const key of globalDailyKeys) {
+        const date = key.replace('usage:global:daily:', '')
+        const data = await redis.client.hgetall(key)
+        if (data && Object.keys(data).length > 0) {
+          globalStats.globalDaily[date] = data
+        }
+      }
+      logger.info(`📤 Found ${Object.keys(globalStats.globalDaily).length} global daily stats`)
+
+      // 导出全局每月统计
+      const globalMonthlyKeys = await redis.client.keys('usage:global:monthly:*')
+      for (const key of globalMonthlyKeys) {
+        const month = key.replace('usage:global:monthly:', '')
+        const data = await redis.client.hgetall(key)
+        if (data && Object.keys(data).length > 0) {
+          globalStats.globalMonthly[month] = data
+        }
+      }
+      logger.info(`📤 Found ${Object.keys(globalStats.globalMonthly).length} global monthly stats`)
+
+      // 导出全局每日模型统计
+      const modelDailyPattern = 'usage:model:daily:*'
+      const modelDailyKeys = await redis.client.keys(modelDailyPattern)
+      for (const key of modelDailyKeys) {
         const match = key.match(/usage:model:daily:(.+):(\d{4}-\d{2}-\d{2})$/)
         if (match) {
           const model = match[1]
@@ -769,9 +899,9 @@ async function exportData() {
       }
 
       // 导出全局每月模型统计
-      const globalMonthlyPattern = 'usage:model:monthly:*'
-      const globalMonthlyKeys = await redis.client.keys(globalMonthlyPattern)
-      for (const key of globalMonthlyKeys) {
+      const modelMonthlyPattern = 'usage:model:monthly:*'
+      const modelMonthlyKeys = await redis.client.keys(modelMonthlyPattern)
+      for (const key of modelMonthlyKeys) {
         const match = key.match(/usage:model:monthly:(.+):(\d{4}-\d{2})$/)
         if (match) {
           const model = match[1]
@@ -1453,6 +1583,46 @@ async function importData() {
         const pipeline = redis.client.pipeline()
         let globalStatCount = 0
 
+        // 导入月份索引
+        if (globalStats.monthlyMonths && globalStats.monthlyMonths.length > 0) {
+          for (const month of globalStats.monthlyMonths) {
+            pipeline.sadd('usage:model:monthly:months', month)
+          }
+          logger.info(`📥 Importing ${globalStats.monthlyMonths.length} months to index`)
+        }
+
+        // 导入全局统计
+        if (globalStats.globalTotal) {
+          for (const [field, value] of Object.entries(globalStats.globalTotal)) {
+            pipeline.hset('usage:global:total', field, value)
+          }
+          logger.info('📥 Importing global total stats')
+        }
+
+        // 导入全局每日统计
+        if (globalStats.globalDaily) {
+          for (const [date, data] of Object.entries(globalStats.globalDaily)) {
+            for (const [field, value] of Object.entries(data)) {
+              pipeline.hset(`usage:global:daily:${date}`, field, value)
+            }
+          }
+          logger.info(
+            `📥 Importing ${Object.keys(globalStats.globalDaily).length} global daily stats`
+          )
+        }
+
+        // 导入全局每月统计
+        if (globalStats.globalMonthly) {
+          for (const [month, data] of Object.entries(globalStats.globalMonthly)) {
+            for (const [field, value] of Object.entries(data)) {
+              pipeline.hset(`usage:global:monthly:${month}`, field, value)
+            }
+          }
+          logger.info(
+            `📥 Importing ${Object.keys(globalStats.globalMonthly).length} global monthly stats`
+          )
+        }
+
         // 导入每日统计
         if (globalStats.daily) {
           for (const [date, models] of Object.entries(globalStats.daily)) {
@@ -1474,6 +1644,8 @@ async function importData() {
               }
               globalStatCount++
             }
+            // 同时更新月份索引（兼容旧格式导出文件）
+            pipeline.sadd('usage:model:monthly:months', month)
           }
         }
 

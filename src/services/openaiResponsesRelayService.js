@@ -19,11 +19,17 @@
 const axios = require('axios')
 const ProxyHelper = require('../utils/proxyHelper')
 const logger = require('../utils/logger')
+const { filterForOpenAI } = require('../utils/headerFilter')
 const apiKeyService = require('./apiKeyService')
 const unifiedOpenAIScheduler = require('./unifiedOpenAIScheduler')
 const openaiResponsesAccountService = require('./openaiResponsesAccountService')
 const config = require('../../config/config')
 const crypto = require('crypto')
+const LRUCache = require('../utils/lruCache')
+
+// lastUsedAt 更新节流（每账户 60 秒内最多更新一次，使用 LRU 防止内存泄漏）
+const lastUsedAtThrottle = new LRUCache(1000) // 最多缓存 1000 个账户
+const LAST_USED_AT_THROTTLE_MS = 60000
 
 // 账户服务映射（简化后仍保留，供其他函数使用）
 function getAccountService(accountType) {
@@ -71,7 +77,22 @@ class OpenAIResponsesRelayService {
     this.defaultTimeout = config.requestTimeout || 600000
   }
 
-  // 处理请求转发（重构后：只负责转发，账户由调用方提供）
+  // 节流更新 lastUsedAt
+  async _throttledUpdateLastUsedAt(accountId) {
+    const now = Date.now()
+    const lastUpdate = lastUsedAtThrottle.get(accountId)
+
+    if (lastUpdate && now - lastUpdate < LAST_USED_AT_THROTTLE_MS) {
+      return // 跳过更新
+    }
+
+    lastUsedAtThrottle.set(accountId, now, LAST_USED_AT_THROTTLE_MS)
+    await openaiResponsesAccountService.updateAccount(accountId, {
+      lastUsedAt: new Date().toISOString()
+    })
+  }
+
+  // 处理请求转发
   async handleRequest(req, res, account, apiKeyData) {
     let abortController = null
     let handleClientDisconnect = null
@@ -182,9 +203,9 @@ class OpenAIResponsesRelayService {
       }
       logger.info(`🎯 Forwarding to: ${targetUrl}`)
 
-      // 构建请求头（重构后：简化逻辑，只处理基本认证）
+      // 构建请求头 - 使用统一的 headerFilter 移除 CDN headers
       const headers = {
-        ...this._filterRequestHeaders(req.headers),
+        ...filterForOpenAI(req.headers),
         Authorization: `Bearer ${fullAccount.apiKey}`,
         'Content-Type': 'application/json'
       }
@@ -408,13 +429,8 @@ class OpenAIResponsesRelayService {
         return res.status(response.status).json(errorData)
       }
 
-      // 更新最后使用时间（根据 accountType 动态选择 service）
-      const accountService = getAccountService(accountType)
-      if (accountService.updateAccount) {
-        await accountService.updateAccount(account.id, {
-          lastUsedAt: new Date().toISOString()
-        })
-      }
+      // 更新最后使用时间（节流）
+      await this._throttledUpdateLastUsedAt(account.id)
 
       // 处理流式响应（支持转换器）
       if (req.body?.stream && response.data && typeof response.data.pipe === 'function') {
@@ -626,9 +642,9 @@ class OpenAIResponsesRelayService {
       const lines = data.split('\n')
 
       for (const line of lines) {
-        if (line.startsWith('data: ')) {
+        if (line.startsWith('data:')) {
           try {
-            const jsonStr = line.slice(6)
+            const jsonStr = line.slice(5).trim()
             if (jsonStr === '[DONE]') {
               continue
             }
@@ -890,7 +906,8 @@ class OpenAIResponsesRelayService {
             cacheCreateTokens,
             cacheReadTokens,
             modelToRecord,
-            account.id
+            account.id,
+            'openai-responses'
           )
 
           logger.info(
@@ -1213,7 +1230,8 @@ class OpenAIResponsesRelayService {
           cacheCreateTokens,
           cacheReadTokens,
           actualModel,
-          account.id
+          account.id,
+          'openai-responses'
         )
 
         logger.info(
@@ -1497,29 +1515,10 @@ class OpenAIResponsesRelayService {
     return { handled: true }
   }
 
-  // 过滤请求头
+  // 过滤请求头 - 已迁移到 headerFilter 工具类
+  // 此方法保留用于向后兼容，实际使用 filterForOpenAI()
   _filterRequestHeaders(headers) {
-    const filtered = {}
-    const skipHeaders = [
-      'host',
-      'content-length',
-      'authorization',
-      'x-api-key',
-      'x-cr-api-key',
-      'connection',
-      'upgrade',
-      'sec-websocket-key',
-      'sec-websocket-version',
-      'sec-websocket-extensions'
-    ]
-
-    for (const [key, value] of Object.entries(headers)) {
-      if (!skipHeaders.includes(key.toLowerCase())) {
-        filtered[key] = value
-      }
-    }
-
-    return filtered
+    return filterForOpenAI(headers)
   }
 
   // 🔍 检测SSE事件的供应商格式

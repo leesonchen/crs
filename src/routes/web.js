@@ -56,7 +56,7 @@ router.post('/auth/login', async (req, res) => {
     const isValidPassword = await bcrypt.compare(password, adminData.passwordHash)
 
     if (!isValidUsername || !isValidPassword) {
-      logger.security(`🔒 Failed login attempt for username: ${username}`)
+      logger.security(`Failed login attempt for username: ${username}`)
       return res.status(401).json({
         error: 'Invalid credentials',
         message: 'Invalid username or password'
@@ -82,7 +82,7 @@ router.post('/auth/login', async (req, res) => {
     }
     await redis.setSession('admin_credentials', updatedAdminData)
 
-    logger.success(`🔐 Admin login successful: ${username}`)
+    logger.success(`Admin login successful: ${username}`)
 
     return res.json({
       success: true,
@@ -150,10 +150,24 @@ router.post('/auth/change-password', async (req, res) => {
 
     // 获取当前会话
     const sessionData = await redis.getSession(token)
-    if (!sessionData) {
+
+    // 🔒 安全修复：检查空对象
+    if (!sessionData || Object.keys(sessionData).length === 0) {
       return res.status(401).json({
         error: 'Invalid token',
         message: 'Session expired or invalid'
+      })
+    }
+
+    // 🔒 安全修复：验证会话完整性
+    if (!sessionData.username || !sessionData.loginTime) {
+      logger.security(
+        `🔒 Invalid session structure in /auth/change-password from ${req.ip || 'unknown'}`
+      )
+      await redis.deleteSession(token)
+      return res.status(401).json({
+        error: 'Invalid session',
+        message: 'Session data corrupted or incomplete'
       })
     }
 
@@ -169,7 +183,7 @@ router.post('/auth/change-password', async (req, res) => {
     // 验证当前密码
     const isValidPassword = await bcrypt.compare(currentPassword, adminData.passwordHash)
     if (!isValidPassword) {
-      logger.security(`🔒 Invalid current password attempt for user: ${sessionData.username}`)
+      logger.security(`Invalid current password attempt for user: ${sessionData.username}`)
       return res.status(401).json({
         error: 'Invalid current password',
         message: 'Current password is incorrect'
@@ -231,7 +245,7 @@ router.post('/auth/change-password', async (req, res) => {
     // 清除当前会话（强制用户重新登录）
     await redis.deleteSession(token)
 
-    logger.success(`🔐 Admin password changed successfully for user: ${updatedUsername}`)
+    logger.success(`Admin password changed successfully for user: ${updatedUsername}`)
 
     return res.json({
       success: true,
@@ -261,10 +275,22 @@ router.get('/auth/user', async (req, res) => {
 
     // 获取当前会话
     const sessionData = await redis.getSession(token)
-    if (!sessionData) {
+
+    // 🔒 安全修复：检查空对象
+    if (!sessionData || Object.keys(sessionData).length === 0) {
       return res.status(401).json({
         error: 'Invalid token',
         message: 'Session expired or invalid'
+      })
+    }
+
+    // 🔒 安全修复：验证会话完整性
+    if (!sessionData.username || !sessionData.loginTime) {
+      logger.security(`Invalid session structure in /auth/user from ${req.ip || 'unknown'}`)
+      await redis.deleteSession(token)
+      return res.status(401).json({
+        error: 'Invalid session',
+        message: 'Session data corrupted or incomplete'
       })
     }
 
@@ -308,10 +334,21 @@ router.post('/auth/refresh', async (req, res) => {
 
     const sessionData = await redis.getSession(token)
 
-    if (!sessionData) {
+    // 🔒 安全修复：检查空对象（hgetall 对不存在的 key 返回 {}）
+    if (!sessionData || Object.keys(sessionData).length === 0) {
       return res.status(401).json({
         error: 'Invalid token',
         message: 'Session expired or invalid'
+      })
+    }
+
+    // 🔒 安全修复：验证会话完整性（必须有 username 和 loginTime）
+    if (!sessionData.username || !sessionData.loginTime) {
+      logger.security(`Invalid session structure detected from ${req.ip || 'unknown'}`)
+      await redis.deleteSession(token) // 清理无效/伪造的会话
+      return res.status(401).json({
+        error: 'Invalid session',
+        message: 'Session data corrupted or incomplete'
       })
     }
 

@@ -231,6 +231,9 @@
 
         <!-- 底部按钮 -->
         <div class="mt-4 flex justify-end gap-2 sm:mt-6 sm:gap-3">
+          <button class="btn btn-primary px-4 py-2 text-sm" type="button" @click="openTimeline">
+            查看请求时间线
+          </button>
           <button class="btn btn-secondary px-4 py-2 text-sm" type="button" @click="close">
             关闭
           </button>
@@ -245,6 +248,8 @@ import { computed } from 'vue'
 import LimitProgressBar from './LimitProgressBar.vue'
 import WindowCountdown from './WindowCountdown.vue'
 
+import { formatNumber } from '@/utils/tools'
+
 const props = defineProps({
   show: {
     type: Boolean,
@@ -256,7 +261,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close', 'open-timeline'])
 
 // 计算属性
 const totalRequests = computed(() => props.apiKey.usage?.total?.requests || 0)
@@ -302,10 +307,6 @@ const opusUsagePercentage = computed(() => {
 })
 
 // 方法
-const formatNumber = (num) => {
-  if (!num && num !== 0) return '0'
-  return num.toLocaleString('zh-CN')
-}
 
 // 格式化Token数量（使用K/M单位）
 const formatTokenCount = (count) => {
@@ -320,8 +321,8 @@ const formatTokenCount = (count) => {
 const close = () => {
   emit('close')
 }
-</script>
 
-<style scoped>
-/* 使用项目的通用样式，不需要额外定义 */
-</style>
+const openTimeline = () => {
+  emit('open-timeline', props.apiKey?.id)
+}
+</script>

@@ -232,10 +232,10 @@
             />
           </div>
 
-          <!-- Opus 模型周费用限制 -->
+          <!-- Claude 模型周费用限制 -->
           <div>
             <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300">
-              Opus 模型周费用限制 (美元)
+              Claude 模型周费用限制 (美元)
             </label>
             <input
               v-model="form.weeklyOpusCostLimit"
@@ -246,7 +246,7 @@
               type="number"
             />
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              设置 Opus 模型的周费用限制（周一到周日），仅限 Claude 官方账户
+              设置 Claude 模型的周费用限制（周一到周日），仅对 Claude 模型请求生效
             </p>
           </div>
 
@@ -446,9 +446,9 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
-import { showToast } from '@/utils/toast'
+import { showToast } from '@/utils/tools'
 import { useApiKeysStore } from '@/stores/apiKeys'
-import { apiClient } from '@/config/api'
+import * as httpApis from '@/utils/http_apis'
 import AccountSelector from '@/components/common/AccountSelector.vue'
 
 const props = defineProps({
@@ -510,7 +510,7 @@ const form = reactive({
   concurrencyLimit: '',
   dailyCostLimit: '',
   totalCostLimit: '',
-  weeklyOpusCostLimit: '', // 新增Opus周费用限制
+  weeklyOpusCostLimit: '', // 新增Claude周费用限制
   permissions: '', // 空字符串表示不修改
   claudeAccountId: '',
   geminiAccountId: '',
@@ -549,6 +549,8 @@ const droidAccountSelectorValue = createAccountSelectorModel('droidAccountId')
 const isServiceSelectable = (service) => {
   if (!form.permissions) return true
   if (form.permissions === 'all') return true
+  if (Array.isArray(form.permissions) && form.permissions.length === 0) return true
+  if (Array.isArray(form.permissions)) return form.permissions.includes(service)
   return form.permissions === service
 }
 
@@ -581,20 +583,22 @@ const refreshAccounts = async () => {
       claudeData,
       claudeConsoleData,
       geminiData,
+      geminiApiData,
       openaiData,
       openaiResponsesData,
       bedrockData,
       droidData,
       groupsData
     ] = await Promise.all([
-      apiClient.get('/admin/claude-accounts'),
-      apiClient.get('/admin/claude-console-accounts'),
-      apiClient.get('/admin/gemini-accounts'),
-      apiClient.get('/admin/openai-accounts'),
-      apiClient.get('/admin/openai-responses-accounts'),
-      apiClient.get('/admin/bedrock-accounts'),
-      apiClient.get('/admin/droid-accounts'),
-      apiClient.get('/admin/account-groups')
+      httpApis.getClaudeAccountsApi(),
+      httpApis.getClaudeConsoleAccountsApi(),
+      httpApis.getGeminiAccountsApi(),
+      httpApis.getGeminiApiAccountsApi(), // 获取 Gemini-API 账号
+      httpApis.getOpenAIAccountsApi(),
+      httpApis.getOpenAIResponsesAccountsApi(),
+      httpApis.getBedrockAccountsApi(),
+      httpApis.getDroidAccountsApi(),
+      httpApis.getAccountGroupsApi()
     ])
 
     // 合并Claude OAuth账户和Claude Console账户
@@ -622,12 +626,30 @@ const refreshAccounts = async () => {
 
     localAccounts.value.claude = claudeAccounts
 
+    // 合并 Gemini OAuth 和 Gemini API 账号
+    const geminiAccounts = []
+
     if (geminiData.success) {
-      localAccounts.value.gemini = (geminiData.data || []).map((account) => ({
-        ...account,
-        isDedicated: account.accountType === 'dedicated'
-      }))
+      ;(geminiData.data || []).forEach((account) => {
+        geminiAccounts.push({
+          ...account,
+          platform: 'gemini',
+          isDedicated: account.accountType === 'dedicated'
+        })
+      })
     }
+
+    if (geminiApiData.success) {
+      ;(geminiApiData.data || []).forEach((account) => {
+        geminiAccounts.push({
+          ...account,
+          platform: 'gemini-api',
+          isDedicated: account.accountType === 'dedicated'
+        })
+      })
+    }
+
+    localAccounts.value.gemini = geminiAccounts
 
     const openaiAccounts = []
 
@@ -781,7 +803,7 @@ const batchUpdateApiKeys = async () => {
       updates.tagOperation = tagOperation.value
     }
 
-    const result = await apiClient.put('/admin/api-keys/batch', {
+    const result = await httpApis.batchUpdateApiKeysApi({
       keyIds: props.selectedKeys,
       updates
     })
@@ -819,12 +841,20 @@ onMounted(async () => {
 
   // 初始化账号数据
   if (props.accounts) {
+    // props.accounts.gemini 已经包含了 OAuth 和 API 两种类型的账号（父组件已合并）
+    // 保留原有的 platform 属性，不要覆盖
+    const geminiAccounts = (props.accounts.gemini || []).map((account) => ({
+      ...account,
+      platform: account.platform || 'gemini' // 保留原有 platform，只在没有时设默认值
+    }))
+
+    // props.accounts.openai 只包含 openai 类型，openaiResponses 需要单独处理
     const openaiAccounts = []
     if (props.accounts.openai) {
       props.accounts.openai.forEach((account) => {
         openaiAccounts.push({
           ...account,
-          platform: 'openai'
+          platform: account.platform || 'openai'
         })
       })
     }
@@ -832,17 +862,20 @@ onMounted(async () => {
       props.accounts.openaiResponses.forEach((account) => {
         openaiAccounts.push({
           ...account,
-          platform: 'openai-responses'
+          platform: account.platform || 'openai-responses'
         })
       })
     }
 
     localAccounts.value = {
       claude: props.accounts.claude || [],
-      gemini: props.accounts.gemini || [],
+      gemini: geminiAccounts,
       openai: openaiAccounts,
       bedrock: props.accounts.bedrock || [],
-      droid: props.accounts.droid || [],
+      droid: (props.accounts.droid || []).map((account) => ({
+        ...account,
+        platform: account.platform || 'droid'
+      })),
       claudeGroups: props.accounts.claudeGroups || [],
       geminiGroups: props.accounts.geminiGroups || [],
       openaiGroups: props.accounts.openaiGroups || [],
@@ -851,7 +884,3 @@ onMounted(async () => {
   }
 })
 </script>
-
-<style scoped>
-/* 表单样式由全局样式提供 */
-</style>

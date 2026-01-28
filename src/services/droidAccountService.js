@@ -2,11 +2,10 @@ const { v4: uuidv4 } = require('uuid')
 const crypto = require('crypto')
 const axios = require('axios')
 const redis = require('../models/redis')
-const config = require('../../config/config')
 const logger = require('../utils/logger')
 const { maskToken } = require('../utils/tokenMask')
 const ProxyHelper = require('../utils/proxyHelper')
-const LRUCache = require('../utils/lruCache')
+const { createEncryptor, isTruthy } = require('../utils/commonHelper')
 
 /**
  * Droid 账户管理服务
@@ -18,7 +17,7 @@ class DroidAccountService {
   constructor() {
     // WorkOS OAuth 配置
     this.oauthTokenUrl = 'https://api.workos.com/user_management/authenticate'
-    this.factoryApiBaseUrl = 'https://app.factory.ai/api/llm'
+    this.factoryApiBaseUrl = 'https://api.factory.ai/api/llm'
 
     this.workosClientId = 'client_01HNM792M5G5G1A2THWPXKFMXB'
 
@@ -26,26 +25,19 @@ class DroidAccountService {
     this.refreshIntervalHours = 6 // 每6小时刷新一次
     this.tokenValidHours = 8 // Token 有效期8小时
 
-    // 加密相关常量
-    this.ENCRYPTION_ALGORITHM = 'aes-256-cbc'
-    this.ENCRYPTION_SALT = 'droid-account-salt'
-
-    // 🚀 性能优化：缓存派生的加密密钥
-    this._encryptionKeyCache = null
-
-    // 🔄 解密结果缓存
-    this._decryptCache = new LRUCache(500)
+    // 使用 commonHelper 的加密器
+    this._encryptor = createEncryptor('droid-account-salt')
 
     // 🧹 定期清理缓存（每10分钟）
     setInterval(
       () => {
-        this._decryptCache.cleanup()
-        logger.info('🧹 Droid decrypt cache cleanup completed', this._decryptCache.getStats())
+        this._encryptor.clearCache()
+        logger.info('🧹 Droid decrypt cache cleanup completed', this._encryptor.getStats())
       },
       10 * 60 * 1000
     )
 
-    this.supportedEndpointTypes = new Set(['anthropic', 'openai'])
+    this.supportedEndpointTypes = new Set(['anthropic', 'openai', 'comm'])
   }
 
   _sanitizeEndpointType(endpointType) {
@@ -54,8 +46,12 @@ class DroidAccountService {
     }
 
     const normalized = String(endpointType).toLowerCase()
-    if (normalized === 'openai' || normalized === 'common') {
+    if (normalized === 'openai') {
       return 'openai'
+    }
+
+    if (normalized === 'comm') {
+      return 'comm'
     }
 
     if (this.supportedEndpointTypes.has(normalized)) {
@@ -65,92 +61,19 @@ class DroidAccountService {
     return 'anthropic'
   }
 
+  // 使用 commonHelper 的 isTruthy
   _isTruthy(value) {
-    if (value === undefined || value === null) {
-      return false
-    }
-    if (typeof value === 'boolean') {
-      return value
-    }
-    if (typeof value === 'string') {
-      const normalized = value.trim().toLowerCase()
-      if (normalized === 'true') {
-        return true
-      }
-      if (normalized === 'false') {
-        return false
-      }
-      return normalized.length > 0 && normalized !== '0' && normalized !== 'no'
-    }
-    return Boolean(value)
+    return isTruthy(value)
   }
 
-  /**
-   * 生成加密密钥（缓存优化）
-   */
-  _generateEncryptionKey() {
-    if (!this._encryptionKeyCache) {
-      this._encryptionKeyCache = crypto.scryptSync(
-        config.security.encryptionKey,
-        this.ENCRYPTION_SALT,
-        32
-      )
-      logger.info('🔑 Droid encryption key derived and cached for performance optimization')
-    }
-    return this._encryptionKeyCache
-  }
-
-  /**
-   * 加密敏感数据
-   */
+  // 加密敏感数据
   _encryptSensitiveData(text) {
-    if (!text) {
-      return ''
-    }
-
-    const key = this._generateEncryptionKey()
-    const iv = crypto.randomBytes(16)
-    const cipher = crypto.createCipheriv(this.ENCRYPTION_ALGORITHM, key, iv)
-
-    let encrypted = cipher.update(text, 'utf8', 'hex')
-    encrypted += cipher.final('hex')
-
-    return `${iv.toString('hex')}:${encrypted}`
+    return this._encryptor.encrypt(text)
   }
 
-  /**
-   * 解密敏感数据（带缓存）
-   */
+  // 解密敏感数据（带缓存）
   _decryptSensitiveData(encryptedText) {
-    if (!encryptedText) {
-      return ''
-    }
-
-    // 🎯 检查缓存
-    const cacheKey = crypto.createHash('sha256').update(encryptedText).digest('hex')
-    const cached = this._decryptCache.get(cacheKey)
-    if (cached !== undefined) {
-      return cached
-    }
-
-    try {
-      const key = this._generateEncryptionKey()
-      const parts = encryptedText.split(':')
-      const iv = Buffer.from(parts[0], 'hex')
-      const encrypted = parts[1]
-
-      const decipher = crypto.createDecipheriv(this.ENCRYPTION_ALGORITHM, key, iv)
-      let decrypted = decipher.update(encrypted, 'hex', 'utf8')
-      decrypted += decipher.final('utf8')
-
-      // 💾 存入缓存（5分钟过期）
-      this._decryptCache.set(cacheKey, decrypted, 5 * 60 * 1000)
-
-      return decrypted
-    } catch (error) {
-      logger.error('❌ Failed to decrypt Droid data:', error)
-      return ''
-    }
+    return this._encryptor.decrypt(encryptedText)
   }
 
   _parseApiKeyEntries(rawEntries) {
@@ -544,7 +467,7 @@ class DroidAccountService {
       platform = 'droid',
       priority = 50, // 调度优先级 (1-100)
       schedulable = true, // 是否可被调度
-      endpointType = 'anthropic', // 默认端点类型: 'anthropic' 或 'openai'
+      endpointType = 'anthropic', // 默认端点类型: 'anthropic', 'openai' 或 'comm'
       organizationId = '',
       ownerEmail = '',
       ownerName = '',
@@ -552,7 +475,8 @@ class DroidAccountService {
       tokenType = 'Bearer',
       authenticationMethod = '',
       expiresIn = null,
-      apiKeys = []
+      apiKeys = [],
+      userAgent = '' // 自定义 User-Agent
     } = options
 
     const accountId = uuidv4()
@@ -678,7 +602,7 @@ class DroidAccountService {
 
         lastRefreshAt = new Date().toISOString()
         status = 'active'
-        logger.success(`✅ 使用 Refresh Token 成功验证并刷新 Droid 账户: ${name} (${accountId})`)
+        logger.success(`使用 Refresh Token 成功验证并刷新 Droid 账户: ${name} (${accountId})`)
       } catch (error) {
         logger.error('❌ 使用 Refresh Token 验证 Droid 账户失败:', error)
         throw new Error(`Refresh Token 验证失败：${error.message}`)
@@ -812,7 +736,7 @@ class DroidAccountService {
       status, // created, active, expired, error
       errorMessage: '',
       schedulable: schedulable.toString(),
-      endpointType: normalizedEndpointType, // anthropic 或 openai
+      endpointType: normalizedEndpointType, // anthropic, openai 或 comm
       organizationId: normalizedOrganizationId || '',
       owner: normalizedOwnerName || normalizedOwnerEmail || '',
       ownerEmail: normalizedOwnerEmail || '',
@@ -828,7 +752,8 @@ class DroidAccountService {
           : '',
       apiKeys: hasApiKeys ? JSON.stringify(apiKeyEntries) : '',
       apiKeyCount: hasApiKeys ? String(apiKeyEntries.length) : '0',
-      apiKeyStrategy: hasApiKeys ? 'random_sticky' : ''
+      apiKeyStrategy: hasApiKeys ? 'random_sticky' : '',
+      userAgent: userAgent || '' // 自定义 User-Agent
     }
 
     await redis.setDroidAccount(accountId, accountData)
@@ -925,6 +850,11 @@ class DroidAccountService {
 
     if (sanitizedUpdates.endpointType) {
       sanitizedUpdates.endpointType = this._sanitizeEndpointType(sanitizedUpdates.endpointType)
+    }
+
+    // 处理 userAgent 字段
+    if (typeof sanitizedUpdates.userAgent === 'string') {
+      sanitizedUpdates.userAgent = sanitizedUpdates.userAgent.trim()
     }
 
     const parseProxyConfig = (value) => {
@@ -1357,7 +1287,7 @@ class DroidAccountService {
         }
       }
 
-      logger.success(`✅ Droid account token refreshed successfully: ${accountId}`)
+      logger.success(`Droid account token refreshed successfully: ${accountId}`)
 
       return {
         accessToken: refreshed.accessToken,
@@ -1475,6 +1405,11 @@ class DroidAccountService {
           return accountEndpoint === 'anthropic' || accountEndpoint === 'openai'
         }
 
+        // comm 端点可以使用任何类型的账户
+        if (normalizedFilter === 'comm') {
+          return true
+        }
+
         return accountEndpoint === normalizedFilter
       })
       .map((account) => ({
@@ -1540,7 +1475,8 @@ class DroidAccountService {
     const normalizedType = this._sanitizeEndpointType(endpointType)
     const baseUrls = {
       anthropic: `${this.factoryApiBaseUrl}/a${endpoint}`,
-      openai: `${this.factoryApiBaseUrl}/o${endpoint}`
+      openai: `${this.factoryApiBaseUrl}/o${endpoint}`,
+      comm: `${this.factoryApiBaseUrl}/o${endpoint}`
     }
 
     return baseUrls[normalizedType] || baseUrls.openai

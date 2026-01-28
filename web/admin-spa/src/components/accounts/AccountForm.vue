@@ -510,6 +510,67 @@
                           <i class="fas fa-check text-xs text-white"></i>
                         </div>
                       </label>
+                      <label
+                        class="group relative flex cursor-pointer items-center rounded-md border p-2 transition-all"
+                        :class="[
+                          form.platform === 'gemini-antigravity'
+                            ? 'border-purple-500 bg-purple-50 dark:border-purple-400 dark:bg-purple-900/30'
+                            : 'border-gray-300 bg-white hover:border-purple-400 hover:bg-purple-50/50 dark:border-gray-600 dark:bg-gray-700 dark:hover:border-purple-500 dark:hover:bg-purple-900/20'
+                        ]"
+                      >
+                        <input
+                          v-model="form.platform"
+                          class="sr-only"
+                          type="radio"
+                          value="gemini-antigravity"
+                        />
+                        <div class="flex items-center gap-2">
+                          <i class="fas fa-rocket text-sm text-purple-600 dark:text-purple-400"></i>
+                          <div>
+                            <span class="block text-xs font-medium text-gray-900 dark:text-gray-100"
+                              >Antigravity</span
+                            >
+                            <span class="text-xs text-gray-500 dark:text-gray-400">OAuth</span>
+                          </div>
+                        </div>
+                        <div
+                          v-if="form.platform === 'gemini-antigravity'"
+                          class="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-purple-500"
+                        >
+                          <i class="fas fa-check text-xs text-white"></i>
+                        </div>
+                      </label>
+
+                      <label
+                        class="group relative flex cursor-pointer items-center rounded-md border p-2 transition-all"
+                        :class="[
+                          form.platform === 'gemini-api'
+                            ? 'border-amber-500 bg-amber-50 dark:border-amber-400 dark:bg-amber-900/30'
+                            : 'border-gray-300 bg-white hover:border-amber-400 hover:bg-amber-50/50 dark:border-gray-600 dark:bg-gray-700 dark:hover:border-amber-500 dark:hover:bg-amber-900/20'
+                        ]"
+                      >
+                        <input
+                          v-model="form.platform"
+                          class="sr-only"
+                          type="radio"
+                          value="gemini-api"
+                        />
+                        <div class="flex items-center gap-2">
+                          <i class="fas fa-key text-sm text-amber-600 dark:text-amber-400"></i>
+                          <div>
+                            <span class="block text-xs font-medium text-gray-900 dark:text-gray-100"
+                              >Gemini API</span
+                            >
+                            <span class="text-xs text-gray-500 dark:text-gray-400">API Key</span>
+                          </div>
+                        </div>
+                        <div
+                          v-if="form.platform === 'gemini-api'"
+                          class="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500"
+                        >
+                          <i class="fas fa-check text-xs text-white"></i>
+                        </div>
+                      </label>
                     </template>
 
                     <!-- Droid 子选项 -->
@@ -553,7 +614,8 @@
                 form.platform !== 'bedrock' &&
                 form.platform !== 'azure_openai' &&
                 form.platform !== 'openai-responses' &&
-                form.platform !== 'openai-chat'
+                form.platform !== 'openai-chat' &&
+                form.platform !== 'gemini-api'
               "
             >
               <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
@@ -675,8 +737,8 @@
               </p>
             </div>
 
-            <!-- 到期时间 - 仅在创建账户时显示，编辑时使用独立的过期时间编辑弹窗 -->
-            <div v-if="!isEdit">
+            <!-- 到期时间 - 仅在创建账户时显示，编辑时使用独立的过期时间编辑弹窗，Gemini API 不需要 -->
+            <div v-if="!isEdit && form.platform !== 'gemini-api'">
               <label class="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-300"
                 >到期时间 (可选)</label
               >
@@ -774,7 +836,7 @@
             </div>
 
             <!-- Gemini 项目 ID 字段 -->
-            <div v-if="form.platform === 'gemini'">
+            <div v-if="form.platform === 'gemini' || form.platform === 'gemini-antigravity'">
               <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
                 >项目 ID (可选)</label
               >
@@ -824,41 +886,194 @@
             </div>
 
             <!-- Bedrock 特定字段 -->
-            <div v-if="form.platform === 'bedrock' && !isEdit" class="space-y-4">
+            <div v-if="form.platform === 'bedrock'" class="space-y-4">
+              <!-- 凭证类型选择器 -->
               <div>
                 <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                  >AWS 访问密钥 ID *</label
+                  >凭证类型 *</label
                 >
-                <input
-                  v-model="form.accessKeyId"
-                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                  :class="{ 'border-red-500': errors.accessKeyId }"
-                  placeholder="请输入 AWS Access Key ID"
-                  required
-                  type="text"
-                />
-                <p v-if="errors.accessKeyId" class="mt-1 text-xs text-red-500">
-                  {{ errors.accessKeyId }}
-                </p>
+                <div v-if="!isEdit" class="flex gap-4">
+                  <label class="flex cursor-pointer items-center">
+                    <input
+                      v-model="form.credentialType"
+                      class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                      type="radio"
+                      value="access_key"
+                    />
+                    <span class="text-sm text-gray-700 dark:text-gray-300"
+                      >AWS Access Key（访问密钥）</span
+                    >
+                  </label>
+                  <label class="flex cursor-pointer items-center">
+                    <input
+                      v-model="form.credentialType"
+                      class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                      type="radio"
+                      value="bearer_token"
+                    />
+                    <span class="text-sm text-gray-700 dark:text-gray-300"
+                      >Bearer Token（长期令牌）</span
+                    >
+                  </label>
+                </div>
+                <div v-else class="flex gap-4">
+                  <label class="flex items-center opacity-60">
+                    <input
+                      v-model="form.credentialType"
+                      class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                      disabled
+                      type="radio"
+                      value="access_key"
+                    />
+                    <span class="text-sm text-gray-700 dark:text-gray-300"
+                      >AWS Access Key（访问密钥）</span
+                    >
+                  </label>
+                  <label class="flex items-center opacity-60">
+                    <input
+                      v-model="form.credentialType"
+                      class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                      disabled
+                      type="radio"
+                      value="bearer_token"
+                    />
+                    <span class="text-sm text-gray-700 dark:text-gray-300"
+                      >Bearer Token（长期令牌）</span
+                    >
+                  </label>
+                </div>
+                <div
+                  class="mt-2 rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-700 dark:bg-blue-900/30"
+                >
+                  <div class="flex items-start gap-2">
+                    <i class="fas fa-info-circle mt-0.5 text-blue-600 dark:text-blue-400" />
+                    <div class="text-xs text-blue-700 dark:text-blue-300">
+                      <p v-if="form.credentialType === 'access_key'" class="font-medium">
+                        使用 AWS Access Key ID 和 Secret Access Key 进行身份验证（支持临时凭证）
+                      </p>
+                      <p v-else class="font-medium">
+                        使用 AWS Bedrock API Keys 生成的 Bearer Token
+                        进行身份验证，更简单、权限范围更小
+                      </p>
+                      <p v-if="isEdit" class="mt-1 text-xs italic">
+                        💡 编辑模式下凭证类型不可更改，如需切换类型请重新创建账户
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              <div>
+              <!-- AWS Access Key 字段（仅在 access_key 模式下显示）-->
+              <div v-if="form.credentialType === 'access_key'">
+                <div>
+                  <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
+                    >AWS 访问密钥 ID {{ isEdit ? '' : '*' }}</label
+                  >
+                  <input
+                    v-model="form.accessKeyId"
+                    class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                    :class="{ 'border-red-500': errors.accessKeyId }"
+                    :placeholder="isEdit ? '留空则保持原有凭证不变' : '请输入 AWS Access Key ID'"
+                    :required="!isEdit"
+                    type="text"
+                  />
+                  <p v-if="errors.accessKeyId" class="mt-1 text-xs text-red-500">
+                    {{ errors.accessKeyId }}
+                  </p>
+                  <p v-if="isEdit" class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    💡 编辑模式下，留空则保持原有 Access Key ID 不变
+                  </p>
+                </div>
+
+                <div>
+                  <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
+                    >AWS 秘密访问密钥 {{ isEdit ? '' : '*' }}</label
+                  >
+                  <input
+                    v-model="form.secretAccessKey"
+                    class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                    :class="{ 'border-red-500': errors.secretAccessKey }"
+                    :placeholder="
+                      isEdit ? '留空则保持原有凭证不变' : '请输入 AWS Secret Access Key'
+                    "
+                    :required="!isEdit"
+                    type="password"
+                  />
+                  <p v-if="errors.secretAccessKey" class="mt-1 text-xs text-red-500">
+                    {{ errors.secretAccessKey }}
+                  </p>
+                  <p v-if="isEdit" class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    💡 编辑模式下，留空则保持原有 Secret Access Key 不变
+                  </p>
+                </div>
+
+                <div>
+                  <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
+                    >会话令牌 (可选)</label
+                  >
+                  <input
+                    v-model="form.sessionToken"
+                    class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                    :placeholder="
+                      isEdit
+                        ? '留空则保持原有 Session Token 不变'
+                        : '如果使用临时凭证，请输入会话令牌'
+                    "
+                    type="password"
+                  />
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    仅在使用临时 AWS 凭证时需要填写
+                  </p>
+                </div>
+              </div>
+
+              <!-- Bearer Token 字段（仅在 bearer_token 模式下显示）-->
+              <div v-if="form.credentialType === 'bearer_token'">
                 <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                  >AWS 秘密访问密钥 *</label
+                  >Bearer Token {{ isEdit ? '' : '*' }}</label
                 >
                 <input
-                  v-model="form.secretAccessKey"
+                  v-model="form.bearerToken"
                   class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                  :class="{ 'border-red-500': errors.secretAccessKey }"
-                  placeholder="请输入 AWS Secret Access Key"
-                  required
+                  :class="{ 'border-red-500': errors.bearerToken }"
+                  :placeholder="
+                    isEdit ? '留空则保持原有 Bearer Token 不变' : '请输入 AWS Bearer Token'
+                  "
+                  :required="!isEdit"
                   type="password"
                 />
-                <p v-if="errors.secretAccessKey" class="mt-1 text-xs text-red-500">
-                  {{ errors.secretAccessKey }}
+                <p v-if="errors.bearerToken" class="mt-1 text-xs text-red-500">
+                  {{ errors.bearerToken }}
                 </p>
+                <p v-if="isEdit" class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  💡 编辑模式下，留空则保持原有 Bearer Token 不变
+                </p>
+                <div
+                  class="mt-2 rounded-lg border border-green-200 bg-green-50 p-3 dark:border-green-700 dark:bg-green-900/30"
+                >
+                  <div class="flex items-start gap-2">
+                    <i class="fas fa-key mt-0.5 text-green-600 dark:text-green-400" />
+                    <div class="text-xs text-green-700 dark:text-green-300">
+                      <p class="mb-1 font-medium">Bearer Token 说明：</p>
+                      <ul class="list-inside list-disc space-y-1 text-xs">
+                        <li>输入 AWS Bedrock API Keys 生成的 Bearer Token</li>
+                        <li>Bearer Token 仅限 Bedrock 服务访问，权限范围更小</li>
+                        <li>相比 Access Key 更简单，无需 Secret Key</li>
+                        <li>
+                          参考：<a
+                            class="text-green-600 underline dark:text-green-400"
+                            href="https://aws.amazon.com/cn/blogs/machine-learning/accelerate-ai-development-with-amazon-bedrock-api-keys/"
+                            target="_blank"
+                            >AWS 官方文档</a
+                          >
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
               </div>
 
+              <!-- AWS 区域（两种凭证类型都需要）-->
               <div>
                 <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
                   >AWS 区域 *</label
@@ -874,10 +1089,12 @@
                 <p v-if="errors.region" class="mt-1 text-xs text-red-500">
                   {{ errors.region }}
                 </p>
-                <div class="mt-2 rounded-lg border border-blue-200 bg-blue-50 p-3">
+                <div
+                  class="mt-2 rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-700 dark:bg-blue-900/30"
+                >
                   <div class="flex items-start gap-2">
-                    <i class="fas fa-info-circle mt-0.5 text-blue-600" />
-                    <div class="text-xs text-blue-700">
+                    <i class="fas fa-info-circle mt-0.5 text-blue-600 dark:text-blue-400" />
+                    <div class="text-xs text-blue-700 dark:text-blue-300">
                       <p class="mb-1 font-medium">常用 AWS 区域参考：</p>
                       <div class="grid grid-cols-2 gap-1 text-xs">
                         <span>• us-east-1 (美国东部)</span>
@@ -887,25 +1104,12 @@
                         <span>• ap-northeast-1 (东京)</span>
                         <span>• eu-central-1 (法兰克福)</span>
                       </div>
-                      <p class="mt-2 text-blue-600">💡 请输入完整的区域代码，如 us-east-1</p>
+                      <p class="mt-2 text-blue-600 dark:text-blue-400">
+                        💡 请输入完整的区域代码，如 us-east-1
+                      </p>
                     </div>
                   </div>
                 </div>
-              </div>
-
-              <div>
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                  >会话令牌 (可选)</label
-                >
-                <input
-                  v-model="form.sessionToken"
-                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                  placeholder="如果使用临时凭证，请输入会话令牌"
-                  type="password"
-                />
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  仅在使用临时 AWS 凭证时需要填写
-                </p>
               </div>
 
               <div>
@@ -1176,6 +1380,23 @@
                 </div>
               </div>
 
+              <!-- 并发控制字段 -->
+              <div>
+                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300">
+                  最大并发任务数
+                </label>
+                <input
+                  v-model.number="form.maxConcurrentTasks"
+                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                  min="0"
+                  placeholder="0 表示不限制"
+                  type="number"
+                />
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  限制该账户的并发请求数量，0 表示不限制
+                </p>
+              </div>
+
               <div>
                 <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
                   >模型限制 (可选)</label
@@ -1305,10 +1526,10 @@
                       class="rounded-lg bg-blue-100 px-3 py-1 text-xs text-blue-700 transition-colors hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50"
                       type="button"
                       @click="
-                        addPresetMapping('claude-sonnet-4-20250514', 'claude-sonnet-4-20250514')
+                        addPresetMapping('claude-opus-4-5-20251101', 'claude-opus-4-5-20251101')
                       "
                     >
-                      + Sonnet 4
+                      + Opus 4.5
                     </button>
                     <button
                       class="rounded-lg bg-indigo-100 px-3 py-1 text-xs text-indigo-700 transition-colors hover:bg-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400 dark:hover:bg-indigo-900/50"
@@ -1318,24 +1539,6 @@
                       "
                     >
                       + Sonnet 4.5
-                    </button>
-                    <button
-                      class="rounded-lg bg-purple-100 px-3 py-1 text-xs text-purple-700 transition-colors hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:hover:bg-purple-900/50"
-                      type="button"
-                      @click="
-                        addPresetMapping('claude-opus-4-1-20250805', 'claude-opus-4-1-20250805')
-                      "
-                    >
-                      + Opus 4.1
-                    </button>
-                    <button
-                      class="rounded-lg bg-green-100 px-3 py-1 text-xs text-green-700 transition-colors hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400 dark:hover:bg-green-900/50"
-                      type="button"
-                      @click="
-                        addPresetMapping('claude-3-5-haiku-20241022', 'claude-3-5-haiku-20241022')
-                      "
-                    >
-                      + Haiku 3.5
                     </button>
                     <button
                       class="rounded-lg bg-emerald-100 px-3 py-1 text-xs text-emerald-700 transition-colors hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:hover:bg-emerald-900/50"
@@ -1436,6 +1639,26 @@
                   </p>
                 </div>
               </div>
+
+              <!-- 上游错误处理 -->
+              <div v-if="form.platform === 'claude-console'">
+                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
+                  >上游错误处理</label
+                >
+                <label class="inline-flex cursor-pointer items-center">
+                  <input
+                    v-model="form.disableAutoProtection"
+                    class="mr-2 rounded border-gray-300 text-blue-600 focus:border-blue-500 focus:ring focus:ring-blue-200 dark:border-gray-600 dark:bg-gray-700"
+                    type="checkbox"
+                  />
+                  <span class="text-sm text-gray-700 dark:text-gray-300">
+                    上游错误不自动暂停调度
+                  </span>
+                </label>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  勾选后遇到 401/400/429/529 等上游错误仅记录日志并透传，不自动禁用或限流
+                </p>
+              </div>
             </div>
 
             <!-- OpenAI-Responses 特定字段 -->
@@ -1509,7 +1732,7 @@
                 <input
                   v-model="form.baseApi"
                   class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                  placeholder="https://api.openai.com/v1"
+                  placeholder="https://chatgpt.com"
                   required
                   type="url"
                 />
@@ -1529,7 +1752,7 @@
                   <input
                     v-model="form.apiKey"
                     class="form-input w-full border-gray-300 pr-10 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                    placeholder="输入 API Key"
+                    placeholder="sk-xxxxxxxxxxxx"
                     required
                     :type="showApiKey ? 'text' : 'password'"
                   />
@@ -1545,9 +1768,71 @@
                   {{ errors.apiKey }}
                 </p>
               </div>
+            </div>
 
-              <!-- 限流时长字段 - 隐藏不显示，使用默认值60 -->
-              <input v-model.number="form.rateLimitDuration" type="hidden" value="60" />
+            <!-- Gemini API 配置 -->
+            <div v-if="form.platform === 'gemini-api' && !isEdit" class="space-y-4">
+              <div>
+                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
+                  >API 基础地址 *</label
+                >
+                <input
+                  v-model="form.baseUrl"
+                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                  :class="{ 'border-red-500 dark:border-red-400': errors.baseUrl }"
+                  placeholder="https://generativelanguage.googleapis.com/v1beta/models"
+                  required
+                  type="url"
+                />
+                <p v-if="errors.baseUrl" class="mt-1 text-xs text-red-500 dark:text-red-400">
+                  {{ errors.baseUrl }}
+                </p>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  填写 API 基础地址，必须以
+                  <code class="rounded bg-gray-100 px-1 dark:bg-gray-600">/models</code>
+                  结尾。系统会自动拼接
+                  <code class="rounded bg-gray-100 px-1 dark:bg-gray-600"
+                    >/{model}:generateContent</code
+                  >
+                </p>
+                <p class="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
+                  官方:
+                  <code class="rounded bg-gray-100 px-1 dark:bg-gray-600"
+                    >https://generativelanguage.googleapis.com/v1beta/models</code
+                  >
+                </p>
+                <p class="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
+                  上游为 CRS:
+                  <code class="rounded bg-gray-100 px-1 dark:bg-gray-600"
+                    >https://your-crs.com/gemini/v1beta/models</code
+                  >
+                </p>
+              </div>
+
+              <div>
+                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
+                  >API 密钥 *</label
+                >
+                <div class="relative">
+                  <input
+                    v-model="form.apiKey"
+                    class="form-input w-full border-gray-300 pr-10 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                    placeholder="AIzaSy..."
+                    required
+                    :type="showApiKey ? 'text' : 'password'"
+                  />
+                  <button
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-400"
+                    type="button"
+                    @click="showApiKey = !showApiKey"
+                  >
+                    <i :class="showApiKey ? 'fas fa-eye-slash' : 'fas fa-eye'" />
+                  </button>
+                </div>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  从 Google AI Studio 获取的 API 密钥
+                </p>
+              </div>
             </div>
 
             <!-- Claude 订阅类型选择 -->
@@ -1595,6 +1880,47 @@
                   </span>
                   <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                     当系统检测到账户接近5小时使用限制时，自动暂停调度该账户。进入新的时间窗口后会自动恢复调度。
+                  </p>
+                </div>
+              </label>
+            </div>
+
+            <!-- Claude 账户级串行队列开关 -->
+            <div v-if="form.platform === 'claude'" class="mt-4">
+              <label class="flex items-start">
+                <input
+                  v-model="form.serialQueueEnabled"
+                  class="mt-1 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                  type="checkbox"
+                />
+                <div class="ml-3">
+                  <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    启用账户级串行队列
+                  </span>
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    开启后强制该账户的用户消息串行处理，忽略全局串行队列设置。适用于并发限制较低的账户。
+                  </p>
+                </div>
+              </label>
+            </div>
+
+            <!-- 拦截预热请求开关（Claude 和 Claude Console） -->
+            <div
+              v-if="form.platform === 'claude' || form.platform === 'claude-console'"
+              class="mt-4"
+            >
+              <label class="flex items-start">
+                <input
+                  v-model="form.interceptWarmup"
+                  class="mt-1 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                  type="checkbox"
+                />
+                <div class="ml-3">
+                  <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    拦截预热请求
+                  </span>
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    启用后，对标题生成、Warmup 等低价值请求直接返回模拟响应，不消耗上游 API 额度
                   </p>
                 </div>
               </label>
@@ -1752,7 +2078,7 @@
                     Token，建议也一并填写以支持自动刷新。
                   </p>
                   <p
-                    v-else-if="form.platform === 'gemini'"
+                    v-else-if="form.platform === 'gemini' || form.platform === 'gemini-antigravity'"
                     class="mb-2 text-sm text-blue-800 dark:text-blue-300"
                   >
                     请输入有效的 Gemini Access Token。如果您有 Refresh
@@ -1789,12 +2115,14 @@
                       文件中的凭证， 请勿使用 Claude 官网 API Keys 页面的密钥。
                     </p>
                     <p
-                      v-else-if="form.platform === 'gemini'"
+                      v-else-if="
+                        form.platform === 'gemini' || form.platform === 'gemini-antigravity'
+                      "
                       class="text-xs text-blue-800 dark:text-blue-300"
                     >
                       请从已登录 Gemini CLI 的机器上获取
                       <code class="rounded bg-blue-100 px-1 py-0.5 font-mono dark:bg-blue-900/50"
-                        >~/.config/gemini/credentials.json</code
+                        >~/.config/.gemini/oauth_creds.json</code
                       >
                       文件中的凭证。
                     </p>
@@ -1896,6 +2224,22 @@
                   rows="4"
                 />
               </div>
+
+              <!-- Droid User-Agent 配置 (OAuth/Manual 模式) -->
+              <div v-if="form.platform === 'droid'">
+                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
+                  >自定义 User-Agent (可选)</label
+                >
+                <input
+                  v-model="form.userAgent"
+                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                  placeholder="factory-cli/0.32.1"
+                  type="text"
+                />
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  留空使用默认值 factory-cli/0.32.1，可根据需要自定义
+                </p>
+              </div>
             </div>
 
             <!-- API Key 模式输入 -->
@@ -1941,6 +2285,22 @@
                 </p>
               </div>
 
+              <!-- Droid User-Agent 配置 -->
+              <div>
+                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
+                  >自定义 User-Agent (可选)</label
+                >
+                <input
+                  v-model="form.userAgent"
+                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                  placeholder="factory-cli/0.32.1"
+                  type="text"
+                />
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  留空使用默认值 factory-cli/0.32.1，可根据需要自定义
+                </p>
+              </div>
+
               <div
                 class="rounded-lg border border-purple-200 bg-white/70 p-3 text-xs text-purple-800 dark:border-purple-700 dark:bg-purple-800/20 dark:text-purple-100"
               >
@@ -1974,7 +2334,8 @@
                   form.platform !== 'ccr' &&
                   form.platform !== 'bedrock' &&
                   form.platform !== 'azure_openai' &&
-                  form.platform !== 'openai-responses'
+                  form.platform !== 'openai-responses' &&
+                  form.platform !== 'gemini-api'
                 "
                 class="btn btn-primary flex-1 px-6 py-3 font-semibold"
                 :disabled="loading"
@@ -2000,6 +2361,7 @@
         <!-- 步骤2: OAuth授权 -->
         <OAuthFlow
           v-if="oauthStep === 2 && form.addType === 'oauth'"
+          ref="oauthFlowRef"
           :platform="form.platform"
           :proxy="form.proxy"
           @back="oauthStep = 1"
@@ -2023,11 +2385,45 @@
                   <h4 class="mb-3 font-semibold text-blue-900 dark:text-blue-200">
                     Claude Setup Token 授权
                   </h4>
-                  <p class="mb-4 text-sm text-blue-800 dark:text-blue-300">
-                    请按照以下步骤通过 Setup Token 完成 Claude 账户的授权：
-                  </p>
 
-                  <div class="space-y-4">
+                  <!-- 授权方式选择 -->
+                  <div class="mb-4">
+                    <p class="mb-3 text-sm font-medium text-blue-800 dark:text-blue-300">
+                      选择授权方式：
+                    </p>
+                    <div class="flex flex-wrap gap-4">
+                      <label class="flex cursor-pointer items-center">
+                        <input
+                          v-model="authMethod"
+                          class="mr-2 text-blue-600 focus:ring-blue-500"
+                          type="radio"
+                          value="manual"
+                          @change="onAuthMethodChange"
+                        />
+                        <span class="text-sm text-blue-800 dark:text-blue-300">
+                          <i class="fas fa-link mr-1" />手动授权
+                        </span>
+                      </label>
+                      <label class="flex cursor-pointer items-center">
+                        <input
+                          v-model="authMethod"
+                          class="mr-2 text-blue-600 focus:ring-blue-500"
+                          type="radio"
+                          value="cookie"
+                          @change="onAuthMethodChange"
+                        />
+                        <span class="text-sm text-blue-800 dark:text-blue-300">
+                          <i class="fas fa-cookie mr-1" />Cookie 自动授权
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <!-- 手动授权流程 -->
+                  <div v-if="authMethod === 'manual'" class="space-y-4">
+                    <p class="mb-4 text-sm text-blue-800 dark:text-blue-300">
+                      请按照以下步骤通过 Setup Token 完成 Claude 账户的授权：
+                    </p>
                     <!-- 步骤1: 生成授权链接 -->
                     <div
                       class="rounded-lg border border-blue-300 bg-white/80 p-4 dark:border-blue-600 dark:bg-gray-800/80"
@@ -2153,6 +2549,113 @@
                       </div>
                     </div>
                   </div>
+
+                  <!-- Cookie自动授权流程 -->
+                  <div v-if="authMethod === 'cookie'" class="space-y-4">
+                    <p class="mb-4 text-sm text-blue-800 dark:text-blue-300">
+                      使用 sessionKey 自动完成授权，无需手动打开链接。
+                    </p>
+
+                    <div
+                      class="rounded-lg border border-blue-300 bg-white/80 p-4 dark:border-blue-600 dark:bg-gray-800/80"
+                    >
+                      <div class="space-y-4">
+                        <div>
+                          <label
+                            class="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300"
+                          >
+                            <i class="fas fa-cookie text-blue-500" />sessionKey
+                            <span
+                              v-if="parsedSessionKeyCount > 1"
+                              class="rounded-full bg-blue-500 px-2 py-0.5 text-xs text-white"
+                            >
+                              {{ parsedSessionKeyCount }} 个
+                            </span>
+                          </label>
+                          <textarea
+                            v-model="sessionKey"
+                            class="form-input w-full resize-y border-gray-300 font-mono text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                            :class="{ 'border-red-500': cookieAuthError }"
+                            placeholder="每行一个 sessionKey，例如：&#10;sk-ant-sid01-xxxxx...&#10;sk-ant-sid01-yyyyy..."
+                            rows="3"
+                          />
+                          <p
+                            v-if="parsedSessionKeyCount > 1"
+                            class="mt-1 text-xs text-blue-600 dark:text-blue-400"
+                          >
+                            <i class="fas fa-info-circle mr-1" />
+                            将批量创建 {{ parsedSessionKeyCount }} 个账户
+                          </p>
+                          <p v-if="cookieAuthError" class="mt-1 text-xs text-red-500">
+                            {{ cookieAuthError }}
+                          </p>
+                        </div>
+
+                        <!-- 帮助说明 -->
+                        <div>
+                          <button
+                            class="flex items-center text-xs text-blue-600 hover:text-blue-700"
+                            type="button"
+                            @click="showSessionKeyHelp = !showSessionKeyHelp"
+                          >
+                            <i
+                              :class="
+                                showSessionKeyHelp
+                                  ? 'fas fa-chevron-down mr-1'
+                                  : 'fas fa-chevron-right mr-1'
+                              "
+                            />
+                            如何获取 sessionKey？
+                          </button>
+                          <div
+                            v-if="showSessionKeyHelp"
+                            class="mt-3 rounded border border-gray-200 bg-gray-50 p-3 dark:border-gray-600 dark:bg-gray-700"
+                          >
+                            <ol class="space-y-2 text-xs text-gray-600 dark:text-gray-300">
+                              <li>1. 在浏览器中登录 <strong>claude.ai</strong></li>
+                              <li>2. 按 <strong>F12</strong> 打开开发者工具</li>
+                              <li>3. 切换到 <strong>"Application"</strong> (应用) 标签页</li>
+                              <li>
+                                4. 在左侧选择 <strong>"Cookies"</strong> →
+                                <strong>"https://claude.ai"</strong>
+                              </li>
+                              <li>5. 找到键为 <strong>"sessionKey"</strong> 的那一行</li>
+                              <li>6. 复制其 <strong>"Value"</strong> (值) 列的内容</li>
+                            </ol>
+                            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                              <i class="fas fa-info-circle mr-1" />
+                              sessionKey 通常以 "sk-ant-" 开头
+                            </p>
+                          </div>
+                        </div>
+
+                        <!-- 开始授权按钮 -->
+                        <button
+                          class="btn btn-primary w-full px-4 py-3"
+                          :disabled="cookieAuthLoading || !sessionKey.trim()"
+                          type="button"
+                          @click="handleCookieAuth"
+                        >
+                          <div v-if="cookieAuthLoading" class="loading-spinner mr-2" />
+                          <i v-else class="fas fa-magic mr-2" />
+                          <template v-if="cookieAuthLoading && batchProgress.total > 1">
+                            正在授权 {{ batchProgress.current }}/{{ batchProgress.total }}...
+                          </template>
+                          <template v-else-if="cookieAuthLoading"> 授权中... </template>
+                          <template v-else> 开始自动授权 </template>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div
+                      class="rounded border border-yellow-300 bg-yellow-50 p-3 dark:border-yellow-700 dark:bg-yellow-900/30"
+                    >
+                      <p class="text-xs text-yellow-800 dark:text-yellow-300">
+                        <i class="fas fa-exclamation-triangle mr-1" />
+                        <strong>提示：</strong>如果您设置了代理，Cookie授权也会使用相同的代理配置。
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2167,6 +2670,7 @@
               上一步
             </button>
             <button
+              v-if="authMethod === 'manual'"
               class="btn btn-primary flex-1 px-6 py-3 font-semibold"
               :disabled="!canExchangeSetupToken || setupTokenExchanging"
               type="button"
@@ -2344,7 +2848,7 @@
           </div>
 
           <!-- Gemini 项目 ID 字段 -->
-          <div v-if="form.platform === 'gemini'">
+          <div v-if="form.platform === 'gemini' || form.platform === 'gemini-antigravity'">
             <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
               >项目 ID (可选)</label
             >
@@ -2404,6 +2908,44 @@
                 </span>
                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                   当系统检测到账户接近5小时使用限制时，自动暂停调度该账户。进入新的时间窗口后会自动恢复调度。
+                </p>
+              </div>
+            </label>
+          </div>
+
+          <!-- Claude 账户级串行队列开关（编辑模式） -->
+          <div v-if="form.platform === 'claude'" class="mt-4">
+            <label class="flex items-start">
+              <input
+                v-model="form.serialQueueEnabled"
+                class="mt-1 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                type="checkbox"
+              />
+              <div class="ml-3">
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  启用账户级串行队列
+                </span>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  开启后强制该账户的用户消息串行处理，忽略全局串行队列设置。适用于并发限制较低的账户。
+                </p>
+              </div>
+            </label>
+          </div>
+
+          <!-- 拦截预热请求开关（Claude 和 Claude Console 编辑模式） -->
+          <div v-if="form.platform === 'claude' || form.platform === 'claude-console'" class="mt-4">
+            <label class="flex items-start">
+              <input
+                v-model="form.interceptWarmup"
+                class="mt-1 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                type="checkbox"
+              />
+              <div class="ml-3">
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  拦截预热请求
+                </span>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  启用后，对标题生成、Warmup 等低价值请求直接返回模拟响应，不消耗上游 API 额度
                 </p>
               </div>
             </label>
@@ -2681,6 +3223,23 @@
               </div>
             </div>
 
+            <!-- 并发控制字段（编辑模式）-->
+            <div>
+              <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300">
+                最大并发任务数
+              </label>
+              <input
+                v-model.number="form.maxConcurrentTasks"
+                class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                min="0"
+                placeholder="0 表示不限制"
+                type="number"
+              />
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                限制该账户的并发请求数量，0 表示不限制
+              </p>
+            </div>
+
             <div>
               <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
                 >模型限制 (可选)</label
@@ -2936,6 +3495,26 @@
                 <p class="mt-1 text-xs text-gray-500">账号被限流后暂停调度的时间（分钟）</p>
               </div>
             </div>
+
+            <!-- 上游错误处理（编辑模式）-->
+            <div v-if="form.platform === 'claude-console'">
+              <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300">
+                上游错误处理
+              </label>
+              <label class="inline-flex cursor-pointer items-center">
+                <input
+                  v-model="form.disableAutoProtection"
+                  class="mr-2 rounded border-gray-300 text-blue-600 focus:border-blue-500 focus:ring focus:ring-blue-200 dark:border-gray-600 dark:bg-gray-700"
+                  type="checkbox"
+                />
+                <span class="text-sm text-gray-700 dark:text-gray-300">
+                  上游错误不自动暂停调度
+                </span>
+              </label>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                勾选后遇到 401/400/429/529 等上游错误仅记录日志并透传，不自动禁用或限流
+              </p>
+            </div>
           </div>
 
           <!-- OpenAI-Responses 特定字段（编辑模式）-->
@@ -3013,6 +3592,84 @@
                   type="time"
                 />
               </div>
+            </div>
+
+            <!-- 并发控制字段 -->
+            <div>
+              <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300">
+                最大并发任务数
+              </label>
+              <input
+                v-model.number="form.maxConcurrentTasks"
+                class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                min="0"
+                placeholder="0 表示不限制"
+                type="number"
+              />
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                限制该账户的并发请求数量，0 表示不限制
+              </p>
+            </div>
+          </div>
+
+          <!-- Gemini API 特定字段（编辑模式）-->
+          <div v-if="form.platform === 'gemini-api'" class="space-y-4">
+            <div>
+              <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
+                >API 基础地址</label
+              >
+              <input
+                v-model="form.baseUrl"
+                class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                :class="{ 'border-red-500 dark:border-red-400': errors.baseUrl }"
+                placeholder="https://generativelanguage.googleapis.com/v1beta/models"
+                type="url"
+              />
+              <p v-if="errors.baseUrl" class="mt-1 text-xs text-red-500 dark:text-red-400">
+                {{ errors.baseUrl }}
+              </p>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                填写 API 基础地址，必须以
+                <code class="rounded bg-gray-100 px-1 dark:bg-gray-600">/models</code>
+                结尾。系统会自动拼接
+                <code class="rounded bg-gray-100 px-1 dark:bg-gray-600"
+                  >/{model}:generateContent</code
+                >
+              </p>
+              <p class="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
+                官方:
+                <code class="rounded bg-gray-100 px-1 dark:bg-gray-600"
+                  >https://generativelanguage.googleapis.com/v1beta/models</code
+                >
+              </p>
+              <p class="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
+                上游为 CRS:
+                <code class="rounded bg-gray-100 px-1 dark:bg-gray-600"
+                  >https://your-crs.com/gemini/v1beta/models</code
+                >
+              </p>
+            </div>
+
+            <div>
+              <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
+                >API 密钥</label
+              >
+              <div class="relative">
+                <input
+                  v-model="form.apiKey"
+                  class="form-input w-full border-gray-300 pr-10 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                  placeholder="留空表示不更新"
+                  :type="showApiKey ? 'text' : 'password'"
+                />
+                <button
+                  class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-400"
+                  type="button"
+                  @click="showApiKey = !showApiKey"
+                >
+                  <i :class="showApiKey ? 'fas fa-eye-slash' : 'fas fa-eye'" />
+                </button>
+              </div>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">留空表示不更新 API Key</p>
             </div>
           </div>
 
@@ -3387,6 +4044,22 @@
             </div>
           </div>
 
+          <!-- Droid User-Agent 配置 (编辑模式) -->
+          <div v-if="form.platform === 'droid'">
+            <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
+              >自定义 User-Agent (可选)</label
+            >
+            <input
+              v-model="form.userAgent"
+              class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+              placeholder="factory-cli/0.32.1"
+              type="text"
+            />
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              留空使用默认值 factory-cli/0.32.1，可根据需要自定义
+            </p>
+          </div>
+
           <!-- 代理设置 -->
           <ProxyConfig v-model="form.proxy" />
 
@@ -3443,10 +4116,10 @@
 
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
-import { showToast } from '@/utils/toast'
-import { apiClient } from '@/config/api'
+import { showToast } from '@/utils/tools'
+
+import * as httpApis from '@/utils/http_apis'
 import { useAccountsStore } from '@/stores/accounts'
-import { useConfirm } from '@/composables/useConfirm'
 import ProxyConfig from './ProxyConfig.vue'
 import OAuthFlow from './OAuthFlow.vue'
 import ConfirmModal from '@/components/common/ConfirmModal.vue'
@@ -3463,11 +4136,35 @@ const props = defineProps({
 const emit = defineEmits(['close', 'success', 'platform-changed'])
 
 const accountsStore = useAccountsStore()
-const { showConfirmModal, confirmOptions, showConfirm, handleConfirm, handleCancel } = useConfirm()
+
+// 确认弹窗状态
+const showConfirmModal = ref(false)
+const confirmOptions = ref({ title: '', message: '', confirmText: '继续', cancelText: '取消' })
+let confirmResolve = null
+const showConfirm = (title, message, confirmText = '继续', cancelText = '取消') => {
+  return new Promise((resolve) => {
+    confirmOptions.value = { title, message, confirmText, cancelText }
+    confirmResolve = resolve
+    showConfirmModal.value = true
+  })
+}
+const handleConfirm = () => {
+  showConfirmModal.value = false
+  confirmResolve?.(true)
+  confirmResolve = null
+}
+const handleCancel = () => {
+  showConfirmModal.value = false
+  confirmResolve?.(false)
+  confirmResolve = null
+}
 
 // 是否为编辑模式
 const isEdit = computed(() => !!props.account)
 const show = ref(true)
+
+// OAuthFlow 组件引用
+const oauthFlowRef = ref(null)
 
 // OAuth步骤
 const oauthStep = ref(1)
@@ -3481,6 +4178,22 @@ const setupTokenAuthUrl = ref('')
 const setupTokenAuthCode = ref('')
 const setupTokenCopied = ref(false)
 const setupTokenSessionId = ref('')
+
+// Cookie自动授权相关状态
+const authMethod = ref('manual') // 'manual' | 'cookie'
+const sessionKey = ref('')
+const cookieAuthLoading = ref(false)
+const cookieAuthError = ref('')
+const showSessionKeyHelp = ref(false)
+const batchProgress = ref({ current: 0, total: 0 }) // 批量进度
+
+// 解析后的 sessionKey 数量
+const parsedSessionKeyCount = computed(() => {
+  return sessionKey.value
+    .split('\n')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0).length
+})
 
 // Claude Code 统一 User-Agent 信息
 const unifiedUserAgent = ref('')
@@ -3500,7 +4213,7 @@ const determinePlatformGroup = (platform) => {
     return 'claude'
   } else if (['openai', 'openai-responses', 'azure_openai'].includes(platform)) {
     return 'openai'
-  } else if (platform === 'gemini') {
+  } else if (['gemini', 'gemini-antigravity', 'gemini-api'].includes(platform)) {
     return 'gemini'
   } else if (platform === 'droid') {
     return 'droid'
@@ -3635,7 +4348,8 @@ const form = ref({
   platform: props.account?.platform || 'claude',
   addType: (() => {
     const platform = props.account?.platform || 'claude'
-    if (platform === 'gemini' || platform === 'openai') return 'oauth'
+    if (platform === 'gemini' || platform === 'gemini-antigravity' || platform === 'openai')
+      return 'oauth'
     if (platform === 'claude') return 'oauth'
     return 'manual'
   })(),
@@ -3648,6 +4362,9 @@ const form = ref({
   useUnifiedUserAgent: props.account?.useUnifiedUserAgent || false, // 使用统一Claude Code版本
   useUnifiedClientId: props.account?.useUnifiedClientId || false, // 使用统一的客户端标识
   unifiedClientId: props.account?.unifiedClientId || '', // 统一的客户端标识
+  serialQueueEnabled: (props.account?.maxConcurrency || 0) > 0, // 账户级串行队列开关
+  interceptWarmup:
+    props.account?.interceptWarmup === true || props.account?.interceptWarmup === 'true', // 拦截预热请求
   groupId: '',
   groupIds: [],
   projectId: props.account?.projectId || '',
@@ -3663,6 +4380,8 @@ const form = ref({
   endpointType: props.account?.endpointType || 'anthropic',
   // OpenAI-Responses 特定字段
   baseApi: props.account?.baseApi || '',
+  // Gemini-API 特定字段
+  baseUrl: props.account?.baseUrl || 'https://generativelanguage.googleapis.com',
   rateLimitDuration: props.account?.rateLimitDuration || 60,
   supportedModels: (() => {
     const models = props.account?.supportedModels
@@ -3679,15 +4398,20 @@ const form = ref({
   })(),
   userAgent: props.account?.userAgent || '',
   enableRateLimit: props.account ? props.account.rateLimitDuration > 0 : true,
+  disableAutoProtection: props.account?.disableAutoProtection === true,
   // 额度管理字段
   dailyQuota: props.account?.dailyQuota || 0,
   dailyUsage: props.account?.dailyUsage || 0,
   quotaResetTime: props.account?.quotaResetTime || '00:00',
+  // 并发控制字段
+  maxConcurrentTasks: props.account?.maxConcurrentTasks || 0,
   // Bedrock 特定字段
+  credentialType: props.account?.credentialType || 'access_key', // 'access_key' 或 'bearer_token'
   accessKeyId: props.account?.accessKeyId || '',
   secretAccessKey: props.account?.secretAccessKey || '',
   region: props.account?.region || '',
   sessionToken: props.account?.sessionToken || '',
+  bearerToken: props.account?.bearerToken || '', // Bearer Token 字段
   defaultModel: props.account?.defaultModel || '',
   smallFastModel: props.account?.smallFastModel || '',
   // Azure OpenAI 特定字段
@@ -3717,19 +4441,20 @@ const form = ref({
 const modelRestrictionMode = ref('whitelist') // 'whitelist' 或 'mapping'
 const allowedModels = ref([]) // 白名单模式下选中的模型列表，初始化为空
 
-// 常用模型列表
-const commonModels = [
-  { value: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4', color: 'blue' },
-  { value: 'claude-sonnet-4-5-20250929', label: 'Claude Sonnet 4.5', color: 'indigo' },
-  { value: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku', color: 'green' },
-  { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5', color: 'emerald' },
-  { value: 'claude-opus-4-20250514', label: 'Claude Opus 4', color: 'purple' },
-  { value: 'claude-opus-4-1-20250805', label: 'Claude Opus 4.1', color: 'purple' },
-  { value: 'deepseek-chat', label: 'DeepSeek Chat', color: 'cyan' },
-  { value: 'Qwen', label: 'Qwen', color: 'orange' },
-  { value: 'Kimi', label: 'Kimi', color: 'pink' },
-  { value: 'GLM', label: 'GLM', color: 'teal' }
-]
+// 常用模型列表（从 API 获取）
+const commonModels = ref([])
+
+// 加载模型列表
+const loadCommonModels = async () => {
+  try {
+    const result = await httpApis.getModelsApi()
+    if (result.success && result.data?.all) {
+      commonModels.value = result.data.all
+    }
+  } catch (error) {
+    console.error('Failed to load models:', error)
+  }
+}
 
 // 模型映射表数据
 const modelMappings = ref([])
@@ -3880,6 +4605,7 @@ const errors = ref({
   accessKeyId: '',
   secretAccessKey: '',
   region: '',
+  bearerToken: '',
   azureEndpoint: '',
   deploymentName: ''
 })
@@ -3972,7 +4698,7 @@ const loadAccountUsage = async () => {
   if (!isEdit.value || !props.account?.id) return
 
   try {
-    const response = await apiClient.get(`/admin/claude-console-accounts/${props.account.id}/usage`)
+    const response = await httpApis.getClaudeConsoleAccountUsageApi(props.account.id)
     if (response) {
       // 更新表单中的使用量数据
       form.value.dailyUsage = response.dailyUsage || 0
@@ -3999,7 +4725,7 @@ const selectPlatformGroup = (group) => {
   } else if (group === 'openai') {
     form.value.platform = 'openai'
   } else if (group === 'gemini') {
-    form.value.platform = 'gemini'
+    form.value.platform = 'gemini' // Default to Gemini CLI, user can select Antigravity
   } else if (group === 'droid') {
     form.value.platform = 'droid'
   }
@@ -4036,7 +4762,11 @@ const nextStep = async () => {
   }
 
   // 对于Gemini账户，检查项目 ID
-  if (form.value.platform === 'gemini' && oauthStep.value === 1 && form.value.addType === 'oauth') {
+  if (
+    (form.value.platform === 'gemini' || form.value.platform === 'gemini-antigravity') &&
+    oauthStep.value === 1 &&
+    form.value.addType === 'oauth'
+  ) {
     if (!form.value.projectId || form.value.projectId.trim() === '') {
       // 使用自定义确认弹窗
       const confirmed = await showConfirm(
@@ -4150,10 +4880,200 @@ const exchangeSetupTokenCode = async () => {
   }
 }
 
-// 处理OAuth成功
-const handleOAuthSuccess = async (tokenInfo) => {
+// =============================================================================
+// Cookie自动授权相关方法
+// =============================================================================
+
+// Cookie自动授权（支持批量）
+const handleCookieAuth = async () => {
+  // 解析多行输入
+  const sessionKeys = sessionKey.value
+    .split('\n')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0)
+
+  if (sessionKeys.length === 0) {
+    cookieAuthError.value = '请输入至少一个 sessionKey'
+    return
+  }
+
+  cookieAuthLoading.value = true
+  cookieAuthError.value = ''
+  batchProgress.value = { current: 0, total: sessionKeys.length }
+
+  const isSetupToken = form.value.addType === 'setup-token'
+  const proxyPayload = buildProxyPayload(form.value.proxy)
+
+  const results = []
+  const errors = []
+
+  for (let i = 0; i < sessionKeys.length; i++) {
+    batchProgress.value.current = i + 1
+    try {
+      const payload = {
+        sessionKey: sessionKeys[i],
+        ...(proxyPayload && { proxy: proxyPayload })
+      }
+
+      let result
+      if (isSetupToken) {
+        result = await accountsStore.oauthSetupTokenWithCookie(payload)
+      } else {
+        result = await accountsStore.oauthWithCookie(payload)
+      }
+      results.push(result)
+    } catch (error) {
+      errors.push({
+        index: i + 1,
+        key: sessionKeys[i].substring(0, 20) + '...',
+        error: error.message
+      })
+    }
+  }
+
+  batchProgress.value = { current: 0, total: 0 }
+
+  if (results.length > 0) {
+    try {
+      // 成功后处理OAuth数据（传递数组）
+      // cookieAuthLoading 保持 true，直到账号创建完成
+      await handleOAuthSuccess(results)
+    } finally {
+      cookieAuthLoading.value = false
+    }
+  } else {
+    cookieAuthLoading.value = false
+  }
+
+  if (errors.length > 0 && results.length === 0) {
+    cookieAuthError.value = '全部授权失败，请检查 sessionKey 是否有效'
+  } else if (errors.length > 0) {
+    cookieAuthError.value = `${errors.length} 个授权失败`
+  }
+}
+
+// 重置Cookie授权状态
+const resetCookieAuth = () => {
+  sessionKey.value = ''
+  cookieAuthError.value = ''
+  showSessionKeyHelp.value = false
+  batchProgress.value = { current: 0, total: 0 }
+}
+
+// 切换授权方式时重置状态
+const onAuthMethodChange = () => {
+  // 切换到手动模式时清除Cookie相关状态
+  if (authMethod.value === 'manual') {
+    resetCookieAuth()
+  } else {
+    // 切换到Cookie模式时清除手动授权状态
+    setupTokenAuthUrl.value = ''
+    setupTokenAuthCode.value = ''
+    setupTokenSessionId.value = ''
+  }
+}
+
+// 构建 Claude 账户数据（辅助函数）
+const buildClaudeAccountData = (tokenInfo, accountName, clientId) => {
+  const proxyPayload = buildProxyPayload(form.value.proxy)
+  const claudeOauthPayload = tokenInfo.claudeAiOauth || tokenInfo
+
+  const data = {
+    name: accountName,
+    description: form.value.description,
+    accountType: form.value.accountType,
+    groupId: form.value.accountType === 'group' ? form.value.groupId : undefined,
+    groupIds: form.value.accountType === 'group' ? form.value.groupIds : undefined,
+    expiresAt: form.value.expiresAt || undefined,
+    proxy: proxyPayload,
+    claudeAiOauth: claudeOauthPayload,
+    priority: form.value.priority || 50,
+    autoStopOnWarning: form.value.autoStopOnWarning || false,
+    interceptWarmup: form.value.interceptWarmup || false,
+    useUnifiedUserAgent: form.value.useUnifiedUserAgent || false,
+    useUnifiedClientId: form.value.useUnifiedClientId || false,
+    unifiedClientId: clientId,
+    maxConcurrency: form.value.serialQueueEnabled ? 1 : 0,
+    subscriptionInfo: {
+      accountType: form.value.subscriptionType || 'claude_max',
+      hasClaudeMax: form.value.subscriptionType === 'claude_max',
+      hasClaudePro: form.value.subscriptionType === 'claude_pro',
+      manuallySet: true
+    }
+  }
+
+  // 处理 extInfo
+  if (claudeOauthPayload) {
+    const extInfoPayload = {}
+    const extSource = claudeOauthPayload.extInfo
+    if (extSource?.org_uuid) extInfoPayload.org_uuid = extSource.org_uuid
+    if (extSource?.account_uuid) extInfoPayload.account_uuid = extSource.account_uuid
+
+    if (!extSource) {
+      if (claudeOauthPayload.organization?.uuid) {
+        extInfoPayload.org_uuid = claudeOauthPayload.organization.uuid
+      }
+      if (claudeOauthPayload.account?.uuid) {
+        extInfoPayload.account_uuid = claudeOauthPayload.account.uuid
+      }
+    }
+
+    if (Object.keys(extInfoPayload).length > 0) {
+      data.extInfo = extInfoPayload
+    }
+  }
+
+  return data
+}
+
+// 处理OAuth成功（支持批量）
+const handleOAuthSuccess = async (tokenInfoOrList) => {
   loading.value = true
   try {
+    const currentPlatform = form.value.platform
+
+    // Claude 平台支持批量创建
+    if (currentPlatform === 'claude' && Array.isArray(tokenInfoOrList)) {
+      const tokenInfoList = tokenInfoOrList
+      const isBatch = tokenInfoList.length > 1
+      const baseName = form.value.name
+
+      const results = []
+      const errors = []
+
+      for (let i = 0; i < tokenInfoList.length; i++) {
+        const tokenInfo = tokenInfoList[i]
+        // 批量时自动命名
+        const accountName = isBatch ? `${baseName}_${i + 1}` : baseName
+        // 如果启用统一客户端标识，为每个账户生成独立 ID
+        const clientId = form.value.useUnifiedClientId ? generateClientId() : ''
+        const data = buildClaudeAccountData(tokenInfo, accountName, clientId)
+
+        try {
+          const result = await accountsStore.createClaudeAccount(data)
+          results.push(result)
+        } catch (error) {
+          errors.push({ name: accountName, error: error.message })
+        }
+      }
+
+      // 处理结果
+      if (results.length > 0) {
+        const msg = isBatch
+          ? `成功创建 ${results.length}/${tokenInfoList.length} 个账户`
+          : '账户创建成功'
+        showToast(msg, 'success')
+        emit('success', results[0]) // 兼容单个创建的返回
+      }
+      if (errors.length > 0) {
+        showToast(`${errors.length} 个账户创建失败`, 'error')
+      }
+      return
+    }
+
+    // 单个 tokenInfo 或其他平台的处理（保持原有逻辑）
+    const tokenInfo = Array.isArray(tokenInfoOrList) ? tokenInfoOrList[0] : tokenInfoOrList
+
     // OAuth模式也需要确保生成客户端ID
     if (
       form.value.platform === 'claude' &&
@@ -4174,8 +5094,6 @@ const handleOAuthSuccess = async (tokenInfo) => {
       expiresAt: form.value.expiresAt || undefined,
       proxy: proxyPayload
     }
-
-    const currentPlatform = form.value.platform
 
     if (currentPlatform === 'claude') {
       // Claude使用claudeAiOauth字段
@@ -4213,6 +5131,7 @@ const handleOAuthSuccess = async (tokenInfo) => {
       data.useUnifiedUserAgent = form.value.useUnifiedUserAgent || false
       data.useUnifiedClientId = form.value.useUnifiedClientId || false
       data.unifiedClientId = form.value.unifiedClientId || ''
+      data.maxConcurrency = form.value.serialQueueEnabled ? 1 : 0
       // 添加订阅类型信息
       data.subscriptionInfo = {
         accountType: form.value.subscriptionType || 'claude_max',
@@ -4220,9 +5139,14 @@ const handleOAuthSuccess = async (tokenInfo) => {
         hasClaudePro: form.value.subscriptionType === 'claude_pro',
         manuallySet: true // 标记为手动设置
       }
-    } else if (currentPlatform === 'gemini') {
-      // Gemini使用geminiOauth字段
+    } else if (currentPlatform === 'gemini' || currentPlatform === 'gemini-antigravity') {
+      // Gemini/Antigravity使用geminiOauth字段
       data.geminiOauth = tokenInfo.tokens || tokenInfo
+      // 根据 platform 设置 oauthProvider
+      data.oauthProvider =
+        currentPlatform === 'gemini-antigravity'
+          ? 'antigravity'
+          : tokenInfo.oauthProvider || 'gemini-cli'
       if (form.value.projectId) {
         data.projectId = form.value.projectId
       }
@@ -4337,6 +5261,8 @@ const handleOAuthSuccess = async (tokenInfo) => {
     // 错误已通过 toast 显示给用户
   } finally {
     loading.value = false
+    // 重置 OAuthFlow 组件的加载状态（如果是通过 OAuth 模式调用）
+    oauthFlowRef.value?.resetCookieAuth()
   }
 }
 
@@ -4392,14 +5318,27 @@ const createAccount = async () => {
       hasError = true
     }
   } else if (form.value.platform === 'bedrock') {
-    // Bedrock 验证
-    if (!form.value.accessKeyId || form.value.accessKeyId.trim() === '') {
-      errors.value.accessKeyId = '请填写 AWS 访问密钥 ID'
-      hasError = true
-    }
-    if (!form.value.secretAccessKey || form.value.secretAccessKey.trim() === '') {
-      errors.value.secretAccessKey = '请填写 AWS 秘密访问密钥'
-      hasError = true
+    // Bedrock 验证 - 根据凭证类型进行不同验证
+    if (form.value.credentialType === 'access_key') {
+      // Access Key 模式：创建时必填，编辑时可选（留空则保持原有凭证）
+      if (!isEdit.value) {
+        if (!form.value.accessKeyId || form.value.accessKeyId.trim() === '') {
+          errors.value.accessKeyId = '请填写 AWS 访问密钥 ID'
+          hasError = true
+        }
+        if (!form.value.secretAccessKey || form.value.secretAccessKey.trim() === '') {
+          errors.value.secretAccessKey = '请填写 AWS 秘密访问密钥'
+          hasError = true
+        }
+      }
+    } else if (form.value.credentialType === 'bearer_token') {
+      // Bearer Token 模式：创建时必填，编辑时可选（留空则保持原有凭证）
+      if (!isEdit.value) {
+        if (!form.value.bearerToken || form.value.bearerToken.trim() === '') {
+          errors.value.bearerToken = '请填写 Bearer Token'
+          hasError = true
+        }
+      }
     }
     if (!form.value.region || form.value.region.trim() === '') {
       errors.value.region = '请选择 AWS 区域'
@@ -4452,10 +5391,27 @@ const createAccount = async () => {
     }
     // Claude Console、CCR、OpenAI-Responses 等其他平台不需要 Token 验证
   } else if (form.value.addType === 'apikey') {
-    const apiKeys = parseApiKeysInput(form.value.apiKeysInput)
-    if (apiKeys.length === 0) {
-      errors.value.apiKeys = '请至少填写一个 API Key'
-      hasError = true
+    // Gemini API 使用单个 apiKey 字段
+    if (form.value.platform === 'gemini-api') {
+      if (!form.value.apiKey || form.value.apiKey.trim() === '') {
+        errors.value.apiKey = '请填写 API Key'
+        hasError = true
+      }
+      // 验证 baseUrl 必须以 /models 结尾
+      if (!form.value.baseUrl || form.value.baseUrl.trim() === '') {
+        errors.value.baseUrl = '请填写 API 基础地址'
+        hasError = true
+      } else if (!form.value.baseUrl.trim().endsWith('/models')) {
+        errors.value.baseUrl = 'API 基础地址必须以 /models 结尾'
+        hasError = true
+      }
+    } else {
+      // 其他平台（如 Droid）使用多 API Key 输入
+      const apiKeys = parseApiKeysInput(form.value.apiKeysInput)
+      if (apiKeys.length === 0) {
+        errors.value.apiKeys = '请至少填写一个 API Key'
+        hasError = true
+      }
     }
   }
 
@@ -4517,6 +5473,7 @@ const createAccount = async () => {
       data.useUnifiedUserAgent = form.value.useUnifiedUserAgent || false
       data.useUnifiedClientId = form.value.useUnifiedClientId || false
       data.unifiedClientId = form.value.unifiedClientId || ''
+      data.maxConcurrency = form.value.serialQueueEnabled ? 1 : 0
       // 添加订阅类型信息
       data.subscriptionInfo = {
         accountType: form.value.subscriptionType || 'claude_max',
@@ -4607,9 +5564,16 @@ const createAccount = async () => {
       data.userAgent = form.value.userAgent || null
       // 如果不启用限流，传递 0 表示不限流
       data.rateLimitDuration = form.value.enableRateLimit ? form.value.rateLimitDuration || 60 : 0
+      // 上游错误处理（仅 Claude Console）
+      if (form.value.platform === 'claude-console') {
+        data.disableAutoProtection = !!form.value.disableAutoProtection
+        data.interceptWarmup = !!form.value.interceptWarmup
+      }
       // 额度管理字段
       data.dailyQuota = form.value.dailyQuota || 0
       data.quotaResetTime = form.value.quotaResetTime || '00:00'
+      // 并发控制字段
+      data.maxConcurrentTasks = form.value.maxConcurrentTasks || 0
     } else if (form.value.platform === 'openai-responses') {
       // OpenAI-Responses 账户特定数据
       data.baseApi = form.value.baseApi
@@ -4621,13 +5585,41 @@ const createAccount = async () => {
       data.quotaResetTime = form.value.quotaResetTime || '00:00'
       // 模型映射配置 - 与Claude Console保持一致
       data.supportedModels = convertMappingsToObject() || {}
+    } else if (form.value.platform === 'openai-chat') {
+      // OpenAI-Chat 账户特定数据
+      data.baseApi = form.value.baseApi
+      data.apiKey = form.value.apiKey
+      data.userAgent = form.value.userAgent || ''
+      data.priority = form.value.priority || 50
+      data.supportedModels = convertMappingsToObject() || {}
+    } else if (form.value.platform === 'gemini-antigravity') {
+      // Antigravity OAuth - set oauthProvider, submission happens below
+      data.oauthProvider = 'antigravity'
+      data.priority = form.value.priority || 50
+    } else if (form.value.platform === 'gemini-api') {
+      // Gemini API 账户特定数据
+      data.baseUrl = form.value.baseUrl || 'https://generativelanguage.googleapis.com'
+      data.apiKey = form.value.apiKey
+      data.priority = form.value.priority || 50
+      data.supportedModels = Array.isArray(form.value.supportedModels)
+        ? form.value.supportedModels
+        : []
     } else if (form.value.platform === 'bedrock') {
-      // Bedrock 账户特定数据 - 构造 awsCredentials 对象
-      data.awsCredentials = {
-        accessKeyId: form.value.accessKeyId,
-        secretAccessKey: form.value.secretAccessKey,
-        sessionToken: form.value.sessionToken || null
+      // Bedrock 账户特定数据
+      data.credentialType = form.value.credentialType || 'access_key'
+
+      // 根据凭证类型构造不同的凭证对象
+      if (form.value.credentialType === 'access_key') {
+        data.awsCredentials = {
+          accessKeyId: form.value.accessKeyId,
+          secretAccessKey: form.value.secretAccessKey,
+          sessionToken: form.value.sessionToken || null
+        }
+      } else if (form.value.credentialType === 'bearer_token') {
+        // Bearer Token 模式：必须传递 Bearer Token
+        data.bearerToken = form.value.bearerToken
       }
+
       data.region = form.value.region
       data.defaultModel = form.value.defaultModel || null
       data.smallFastModel = form.value.smallFastModel || null
@@ -4664,8 +5656,12 @@ const createAccount = async () => {
       result = await accountsStore.createOpenAIAccount(data)
     } else if (form.value.platform === 'azure_openai') {
       result = await accountsStore.createAzureOpenAIAccount(data)
-    } else if (form.value.platform === 'gemini') {
+    } else if (form.value.platform === 'gemini' || form.value.platform === 'gemini-antigravity') {
       result = await accountsStore.createGeminiAccount(data)
+    } else if (form.value.platform === 'gemini-api') {
+      result = await accountsStore.createGeminiApiAccount(data)
+    } else if (form.value.platform === 'openai-chat') {
+      result = await accountsStore.createOpenAIChatAccount(data)
     } else {
       throw new Error(`不支持的平台: ${form.value.platform}`)
     }
@@ -4704,11 +5700,25 @@ const updateAccount = async () => {
   // 清除之前的错误
   errors.value.name = ''
   errors.value.apiKeys = ''
+  errors.value.baseUrl = ''
 
   // 验证账户名称
   if (!form.value.name || form.value.name.trim() === '') {
     errors.value.name = '请填写账户名称'
     return
+  }
+
+  // Gemini API 的 baseUrl 验证（必须以 /models 结尾）
+  if (form.value.platform === 'gemini-api') {
+    const baseUrl = form.value.baseUrl?.trim() || ''
+    if (!baseUrl) {
+      errors.value.baseUrl = '请填写 API 基础地址'
+      return
+    }
+    if (!baseUrl.endsWith('/models')) {
+      errors.value.baseUrl = 'API 基础地址必须以 /models 结尾'
+      return
+    }
   }
 
   // 分组类型验证 - 更新账户流程修复
@@ -4878,9 +5888,11 @@ const updateAccount = async () => {
 
       data.priority = form.value.priority || 50
       data.autoStopOnWarning = form.value.autoStopOnWarning || false
+      data.interceptWarmup = form.value.interceptWarmup || false
       data.useUnifiedUserAgent = form.value.useUnifiedUserAgent || false
       data.useUnifiedClientId = form.value.useUnifiedClientId || false
       data.unifiedClientId = form.value.unifiedClientId || ''
+      data.maxConcurrency = form.value.serialQueueEnabled ? 1 : 0
       // 更新订阅类型信息
       data.subscriptionInfo = {
         accountType: form.value.subscriptionType || 'claude_max',
@@ -4913,9 +5925,15 @@ const updateAccount = async () => {
       data.userAgent = form.value.userAgent || null
       // 如果不启用限流，传递 0 表示不限流
       data.rateLimitDuration = form.value.enableRateLimit ? form.value.rateLimitDuration || 60 : 0
+      // 上游错误处理
+      data.disableAutoProtection = !!form.value.disableAutoProtection
+      // 拦截预热请求
+      data.interceptWarmup = !!form.value.interceptWarmup
       // 额度管理字段
       data.dailyQuota = form.value.dailyQuota || 0
       data.quotaResetTime = form.value.quotaResetTime || '00:00'
+      // 并发控制字段
+      data.maxConcurrentTasks = form.value.maxConcurrentTasks || 0
     }
 
     // OpenAI-Responses 特定更新
@@ -4935,19 +5953,33 @@ const updateAccount = async () => {
 
     // Bedrock 特定更新
     if (props.account.platform === 'bedrock') {
-      // 只有当有凭证变更时才构造 awsCredentials 对象
-      if (form.value.accessKeyId || form.value.secretAccessKey || form.value.sessionToken) {
-        data.awsCredentials = {}
-        if (form.value.accessKeyId) {
-          data.awsCredentials.accessKeyId = form.value.accessKeyId
+      // 更新凭证类型
+      if (form.value.credentialType) {
+        data.credentialType = form.value.credentialType
+      }
+
+      // 根据凭证类型更新凭证
+      if (form.value.credentialType === 'access_key') {
+        // 只有当有凭证变更时才构造 awsCredentials 对象
+        if (form.value.accessKeyId || form.value.secretAccessKey || form.value.sessionToken) {
+          data.awsCredentials = {}
+          if (form.value.accessKeyId) {
+            data.awsCredentials.accessKeyId = form.value.accessKeyId
+          }
+          if (form.value.secretAccessKey) {
+            data.awsCredentials.secretAccessKey = form.value.secretAccessKey
+          }
+          if (form.value.sessionToken !== undefined) {
+            data.awsCredentials.sessionToken = form.value.sessionToken || null
+          }
         }
-        if (form.value.secretAccessKey) {
-          data.awsCredentials.secretAccessKey = form.value.secretAccessKey
-        }
-        if (form.value.sessionToken !== undefined) {
-          data.awsCredentials.sessionToken = form.value.sessionToken || null
+      } else if (form.value.credentialType === 'bearer_token') {
+        // Bearer Token 模式：更新 Bearer Token（编辑时可选，留空则保留原有凭证）
+        if (form.value.bearerToken && form.value.bearerToken.trim()) {
+          data.bearerToken = form.value.bearerToken
         }
       }
+
       if (form.value.region) {
         data.region = form.value.region
       }
@@ -4974,6 +6006,19 @@ const updateAccount = async () => {
       }
     }
 
+    // Gemini API 特定更新
+    if (props.account.platform === 'gemini-api') {
+      data.baseUrl = form.value.baseUrl || 'https://generativelanguage.googleapis.com'
+      // 只有当有新的 API Key 时才更新
+      if (form.value.apiKey && form.value.apiKey.trim()) {
+        data.apiKey = form.value.apiKey
+      }
+      data.priority = form.value.priority || 50
+      data.supportedModels = Array.isArray(form.value.supportedModels)
+        ? form.value.supportedModels
+        : []
+    }
+
     if (props.account.platform === 'claude') {
       await accountsStore.updateClaudeAccount(props.account.id, data)
     } else if (props.account.platform === 'claude-console') {
@@ -4988,6 +6033,8 @@ const updateAccount = async () => {
       await accountsStore.updateAzureOpenAIAccount(props.account.id, data)
     } else if (props.account.platform === 'gemini') {
       await accountsStore.updateGeminiAccount(props.account.id, data)
+    } else if (props.account.platform === 'gemini-api') {
+      await accountsStore.updateGeminiApiAccount(props.account.id, data)
     } else if (props.account.platform === 'droid') {
       await accountsStore.updateDroidAccount(props.account.id, data)
     } else {
@@ -5109,6 +6156,10 @@ const filteredGroups = computed(() => {
   else if (form.value.platform === 'openai-responses') {
     platformFilter = 'openai'
   }
+  // Gemini-API 使用 Gemini 分组
+  else if (form.value.platform === 'gemini-api') {
+    platformFilter = 'gemini'
+  }
   return groups.value.filter((g) => g.platform === platformFilter)
 })
 
@@ -5116,7 +6167,7 @@ const filteredGroups = computed(() => {
 const loadGroups = async () => {
   loadingGroups.value = true
   try {
-    const response = await apiClient.get('/admin/account-groups')
+    const response = await httpApis.getAccountGroupsApi()
     groups.value = response.data || []
   } catch (error) {
     showToast('加载分组列表失败', 'error')
@@ -5187,6 +6238,9 @@ watch(
     } else if (newPlatform === 'openai') {
       // 切换到 OpenAI 时，使用 OAuth 作为默认方式
       form.value.addType = 'oauth'
+    } else if (newPlatform === 'gemini-api' || newPlatform === 'azure_openai') {
+      // 切换到 Gemini API 或 Azure OpenAI 时，使用 apikey 模式（直接创建，不需要 OAuth 流程）
+      form.value.addType = 'apikey'
     }
 
     // 平台变化时，清空分组选择
@@ -5466,9 +6520,12 @@ watch(
         accountType: newAccount.accountType || 'shared',
         subscriptionType: subscriptionType,
         autoStopOnWarning: newAccount.autoStopOnWarning || false,
+        interceptWarmup:
+          newAccount.interceptWarmup === true || newAccount.interceptWarmup === 'true',
         useUnifiedUserAgent: newAccount.useUnifiedUserAgent || false,
         useUnifiedClientId: newAccount.useUnifiedClientId || false,
         unifiedClientId: newAccount.unifiedClientId || '',
+        serialQueueEnabled: (newAccount.maxConcurrency || 0) > 0,
         groupId: groupId,
         groupIds: [],
         projectId: newAccount.projectId || '',
@@ -5512,10 +6569,16 @@ watch(
         deploymentName: newAccount.deploymentName || '',
         // OpenAI-Responses 特定字段
         baseApi: newAccount.baseApi || '',
+        // Gemini-API 特定字段
+        baseUrl: newAccount.baseUrl || 'https://generativelanguage.googleapis.com',
         // 额度管理字段
         dailyQuota: newAccount.dailyQuota || 0,
         dailyUsage: newAccount.dailyUsage || 0,
-        quotaResetTime: newAccount.quotaResetTime || '00:00'
+        quotaResetTime: newAccount.quotaResetTime || '00:00',
+        // 并发控制字段
+        maxConcurrentTasks: newAccount.maxConcurrentTasks || 0,
+        // 上游错误处理
+        disableAutoProtection: newAccount.disableAutoProtection === true
       }
 
       // 如果是Claude Console账户，加载实时使用情况
@@ -5529,12 +6592,27 @@ watch(
         loadGroups().then(async () => {
           const foundGroupIds = []
 
-          // 如果账户有 groupInfo，直接使用它的 groupId
-          if (newAccount.groupInfo && newAccount.groupInfo.id) {
+          // 优先使用 groupInfos 数组（后端返回的标准格式）
+          if (
+            newAccount.groupInfos &&
+            Array.isArray(newAccount.groupInfos) &&
+            newAccount.groupInfos.length > 0
+          ) {
+            // 从 groupInfos 数组中提取所有分组 ID
+            newAccount.groupInfos.forEach((group) => {
+              if (group && group.id) {
+                foundGroupIds.push(group.id)
+              }
+            })
+            if (foundGroupIds.length > 0) {
+              form.value.groupId = foundGroupIds[0]
+            }
+          } else if (newAccount.groupInfo && newAccount.groupInfo.id) {
+            // 兼容旧的 groupInfo 单对象格式
             form.value.groupId = newAccount.groupInfo.id
             foundGroupIds.push(newAccount.groupInfo.id)
           } else if (newAccount.groupId) {
-            // 如果账户有 groupId 字段，直接使用（OpenAI-Responses 等账户）
+            // 如果账户有 groupId 字段，直接使用
             form.value.groupId = newAccount.groupId
             foundGroupIds.push(newAccount.groupId)
           } else if (
@@ -5549,7 +6627,7 @@ watch(
             // 否则查找账户所属的分组
             const checkPromises = groups.value.map(async (group) => {
               try {
-                const response = await apiClient.get(`/admin/account-groups/${group.id}/members`)
+                const response = await httpApis.getAccountGroupMembersApi(group.id)
                 const members = response.data || []
                 if (members.some((m) => m.id === newAccount.id)) {
                   foundGroupIds.push(group.id)
@@ -5577,7 +6655,7 @@ watch(
 // 获取统一 User-Agent 信息
 const fetchUnifiedUserAgent = async () => {
   try {
-    const response = await apiClient.get('/admin/claude-code-version')
+    const response = await httpApis.getClaudeCodeVersionApi()
     if (response.success && response.userAgent) {
       unifiedUserAgent.value = response.userAgent
     } else {
@@ -5593,7 +6671,7 @@ const fetchUnifiedUserAgent = async () => {
 const clearUnifiedCache = async () => {
   clearingCache.value = true
   try {
-    const response = await apiClient.post('/admin/claude-code-version/clear')
+    const response = await httpApis.clearClaudeCodeVersionApi()
     if (response.success) {
       unifiedUserAgent.value = ''
       showToast('统一User-Agent缓存已清除', 'success')
@@ -5698,6 +6776,9 @@ onMounted(() => {
   if (isEdit.value) {
     initModelMappings()
   }
+
+  // 加载模型列表
+  loadCommonModels()
 
   // 获取Claude Code统一User-Agent信息
   fetchUnifiedUserAgent()

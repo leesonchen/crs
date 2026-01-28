@@ -1,5 +1,10 @@
 # Claude Relay Service
 
+> [!CAUTION]
+> **安全更新通知**：v1.1.248 及以下版本存在严重的管理员认证绕过漏洞，攻击者可未授权访问管理面板。
+>
+> **请立即更新到 v1.1.249+ 版本**，或迁移到新一代项目 **[CRS 2.0 (sub2api)](https://github.com/Wei-Shaw/sub2api)**
+
 <div align="center">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -21,10 +26,9 @@
 
 <div align="center">
 
-| 平台 | 类型 | 服务 | 介绍 |
-|:---|:---|:---|:---|
-| **[pincc.ai](https://pincc.ai/)** | 🏆 **官方运营** | <small>✅ Claude Code<br>✅ Codex CLI</small> | 项目直营，提供稳定的 Claude Code / Codex CLI 拼车服务 |
-| **[ctok.ai](https://ctok.ai/)** | 🤝 合作伙伴 | <small>✅ Claude Code<br>✅ Codex CLI</small> | 社区认证，提供 Claude Code / Codex CLI 拼车 |
+| 平台 | 服务 | 介绍 |
+|:---|:---|:---|
+| **[pincc.ai](https://pincc.ai/)** | <small>✅ Claude Code<br>✅ Codex CLI</small> | 提供稳定的 Codex CLI 拼车服务<br><br> **全新上线 2API 渠道**：接入CC的效果媲美官方 Anthropic Console 账号，暂不支持 Websearch 和 PDF 识别功能（Websearch 后期会支持）<br>💰 单价：0.8元=1美金额度 |
 
 
 </div>
@@ -390,11 +394,32 @@ docker-compose.yml 已包含：
 
 **Claude Code 设置环境变量：**
 
+
+**使用标准 Claude 账号池**
+
 默认使用标准 Claude 账号池：
 
 ```bash
 export ANTHROPIC_BASE_URL="http://127.0.0.1:3000/api/" # 根据实际填写你服务器的ip地址或者域名
 export ANTHROPIC_AUTH_TOKEN="后台创建的API密钥"
+```
+
+**使用 Antigravity 账户池**
+
+适用于通过 Antigravity 渠道使用 Claude 模型（如 `claude-opus-4-5` 等）。
+
+```bash
+# 1. 设置 Base URL 为 Antigravity 专用路径
+export ANTHROPIC_BASE_URL="http://127.0.0.1:3000/antigravity/api/"
+
+# 2. 设置 API Key（在后台创建，权限需包含 'all' 或 'gemini'）
+export ANTHROPIC_AUTH_TOKEN="后台创建的API密钥"
+
+# 3. 指定模型名称（直接使用短名，无需前缀！）
+export ANTHROPIC_MODEL="claude-opus-4-5"
+
+# 4. 启动
+claude
 ```
 
 **VSCode Claude 插件配置：**
@@ -409,13 +434,35 @@ export ANTHROPIC_AUTH_TOKEN="后台创建的API密钥"
 
 如果该文件不存在，请手动创建。Windows 用户路径为 `C:\Users\你的用户名\.claude\config.json`。
 
+> 💡 **IntelliJ IDEA 用户推荐**：[Claude Code Plus](https://github.com/touwaeriol/claude-code-plus) - 将 Claude Code 直接集成到 IDE，支持代码理解、文件读写、命令执行。插件市场搜索 `Claude Code Plus` 即可安装。
+
 **Gemini CLI 设置环境变量：**
 
+**方式一（推荐）：通过 Gemini Assist API 方式访问**
+
 ```bash
-GEMINI_MODEL="gemini-2.5-pro"
-GOOGLE_GEMINI_BASE_URL="http://127.0.0.1:3000/gemini" # 根据实际填写你服务器的ip地址或者域名
-GEMINI_API_KEY="后台创建的API密钥"  # 使用相同的API密钥即可
+CODE_ASSIST_ENDPOINT="http://127.0.0.1:3000/gemini"  # 根据实际填写你服务器的ip地址或者域名
+GOOGLE_CLOUD_ACCESS_TOKEN="后台创建的API密钥"
+GOOGLE_GENAI_USE_GCA="true"
+GEMINI_MODEL="gemini-2.5-pro" # 如果你有gemini3权限可以填： gemini-3-pro-preview
 ```
+
+> **认证**：只能选 ```Login with Google``` 进行认证，如果跳 Google请删除 ```~/.gemini/settings.json``` 后再尝试启动```gemini```。  
+> **注意**：gemini-cli 控制台会提示 `Failed to fetch user info: 401 Unauthorized`，但使用不受任何影响。  
+
+**方式二：通过 Gemini API 方式访问**
+
+
+```bash
+GOOGLE_GEMINI_BASE_URL="http://127.0.0.1:3000/gemini"  # 根据实际填写你服务器的ip地址或者域名
+GEMINI_API_KEY="后台创建的API密钥"
+GEMINI_MODEL="gemini-2.5-pro" # 如果你有gemini3权限可以填： gemini-3-pro-preview
+```
+
+> **认证**：只能选 ```Use Gemini API Key``` 进行认证，如果提示 ```Enter Gemini API Key``` 请直接留空按回车。如果一打开就跳 Google请删除 ```~/.gemini/settings.json``` 后再尝试启动```gemini```。
+
+> 💡 **进阶用法**：想在 Claude Code 中直接使用 Gemini 3 模型？请参考 [Claude Code 调用 Gemini 3 模型指南](docs/claude-code-gemini3-guide/README.md)
+
 **使用 Claude Code：**
 
 ```bash
@@ -434,7 +481,7 @@ gemini  # 或其他 Gemini CLI 命令
 
 ```toml
 model_provider = "crs"
-model = "gpt-5-codex"
+model = "gpt-5.1-codex-max"
 model_reasoning_effort = "high"
 disable_response_storage = true
 preferred_auth_method = "apikey"
@@ -471,12 +518,12 @@ Droid CLI 读取 `~/.factory/config.json`。可以在该文件中添加自定义
 {
   "custom_models": [
     {
-      "model_display_name": "Sonnet 4.5 [crs]",
-      "model": "claude-sonnet-4-5-20250929",
+      "model_display_name": "Opus 4.5 [crs]",
+      "model": "claude-opus-4-5-20251101",
       "base_url": "http://127.0.0.1:3000/droid/claude",
       "api_key": "后台创建的API密钥",
       "provider": "anthropic",
-      "max_tokens": 8192
+      "max_tokens": 64000
     },
     {
       "model_display_name": "GPT5-Codex [crs]",
@@ -485,6 +532,22 @@ Droid CLI 读取 `~/.factory/config.json`。可以在该文件中添加自定义
       "api_key": "后台创建的API密钥",
       "provider": "openai",
       "max_tokens": 16384
+    },
+    {
+      "model_display_name": "Gemini-3-Pro [crs]",
+      "model": "gemini-3-pro-preview",
+      "base_url": "http://127.0.0.1:3000/droid/comm/v1/",
+      "api_key": "后台创建的API密钥",
+      "provider": "generic-chat-completion-api",
+      "max_tokens": 65535
+    },
+    {
+      "model_display_name": "GLM-4.6 [crs]",
+      "model": "glm-4.6",
+      "base_url": "http://127.0.0.1:3000/droid/comm/v1/",
+      "api_key": "后台创建的API密钥",
+      "provider": "generic-chat-completion-api",
+      "max_tokens": 202800
     }
   ]
 }
@@ -565,8 +628,9 @@ gpt-5                      # Codex使用固定模型ID
 - 所有账号类型都使用相同的API密钥（在后台统一创建）
 - 根据不同的路由前缀自动识别账号类型
 - `/claude/` - 使用Claude账号池
+- `/antigravity/api/` - 使用Antigravity账号池（推荐用于Claude Code）
 - `/droid/claude/` - 使用Droid类型Claude账号池（只建议api调用或Droid Cli中使用）
-- `/gemini/` - 使用Gemini账号池  
+- `/gemini/` - 使用Gemini账号池
 - `/openai/` - 使用Codex账号（只支持Openai-Response格式）
 - `/droid/openai/` - 使用Droid类型OpenAI兼容账号池（只建议api调用或Droid Cli中使用）
 - 支持所有标准API端点（messages、models等）
@@ -926,6 +990,27 @@ proxy_request_buffering off;
 - **GitHub Issues**: 提交详细的错误信息
 - **查看文档**: 仔细阅读错误信息和文档
 - **社区讨论**: 看看其他人是否遇到类似问题
+
+---
+
+## ❤️ 赞助支持
+
+如果您觉得这个项目对您有帮助，请考虑赞助支持项目的持续开发。您的支持是我们最大的动力！
+
+<div align="center">
+
+<a href="https://afdian.com/a/claude-relay-service" target="_blank">
+  <img src="https://img.shields.io/badge/请我喝杯咖啡-爱发电-946ce6?style=for-the-badge&logo=buy-me-a-coffee&logoColor=white" alt="Sponsor">
+</a>
+
+<table>
+  <tr>
+    <td><img src="docs/sponsoring/wechat.jpg" width="200" alt="wechat" /></td>
+    <td><img src="docs/sponsoring/alipay.jpg" width="200" alt="alipay" /></td>
+  </tr>
+</table>
+
+</div>
 
 ---
 

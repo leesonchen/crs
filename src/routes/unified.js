@@ -2,11 +2,13 @@ const express = require('express')
 const { authenticateApiKey } = require('../middleware/auth')
 const logger = require('../utils/logger')
 const { handleChatCompletion } = require('./openaiClaudeRoutes')
+// 从 handlers/geminiHandlers.js 导入处理函数
 const {
   handleGenerateContent: geminiHandleGenerateContent,
   handleStreamGenerateContent: geminiHandleStreamGenerateContent
-} = require('./geminiRoutes')
+} = require('../handlers/geminiHandlers')
 const openaiRoutes = require('./openaiRoutes')
+const apiKeyService = require('../services/apiKeyService')
 
 const router = express.Router()
 
@@ -16,25 +18,6 @@ function detectBackendFromModel(modelName) {
     return null // 无法判断时返回 null
   }
 
-  // 首先尝试使用 modelService 查找模型的 provider
-  try {
-    const modelService = require('../services/modelService')
-    const provider = modelService.getModelProvider(modelName)
-
-    if (provider === 'anthropic') {
-      return 'claude'
-    }
-    if (provider === 'openai') {
-      return 'openai'
-    }
-    if (provider === 'google') {
-      return 'gemini'
-    }
-  } catch (error) {
-    logger.warn(`⚠️ Failed to detect backend from modelService: ${error.message}`)
-  }
-
-  // 降级到前缀匹配作为后备方案
   const model = modelName.toLowerCase()
 
   // Claude 模型
@@ -42,23 +25,18 @@ function detectBackendFromModel(modelName) {
     return 'claude'
   }
 
-  // OpenAI 模型
-  if (
-    model.startsWith('gpt-') ||
-    model.startsWith('o1-') ||
-    model.startsWith('o3-') ||
-    model === 'chatgpt-4o-latest'
-  ) {
-    return 'openai'
-  }
-
   // Gemini 模型
   if (model.startsWith('gemini-')) {
     return 'gemini'
   }
 
-  // 无法从模型名判断，返回 null
-  return null
+  // OpenAI 模型
+  if (model.startsWith('gpt-')) {
+    return 'openai'
+  }
+
+  // 默认使用 Claude
+  return 'claude'
 }
 
 // 🚀 智能后端路由处理器
@@ -102,11 +80,11 @@ async function routeToBackend(req, res, requestedModel) {
   logger.info(`🔀 Routing request - Model: ${requestedModel}, Backend: ${backend}`)
 
   // 检查权限
-  const permissions = req.apiKey.permissions || 'all'
+  const { permissions } = req.apiKey
 
   if (backend === 'claude') {
     // Claude 后端：通过 OpenAI 兼容层
-    if (permissions !== 'all' && permissions !== 'claude') {
+    if (!apiKeyService.hasPermission(permissions, 'claude')) {
       return res.status(403).json({
         error: {
           message: 'This API key does not have permission to access Claude',
@@ -118,7 +96,7 @@ async function routeToBackend(req, res, requestedModel) {
     await handleChatCompletion(req, res, req.apiKey)
   } else if (backend === 'openai') {
     // OpenAI 后端
-    if (permissions !== 'all' && permissions !== 'openai') {
+    if (!apiKeyService.hasPermission(permissions, 'openai')) {
       return res.status(403).json({
         error: {
           message: 'This API key does not have permission to access OpenAI',
@@ -130,7 +108,7 @@ async function routeToBackend(req, res, requestedModel) {
     return await openaiRoutes.handleResponses(req, res)
   } else if (backend === 'gemini') {
     // Gemini 后端
-    if (permissions !== 'all' && permissions !== 'gemini') {
+    if (!apiKeyService.hasPermission(permissions, 'gemini')) {
       return res.status(403).json({
         error: {
           message: 'This API key does not have permission to access Gemini',
