@@ -1305,219 +1305,14 @@
             </div>
           </div>
         </div>
-      </div>
-    </div>
-  </div>
 
-  <!-- 添加模型映射对话框（支持双向） -->
-  <div
-    v-if="showAddMappingDialog"
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm transition-all duration-300 ease-out"
-    @click="closeAddMappingDialog"
-  >
-    <div
-      class="relative mx-4 w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl transition-all duration-300 ease-out dark:bg-gray-800"
-      @click.stop
-    >
-      <!-- 头部 -->
-      <div
-        class="dark:to-gray-750 relative border-b border-gray-200 bg-gradient-to-r px-6 py-5 dark:border-gray-700 dark:from-gray-800"
-        :class="
-          currentDirection === 'openaiToClaude'
-            ? 'from-blue-50 to-indigo-50'
-            : 'from-green-50 to-emerald-50'
-        "
-      >
-        <div class="flex items-center justify-between">
-          <div class="flex items-center space-x-3">
-            <div
-              class="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br text-white shadow-lg"
-              :class="
-                currentDirection === 'openaiToClaude'
-                  ? 'from-blue-500 to-indigo-600'
-                  : 'from-green-500 to-emerald-600'
-              "
-            >
-              <i class="fas fa-plus"></i>
-            </div>
-            <div>
-              <h3 class="text-xl font-semibold text-gray-900 dark:text-white">添加模型映射</h3>
-              <p class="mt-0.5 text-sm text-gray-600 dark:text-gray-400">
-                {{ currentDirection === 'openaiToClaude' ? 'OpenAI → Claude' : 'Claude → OpenAI' }}
-              </p>
-            </div>
-          </div>
-          <button
-            class="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
-            @click="closeAddMappingDialog"
-          >
-            <i class="fas fa-times text-lg"></i>
-          </button>
-        </div>
-      </div>
-
-      <!-- 内容区域 -->
-      <div class="p-6">
-        <div class="space-y-5">
-          <!-- 源模型输入 -->
-          <div>
-            <label
-              class="mb-2 flex items-center text-sm font-medium text-gray-700 dark:text-gray-300"
-            >
-              <i class="fas fa-tag mr-2 text-gray-400"></i>
-              {{ currentDirection === 'openaiToClaude' ? 'OpenAI 模型名称' : 'Claude 模型名称' }}
-              <span class="ml-1 text-xs text-red-500">*</span>
-            </label>
-            <input
-              v-model="newMapping.sourceModel"
-              class="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 font-mono text-sm text-gray-900 shadow-sm transition-all placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-500"
-              :placeholder="
-                currentDirection === 'openaiToClaude'
-                  ? '例如：gpt-5、gpt-5-plus'
-                  : '例如：claude-sonnet-4-20250514'
-              "
-              type="text"
-            />
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {{
-                currentDirection === 'openaiToClaude'
-                  ? '格式：gpt-开头，后接字母数字和连字符'
-                  : '格式：claude-开头，后接字母数字、点和连字符'
-              }}
-            </p>
-            <p
-              v-if="mappingError && mappingError.field === 'source'"
-              class="mt-1 text-xs text-red-600 dark:text-red-400"
-            >
-              <i class="fas fa-exclamation-circle mr-1"></i>
-              {{ mappingError.error }}
-            </p>
+        <div v-show="activeSection === 'claude'">
+          <div v-if="claudeConfigLoading" class="py-12 text-center">
+            <div class="loading-spinner mx-auto mb-4"></div>
+            <p class="text-gray-500 dark:text-gray-400">正在加载配置...</p>
           </div>
 
-          <!-- 目标模型输入 -->
-          <div>
-            <label
-              class="mb-2 flex items-center text-sm font-medium text-gray-700 dark:text-gray-300"
-            >
-              <i class="fas fa-tag mr-2 text-gray-400"></i>
-              {{ currentDirection === 'openaiToClaude' ? 'Claude 模型名称' : 'OpenAI 模型名称' }}
-              <span class="ml-1 text-xs text-red-500">*</span>
-            </label>
-            <input
-              v-model="newMapping.targetModel"
-              class="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 font-mono text-sm text-gray-900 shadow-sm transition-all placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-500"
-              :placeholder="
-                currentDirection === 'openaiToClaude'
-                  ? '例如：claude-3-5-sonnet-20241022'
-                  : '例如：gpt-5、gpt-5-mini'
-              "
-              type="text"
-            />
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {{
-                currentDirection === 'openaiToClaude'
-                  ? '格式：claude-开头，后接字母数字、点和连字符'
-                  : '格式：gpt-开头，后接字母数字和连字符'
-              }}
-            </p>
-            <p
-              v-if="mappingError && mappingError.field === 'target'"
-              class="mt-1 text-xs text-red-600 dark:text-red-400"
-            >
-              <i class="fas fa-exclamation-circle mr-1"></i>
-              {{ mappingError.error }}
-            </p>
-          </div>
-
-          <!-- 示例说明 -->
-          <div class="rounded-lg bg-blue-50 p-3 dark:bg-blue-900/20">
-            <p class="mb-2 text-sm font-semibold text-blue-700 dark:text-blue-300">
-              <i class="fas fa-lightbulb mr-1"></i>
-              常用映射示例
-            </p>
-            <ul
-              v-if="currentDirection === 'openaiToClaude'"
-              class="space-y-1 text-xs text-blue-600 dark:text-blue-400"
-            >
-              <li>
-                <code class="rounded bg-blue-100 px-1 dark:bg-blue-900">gpt-5</code> →
-                <code class="rounded bg-blue-100 px-1 dark:bg-blue-900"
-                  >claude-sonnet-4-20250514</code
-                >
-              </li>
-              <li>
-                <code class="rounded bg-blue-100 px-1 dark:bg-blue-900">gpt-5-plus</code> →
-                <code class="rounded bg-blue-100 px-1 dark:bg-blue-900"
-                  >claude-opus-4-20250514</code
-                >
-              </li>
-              <li>
-                <code class="rounded bg-blue-100 px-1 dark:bg-blue-900">gpt-5-mini</code> →
-                <code class="rounded bg-blue-100 px-1 dark:bg-blue-900"
-                  >claude-3-5-haiku-20241022</code
-                >
-              </li>
-            </ul>
-            <ul v-else class="space-y-1 text-xs text-blue-600 dark:text-blue-400">
-              <li>
-                <code class="rounded bg-blue-100 px-1 dark:bg-blue-900"
-                  >claude-sonnet-4-20250514</code
-                >
-                →
-                <code class="rounded bg-blue-100 px-1 dark:bg-blue-900">gpt-5</code>
-              </li>
-              <li>
-                <code class="rounded bg-blue-100 px-1 dark:bg-blue-900"
-                  >claude-opus-4-20250514</code
-                >
-                →
-                <code class="rounded bg-blue-100 px-1 dark:bg-blue-900">gpt-5-plus</code>
-              </li>
-              <li>
-                <code class="rounded bg-blue-100 px-1 dark:bg-blue-900"
-                  >claude-3-5-haiku-20241022</code
-                >
-                →
-                <code class="rounded bg-blue-100 px-1 dark:bg-blue-900">gpt-5-mini</code>
-              </li>
-            </ul>
-          </div>
-        </div>
-      </div>
-
-      <!-- 底部按钮 -->
-      <div
-        class="border-t border-gray-200 bg-gray-50 px-6 py-4 dark:border-gray-700 dark:bg-gray-900/50"
-      >
-        <div class="flex justify-end space-x-3">
-          <button
-            class="group flex items-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:shadow-md dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-            @click="closeAddMappingDialog"
-          >
-            <i class="fas fa-times mr-2 transition-transform group-hover:scale-110"></i>
-            取消
-          </button>
-          <button
-            class="group flex items-center rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2.5 text-sm font-medium text-white shadow-md transition-all hover:from-blue-700 hover:to-indigo-700 hover:shadow-lg disabled:cursor-not-allowed disabled:from-gray-400 disabled:to-gray-500"
-            :disabled="!newMapping.sourceModel || !newMapping.targetModel"
-            @click="addMapping"
-          >
-            <i class="fas fa-plus mr-2 transition-transform group-hover:scale-110"></i>
-            添加映射
-          </button>
-        </div>
-      </div>
-
-    </div>
-  </div>
-
-      <div v-show="activeSection === 'claude'">
-        <div v-if="claudeConfigLoading" class="py-12 text-center">
-          <div class="loading-spinner mx-auto mb-4"></div>
-          <p class="text-gray-500 dark:text-gray-400">正在加载配置...</p>
-        </div>
-
-        <div v-else>
+          <div v-else>
             <!-- Claude Code 客户端限制 -->
             <div
               class="mb-6 rounded-lg bg-white/80 p-6 shadow-lg backdrop-blur-sm dark:bg-gray-800/80"
@@ -2003,6 +1798,206 @@
     </div>
   </div>
 
+  <!-- 添加模型映射对话框（支持双向） -->
+  <div
+    v-if="showAddMappingDialog"
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm transition-all duration-300 ease-out"
+    @click="closeAddMappingDialog"
+  >
+    <div
+      class="relative mx-4 w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl transition-all duration-300 ease-out dark:bg-gray-800"
+      @click.stop
+    >
+      <!-- 头部 -->
+      <div
+        class="dark:to-gray-750 relative border-b border-gray-200 bg-gradient-to-r px-6 py-5 dark:border-gray-700 dark:from-gray-800"
+        :class="
+          currentDirection === 'openaiToClaude'
+            ? 'from-blue-50 to-indigo-50'
+            : 'from-green-50 to-emerald-50'
+        "
+      >
+        <div class="flex items-center justify-between">
+          <div class="flex items-center space-x-3">
+            <div
+              class="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br text-white shadow-lg"
+              :class="
+                currentDirection === 'openaiToClaude'
+                  ? 'from-blue-500 to-indigo-600'
+                  : 'from-green-500 to-emerald-600'
+              "
+            >
+              <i class="fas fa-plus"></i>
+            </div>
+            <div>
+              <h3 class="text-xl font-semibold text-gray-900 dark:text-white">添加模型映射</h3>
+              <p class="mt-0.5 text-sm text-gray-600 dark:text-gray-400">
+                {{ currentDirection === 'openaiToClaude' ? 'OpenAI → Claude' : 'Claude → OpenAI' }}
+              </p>
+            </div>
+          </div>
+          <button
+            class="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+            @click="closeAddMappingDialog"
+          >
+            <i class="fas fa-times text-lg"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- 内容区域 -->
+      <div class="p-6">
+        <div class="space-y-5">
+          <!-- 源模型输入 -->
+          <div>
+            <label
+              class="mb-2 flex items-center text-sm font-medium text-gray-700 dark:text-gray-300"
+            >
+              <i class="fas fa-tag mr-2 text-gray-400"></i>
+              {{ currentDirection === 'openaiToClaude' ? 'OpenAI 模型名称' : 'Claude 模型名称' }}
+              <span class="ml-1 text-xs text-red-500">*</span>
+            </label>
+            <input
+              v-model="newMapping.sourceModel"
+              class="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 font-mono text-sm text-gray-900 shadow-sm transition-all placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-500"
+              :placeholder="
+                currentDirection === 'openaiToClaude'
+                  ? '例如：gpt-5、gpt-5-plus'
+                  : '例如：claude-sonnet-4-20250514'
+              "
+              type="text"
+            />
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{
+                currentDirection === 'openaiToClaude'
+                  ? '格式：gpt-开头，后接字母数字和连字符'
+                  : '格式：claude-开头，后接字母数字、点和连字符'
+              }}
+            </p>
+            <p
+              v-if="mappingError && mappingError.field === 'source'"
+              class="mt-1 text-xs text-red-600 dark:text-red-400"
+            >
+              <i class="fas fa-exclamation-circle mr-1"></i>
+              {{ mappingError.error }}
+            </p>
+          </div>
+
+          <!-- 目标模型输入 -->
+          <div>
+            <label
+              class="mb-2 flex items-center text-sm font-medium text-gray-700 dark:text-gray-300"
+            >
+              <i class="fas fa-tag mr-2 text-gray-400"></i>
+              {{ currentDirection === 'openaiToClaude' ? 'Claude 模型名称' : 'OpenAI 模型名称' }}
+              <span class="ml-1 text-xs text-red-500">*</span>
+            </label>
+            <input
+              v-model="newMapping.targetModel"
+              class="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 font-mono text-sm text-gray-900 shadow-sm transition-all placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-500"
+              :placeholder="
+                currentDirection === 'openaiToClaude'
+                  ? '例如：claude-3-5-sonnet-20241022'
+                  : '例如：gpt-5、gpt-5-mini'
+              "
+              type="text"
+            />
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{
+                currentDirection === 'openaiToClaude'
+                  ? '格式：claude-开头，后接字母数字、点和连字符'
+                  : '格式：gpt-开头，后接字母数字和连字符'
+              }}
+            </p>
+            <p
+              v-if="mappingError && mappingError.field === 'target'"
+              class="mt-1 text-xs text-red-600 dark:text-red-400"
+            >
+              <i class="fas fa-exclamation-circle mr-1"></i>
+              {{ mappingError.error }}
+            </p>
+          </div>
+
+          <!-- 示例说明 -->
+          <div class="rounded-lg bg-blue-50 p-3 dark:bg-blue-900/20">
+            <p class="mb-2 text-sm font-semibold text-blue-700 dark:text-blue-300">
+              <i class="fas fa-lightbulb mr-1"></i>
+              常用映射示例
+            </p>
+            <ul
+              v-if="currentDirection === 'openaiToClaude'"
+              class="space-y-1 text-xs text-blue-600 dark:text-blue-400"
+            >
+              <li>
+                <code class="rounded bg-blue-100 px-1 dark:bg-blue-900">gpt-5</code> →
+                <code class="rounded bg-blue-100 px-1 dark:bg-blue-900"
+                  >claude-sonnet-4-20250514</code
+                >
+              </li>
+              <li>
+                <code class="rounded bg-blue-100 px-1 dark:bg-blue-900">gpt-5-plus</code> →
+                <code class="rounded bg-blue-100 px-1 dark:bg-blue-900"
+                  >claude-opus-4-20250514</code
+                >
+              </li>
+              <li>
+                <code class="rounded bg-blue-100 px-1 dark:bg-blue-900">gpt-5-mini</code> →
+                <code class="rounded bg-blue-100 px-1 dark:bg-blue-900"
+                  >claude-3-5-haiku-20241022</code
+                >
+              </li>
+            </ul>
+            <ul v-else class="space-y-1 text-xs text-blue-600 dark:text-blue-400">
+              <li>
+                <code class="rounded bg-blue-100 px-1 dark:bg-blue-900"
+                  >claude-sonnet-4-20250514</code
+                >
+                →
+                <code class="rounded bg-blue-100 px-1 dark:bg-blue-900">gpt-5</code>
+              </li>
+              <li>
+                <code class="rounded bg-blue-100 px-1 dark:bg-blue-900"
+                  >claude-opus-4-20250514</code
+                >
+                →
+                <code class="rounded bg-blue-100 px-1 dark:bg-blue-900">gpt-5-plus</code>
+              </li>
+              <li>
+                <code class="rounded bg-blue-100 px-1 dark:bg-blue-900"
+                  >claude-3-5-haiku-20241022</code
+                >
+                →
+                <code class="rounded bg-blue-100 px-1 dark:bg-blue-900">gpt-5-mini</code>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- 底部按钮 -->
+      <div
+        class="border-t border-gray-200 bg-gray-50 px-6 py-4 dark:border-gray-700 dark:bg-gray-900/50"
+      >
+        <div class="flex justify-end space-x-3">
+          <button
+            class="group flex items-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:shadow-md dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+            @click="closeAddMappingDialog"
+          >
+            <i class="fas fa-times mr-2 transition-transform group-hover:scale-110"></i>
+            取消
+          </button>
+          <button
+            class="group flex items-center rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2.5 text-sm font-medium text-white shadow-md transition-all hover:from-blue-700 hover:to-indigo-700 hover:shadow-lg disabled:cursor-not-allowed disabled:from-gray-400 disabled:to-gray-500"
+            :disabled="!newMapping.sourceModel || !newMapping.targetModel"
+            @click="addMapping"
+          >
+            <i class="fas fa-plus mr-2 transition-transform group-hover:scale-110"></i>
+            添加映射
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
   <!-- 添加/编辑平台模态框 -->
   <div
     v-if="showAddPlatformModal"
@@ -2598,7 +2593,6 @@ import { storeToRefs } from 'pinia'
 import { showToast } from '@/utils/tools'
 import { useSettingsStore } from '@/stores/settings'
 import { useBridgeStore } from '@/stores/bridge'
-import { apiClient } from '@/config/api'
 
 import * as httpApis from '@/utils/http_apis'
 import ConfirmModal from '@/components/common/ConfirmModal.vue'

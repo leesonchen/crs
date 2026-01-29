@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
-import { apiClient } from '@/config/api'
-import { showToast } from '@/utils/toast'
+import { showToast } from '@/utils/tools'
+import request from '@/utils/request'
 
 export const useBridgeStore = defineStore('bridge', () => {
   // 状态
@@ -38,7 +38,7 @@ export const useBridgeStore = defineStore('bridge', () => {
   async function loadBridgeConfig() {
     loading.value = true
     try {
-      const response = await apiClient.get('/admin/bridge/config')
+      const response = await request({ url: '/admin/bridge/config', method: 'GET' })
 
       if (response.success && response.data) {
         // 处理后端返回的桥接配置
@@ -89,7 +89,7 @@ export const useBridgeStore = defineStore('bridge', () => {
 
     saving.value = true
     try {
-      const response = await apiClient.put('/admin/bridge/config', config)
+      const response = await request({ url: '/admin/bridge/config', method: 'PUT', data: config })
       if (response.success) {
         // 更新本地状态
         bridgeConfig.value = {

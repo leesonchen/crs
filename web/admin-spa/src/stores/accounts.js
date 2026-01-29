@@ -36,20 +36,6 @@ export const useAccountsStore = defineStore('accounts', () => {
   const sortBy = ref('')
   const sortOrder = ref('asc')
 
-  // 状态映射
-  const stateMap = {
-    claudeAccounts,
-    claudeConsoleAccounts,
-    bedrockAccounts,
-    geminiAccounts,
-    geminiApiAccounts,
-    openaiAccounts,
-    azureOpenaiAccounts,
-    openaiResponsesAccounts,
-    openaiChatAccounts,
-    droidAccounts
-  }
-
   // 通用获取账户
   const fetchAccounts = async (apiFunc, stateRef) => {
     loading.value = true

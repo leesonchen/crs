@@ -2213,7 +2213,13 @@
               </div>
 
               <!-- OpenAI / OpenAI-Responses：Claude 桥接开关 -->
-              <div v-if="form.platform !== 'openai' && form.platform !== 'openai-responses' && form.platform !== 'openai-chat'">
+              <div
+                v-if="
+                  form.platform !== 'openai' &&
+                  form.platform !== 'openai-responses' &&
+                  form.platform !== 'openai-chat'
+                "
+              >
                 <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
                   >Refresh Token (可选)</label
                 >
@@ -3074,7 +3080,12 @@
 
           <!-- OpenAI / OpenAI-Responses 特定字段（编辑模式） -->
           <div
-            v-if="form.platform === 'openai' || form.platform === 'openai-responses' || form.platform === 'openai-chat'"
+            v-if="
+              form.addType === 'oauth' &&
+              (form.platform === 'openai' ||
+                form.platform === 'openai-responses' ||
+                form.platform === 'openai-chat')
+            "
             class="space-y-4"
           >
             <div>
