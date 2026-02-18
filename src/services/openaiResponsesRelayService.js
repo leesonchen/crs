@@ -35,6 +35,8 @@ const LAST_USED_AT_THROTTLE_MS = 60000
 function getAccountService(accountType) {
   if (accountType === 'openai') {
     return require('./openaiAccountService')
+  } else if (accountType === 'openai-chat') {
+    return require('./openaiChatAccountService')
   } else if (accountType === 'openai-responses') {
     return require('./openaiResponsesAccountService')
   } else if (accountType === 'claude-official') {
@@ -78,7 +80,7 @@ class OpenAIResponsesRelayService {
   }
 
   // 节流更新 lastUsedAt
-  async _throttledUpdateLastUsedAt(accountId) {
+  async _throttledUpdateLastUsedAt(accountId, accountType = 'openai-responses') {
     const now = Date.now()
     const lastUpdate = lastUsedAtThrottle.get(accountId)
 
@@ -87,9 +89,12 @@ class OpenAIResponsesRelayService {
     }
 
     lastUsedAtThrottle.set(accountId, now, LAST_USED_AT_THROTTLE_MS)
-    await openaiResponsesAccountService.updateAccount(accountId, {
-      lastUsedAt: new Date().toISOString()
-    })
+    const accountService = getAccountService(accountType)
+    if (accountService && accountService.updateAccount) {
+      await accountService.updateAccount(accountId, {
+        lastUsedAt: new Date().toISOString()
+      })
+    }
   }
 
   // 处理请求转发
@@ -140,13 +145,15 @@ class OpenAIResponsesRelayService {
       // ✅ 简化判断：直接检查原始模型是否存在
       if (originalModel) {
         try {
-          // 直接使用 OpenAI-Responses 账户服务
+          // 使用对应账户服务的模型映射
+          const accountService = getAccountService(accountType)
           if (
             fullAccount.supportedModels &&
             typeof fullAccount.supportedModels === 'object' &&
-            !Array.isArray(fullAccount.supportedModels)
+            !Array.isArray(fullAccount.supportedModels) &&
+            accountService.getMappedModel
           ) {
-            const newModel = openaiResponsesAccountService.getMappedModel(
+            const newModel = accountService.getMappedModel(
               fullAccount.supportedModels,
               originalModel
             )
@@ -191,12 +198,15 @@ class OpenAIResponsesRelayService {
       // 智能拼接 URL，避免重复路径片段
       let targetUrl
       const baseApi = fullAccount.baseApi.replace(/\/+$/, '') // 移除末尾斜杠
+      const upstreamVersionedPathMatch = upstreamPath.match(/^\/v\d+(\/.*)$/)
+      const baseApiVersionedMatch = baseApi.match(/\/v\d+$/)
       // 如果 baseApi 已包含完整路径（如 /v1/responses），则检测并避免重复
       if (baseApi.endsWith(upstreamPath)) {
         targetUrl = baseApi
-      } else if (baseApi.endsWith('/v1') && upstreamPath.startsWith('/v1/')) {
-        // baseApi 含 /v1，upstreamPath 也是 /v1/xxx，则只拼接 /xxx 部分
-        targetUrl = `${baseApi}${upstreamPath.slice(3)}` // 去掉 upstreamPath 的前 3 个字符 "/v1"
+      } else if (baseApiVersionedMatch && upstreamVersionedPathMatch) {
+        // baseApi 已带版本路径（如 /v1、/v2），请求路径也带版本时仅拼接资源部分
+        // 例如: https://host/v2 + /v1/chat/completions => https://host/v2/chat/completions
+        targetUrl = `${baseApi}${upstreamVersionedPathMatch[1]}`
       } else {
         // 正常拼接
         targetUrl = `${baseApi}${upstreamPath}`
@@ -430,7 +440,7 @@ class OpenAIResponsesRelayService {
       }
 
       // 更新最后使用时间（节流）
-      await this._throttledUpdateLastUsedAt(account.id)
+      await this._throttledUpdateLastUsedAt(account.id, accountType)
 
       // 处理流式响应（支持转换器）
       if (req.body?.stream && response.data && typeof response.data.pipe === 'function') {

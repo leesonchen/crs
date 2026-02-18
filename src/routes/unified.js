@@ -43,6 +43,13 @@ function detectBackendFromModel(modelName) {
 async function routeToBackend(req, res, requestedModel) {
   let backend = detectBackendFromModel(requestedModel)
   const url = req.url || ''
+  const baseUrl = req.baseUrl || ''
+  const originalUrl = req.originalUrl || ''
+
+  // /openai 前缀下的请求应固定走 OpenAI 后端，避免供应商自定义模型名被误判到 Claude
+  if (baseUrl === '/openai' || originalUrl.startsWith('/openai/')) {
+    backend = 'openai'
+  }
 
   // 🔍 当无法从模型名判断时，根据URL路径进行补充判断
   if (backend === null) {
