@@ -6,6 +6,7 @@ const config = require('../../config/config')
 const { authenticateApiKey } = require('../middleware/auth')
 const unifiedOpenAIScheduler = require('../services/unifiedOpenAIScheduler')
 const openaiAccountService = require('../services/openaiAccountService')
+const openaiChatAccountService = require('../services/openaiChatAccountService')
 const openaiResponsesAccountService = require('../services/openaiResponsesAccountService')
 const openaiResponsesRelayService = require('../services/openaiResponsesRelayService')
 const bridgeService = require('../services/bridgeService') // Bridge Service
@@ -209,6 +210,28 @@ async function getOpenAIAuthToken(apiKeyData, sessionId = null, requestedModel =
       }
 
       logger.info(`Selected OpenAI-Responses account: ${account.name} (${result.accountId})`)
+    } else if (result.accountType === 'openai-chat') {
+      // 处理 OpenAI-Chat 账户
+      account = await openaiChatAccountService.getAccount(result.accountId)
+      if (!account || !account.apiKey) {
+        const error = new Error(`OpenAI-Chat account ${result.accountId} has no valid apiKey`)
+        error.statusCode = 403 // Forbidden - 账户配置错误
+        throw error
+      }
+
+      // OpenAI-Chat 使用账户内的 apiKey，不需要 accessToken
+      accessToken = null
+
+      // 解析代理配置
+      if (account.proxy) {
+        try {
+          proxy = typeof account.proxy === 'string' ? JSON.parse(account.proxy) : account.proxy
+        } catch (e) {
+          logger.warn('Failed to parse proxy configuration for OpenAI-Chat account:', e)
+        }
+      }
+
+      logger.info(`Selected OpenAI-Chat account: ${account.name} (${result.accountId})`)
     } else if (
       result.accountType === 'claude-official' ||
       result.accountType === 'claude-console'
@@ -422,6 +445,12 @@ const handleResponses = async (req, res) => {
     // 如果是 OpenAI-Responses 账户，直接使用中继服务
     if (accountType === 'openai-responses') {
       logger.info(`🔀 Using OpenAI-Responses relay service for account: ${account.name}`)
+      return await openaiResponsesRelayService.handleRequest(req, res, account, apiKeyData)
+    }
+
+    // 如果是 OpenAI-Chat 账户，使用标准 OpenAI API 兼容模式
+    if (accountType === 'openai-chat') {
+      logger.info(`🔀 Using OpenAI-Chat account for OpenAI-compatible API: ${account.name}`)
       return await openaiResponsesRelayService.handleRequest(req, res, account, apiKeyData)
     }
 

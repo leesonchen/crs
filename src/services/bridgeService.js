@@ -414,6 +414,9 @@ class BridgeService {
     if (accountType === 'openai') {
       const openaiAccountService = require('./openaiAccountService')
       return await openaiAccountService.getAccount(accountId)
+    } else if (accountType === 'openai-chat') {
+      const openaiChatAccountService = require('./openaiChatAccountService')
+      return await openaiChatAccountService.getAccount(accountId)
     } else {
       const openaiResponsesAccountService = require('./openaiResponsesAccountService')
       return await openaiResponsesAccountService.getAccount(accountId)

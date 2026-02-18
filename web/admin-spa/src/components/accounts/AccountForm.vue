@@ -4362,6 +4362,7 @@ const form = ref({
     if (platform === 'gemini' || platform === 'gemini-antigravity' || platform === 'openai')
       return 'oauth'
     if (platform === 'claude') return 'oauth'
+    if (platform === 'openai-chat') return 'manual'
     return 'manual'
   })(),
   name: props.account?.name || '',
@@ -6249,6 +6250,9 @@ watch(
     } else if (newPlatform === 'openai') {
       // 切换到 OpenAI 时，使用 OAuth 作为默认方式
       form.value.addType = 'oauth'
+    } else if (newPlatform === 'openai-chat') {
+      // OpenAI-Chat 不需要 OAuth，使用手动模式
+      form.value.addType = 'manual'
     } else if (newPlatform === 'gemini-api' || newPlatform === 'azure_openai') {
       // 切换到 Gemini API 或 Azure OpenAI 时，使用 apikey 模式（直接创建，不需要 OAuth 流程）
       form.value.addType = 'apikey'
