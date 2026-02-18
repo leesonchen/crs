@@ -176,15 +176,15 @@
                   <td class="w-48 whitespace-nowrap px-6 py-4">
                     <div class="flex items-center">
                       <div
-                        class="mr-3 flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600"
+                        class="mr-3 flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-blue-500"
                       >
-                        <i class="fas fa-eye-slash text-xs text-white" />
+                        <i class="fas fa-sign-in-alt text-xs text-white" />
                       </div>
                       <div>
                         <div class="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                          管理入口
+                          管理后台按钮
                         </div>
-                        <div class="text-xs text-gray-500 dark:text-gray-400">登录按钮显示</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400">登录页显示/隐藏</div>
                       </div>
                     </div>
                   </td>
@@ -200,9 +200,42 @@
                         }}</span>
                       </label>
                     </div>
-                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                      隐藏后，用户需要直接访问 /admin/login 页面登录
-                    </p>
+                  </td>
+                </tr>
+
+                <!-- 账户导入导出按钮显示控制 -->
+                <tr class="table-row">
+                  <td class="w-48 whitespace-nowrap px-6 py-4">
+                    <div class="flex items-center">
+                      <div
+                        class="mr-3 flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-orange-500 to-amber-500"
+                      >
+                        <i class="fas fa-file-export text-xs text-white" />
+                      </div>
+                      <div>
+                        <div class="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                          导入/导出按钮
+                        </div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400">账户列表操作栏</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="px-6 py-4">
+                    <div class="flex items-center">
+                      <label class="inline-flex cursor-pointer items-center">
+                        <input
+                          v-model="oemSettings.showImportExportButtons"
+                          class="peer sr-only"
+                          type="checkbox"
+                        />
+                        <div
+                          class="peer relative h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:border-gray-600 dark:bg-gray-700 dark:peer-focus:ring-blue-800"
+                        ></div>
+                        <span class="ml-3 text-sm font-medium text-gray-900 dark:text-gray-300">{{
+                          oemSettings.showImportExportButtons ? '显示导入/导出' : '隐藏导入/导出'
+                        }}</span>
+                      </label>
+                    </div>
                   </td>
                 </tr>
 
@@ -3622,6 +3655,7 @@ const saveOemSettings = async () => {
       siteIcon: oemSettings.value.siteIcon,
       siteIconData: oemSettings.value.siteIconData,
       showAdminButton: oemSettings.value.showAdminButton,
+      showImportExportButtons: oemSettings.value.showImportExportButtons,
       apiStatsNotice: oemSettings.value.apiStatsNotice
     }
     const result = await settingsStore.saveOemSettings(settings)

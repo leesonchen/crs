@@ -188,6 +188,39 @@
               </el-tooltip>
             </div>
 
+            <!-- 导出/导入按钮（可配置显示） -->
+            <template v-if="oemSettings.showImportExportButtons !== false">
+              <div class="relative">
+                <el-tooltip content="导出所有账户（含密钥）" effect="dark" placement="bottom">
+                  <button
+                    class="group relative flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-500 sm:w-auto"
+                    @click="exportAccounts"
+                  >
+                    <div
+                      class="absolute -inset-0.5 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 opacity-0 blur transition duration-300 group-hover:opacity-20"
+                    ></div>
+                    <i class="fas fa-file-export relative text-blue-500" />
+                    <span class="relative">导出</span>
+                  </button>
+                </el-tooltip>
+              </div>
+
+              <div class="relative">
+                <el-tooltip content="从JSON文件导入账户" effect="dark" placement="bottom">
+                  <button
+                    class="group relative flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-500 sm:w-auto"
+                    @click="showImportModal = true"
+                  >
+                    <div
+                      class="absolute -inset-0.5 rounded-lg bg-gradient-to-r from-orange-500 to-amber-500 opacity-0 blur transition duration-300 group-hover:opacity-20"
+                    ></div>
+                    <i class="fas fa-file-import relative text-orange-500" />
+                    <span class="relative">导入</span>
+                  </button>
+                </el-tooltip>
+              </div>
+            </template>
+
             <!-- 批量删除按钮 -->
             <button
               v-if="selectedAccounts.length > 0"
@@ -2023,6 +2056,77 @@
       @saved="handleBalanceScriptSaved"
     />
 
+    <!-- 账户导入弹窗 -->
+    <el-dialog
+      v-model="showImportModal"
+      :close-on-click-modal="false"
+      title="导入账户"
+      width="600px"
+      @close="closeImportModal"
+    >
+      <div class="space-y-4">
+        <div>
+          <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            选择JSON文件或粘贴数据
+          </label>
+          <input
+            accept=".json"
+            class="mb-2 block w-full text-sm text-gray-500 file:mr-4 file:rounded-full file:border-0 file:bg-indigo-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100 dark:file:bg-indigo-900/30 dark:file:text-indigo-300"
+            type="file"
+            @change="handleImportFile"
+          />
+          <textarea
+            v-model="importFileContent"
+            class="w-full rounded-lg border border-gray-300 bg-white p-3 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+            placeholder="粘贴JSON格式的账户数据..."
+            rows="10"
+          ></textarea>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <input
+            id="forceImport"
+            v-model="forceImport"
+            class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+            type="checkbox"
+          />
+          <label class="text-sm text-gray-700 dark:text-gray-300" for="forceImport">
+            强制覆盖已存在的账户
+          </label>
+        </div>
+
+        <div
+          class="rounded-lg bg-blue-50 p-3 text-sm text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+        >
+          <p class="font-medium">支持的格式：</p>
+          <ul class="mt-1 list-inside list-disc text-xs">
+            <li>直接账户数组：[{id, name, platform, ...}]</li>
+            <li>包含data.accounts的对象</li>
+            <li>CRS导出格式（包含claudeAccounts等）</li>
+          </ul>
+        </div>
+      </div>
+
+      <template #footer>
+        <div class="flex justify-end gap-3">
+          <button
+            class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+            @click="closeImportModal"
+          >
+            取消
+          </button>
+          <button
+            class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+            :disabled="importLoading || !importFileContent.trim()"
+            @click="importAccounts"
+          >
+            <i v-if="importLoading" class="fas fa-spinner fa-spin mr-2"></i>
+            {{ importLoading ? '导入中...' : '开始导入' }}
+          </button>
+        </div>
+      </template>
+    </el-dialog>
+
     <!-- 账户统计弹窗 -->
     <el-dialog
       v-model="showAccountStatsModal"
@@ -2174,9 +2278,12 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { storeToRefs } from 'pinia'
+
 import { showToast, copyText, formatNumber, formatRelativeTime } from '@/utils/tools'
 
 import * as httpApis from '@/utils/http_apis'
+import { useSettingsStore } from '@/stores/settings'
 import AccountForm from '@/components/accounts/AccountForm.vue'
 import CcrAccountForm from '@/components/accounts/CcrAccountForm.vue'
 import AccountUsageDetailModal from '@/components/accounts/AccountUsageDetailModal.vue'
@@ -2211,6 +2318,10 @@ const handleCancel = () => {
   confirmResolve?.(false)
   confirmResolve = null
 }
+
+// OEM 设置
+const settingsStore = useSettingsStore()
+const { oemSettings } = storeToRefs(settingsStore)
 
 // 数据状态
 const accounts = ref([])
@@ -2431,6 +2542,12 @@ const showCreateAccountModal = ref(false)
 const newAccountPlatform = ref(null) // 跟踪新建账户选择的平台
 const showEditAccountModal = ref(false)
 const editingAccount = ref(null)
+
+// 账户导入导出功能
+const showImportModal = ref(false)
+const importFileContent = ref('')
+const importLoading = ref(false)
+const forceImport = ref(false)
 
 const collectAccountSearchableStrings = (account) => {
   const values = new Set()
@@ -3155,6 +3272,127 @@ const loadBalanceCacheForAccounts = async () => {
     ...account,
     balanceInfo: balanceMap[account.id] || account.balanceInfo || null
   }))
+}
+
+// 账户导出
+const exportAccounts = async () => {
+  try {
+    const response = await httpApis.exportAccountsApi(true)
+    if (response.success && response.data) {
+      const dataStr = JSON.stringify(response.data, null, 2)
+      const blob = new Blob([dataStr], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `accounts-export-${new Date().toISOString().split('T')[0]}.json`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+      showToast('账户导出成功', 'success')
+    } else {
+      showToast(response.message || '导出失败', 'error')
+    }
+  } catch (error) {
+    showToast(error.message || '导出失败', 'error')
+  }
+}
+
+// 处理导入文件选择
+const handleImportFile = (event) => {
+  const file = event.target.files?.[0]
+  if (!file) return
+
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    try {
+      importFileContent.value = e.target?.result || ''
+    } catch (error) {
+      showToast('文件读取失败', 'error')
+    }
+  }
+  reader.readAsText(file)
+}
+
+// 导入账户
+const importAccounts = async () => {
+  if (!importFileContent.value.trim()) {
+    showToast('请选择或粘贴JSON数据', 'warning')
+    return
+  }
+
+  let importData
+  try {
+    importData = JSON.parse(importFileContent.value)
+  } catch (error) {
+    showToast('JSON格式错误，请检查输入', 'error')
+    return
+  }
+
+  // 支持直接导入账户数组或包含data.accounts的对象
+  let accountsToImport = []
+  if (Array.isArray(importData)) {
+    accountsToImport = importData
+  } else if (importData.data && Array.isArray(importData.data.accounts)) {
+    accountsToImport = importData.data.accounts
+  } else if (importData.data && Array.isArray(importData.data.claudeAccounts)) {
+    // 处理导出格式
+    const data = importData.data
+    const claudeAccounts = data.claudeAccounts || []
+    const claudeConsoleAccounts = data.claudeConsoleAccounts || []
+    const openaiOAuthAccounts = data.openaiOAuthAccounts || []
+    const openaiResponsesAccounts = data.openaiResponsesAccounts || []
+    accountsToImport = [
+      ...claudeAccounts,
+      ...claudeConsoleAccounts,
+      ...openaiOAuthAccounts,
+      ...openaiResponsesAccounts
+    ]
+  } else {
+    showToast('无效的账户数据格式', 'error')
+    return
+  }
+
+  if (accountsToImport.length === 0) {
+    showToast('没有找到可导入的账户', 'warning')
+    return
+  }
+
+  importLoading.value = true
+  try {
+    const response = await httpApis.importAccountsApi({
+      accounts: accountsToImport,
+      force: forceImport.value
+    })
+
+    if (response.success) {
+      const { imported, skipped, errors } = response.data
+      let message = `导入完成: ${imported} 个成功`
+      if (skipped > 0) message += `, ${skipped} 个已存在被跳过`
+      if (errors.length > 0) message += `, ${errors.length} 个失败`
+      showToast(message, errors.length > 0 ? 'warning' : 'success')
+
+      if (imported > 0) {
+        showImportModal.value = false
+        importFileContent.value = ''
+        forceImport.value = false
+        loadAccounts(true)
+      }
+    } else {
+      showToast(response.message || '导入失败', 'error')
+    }
+  } catch (error) {
+    showToast(error.message || '导入失败', 'error')
+  } finally {
+    importLoading.value = false
+  }
+}
+
+// 关闭导入弹窗
+const closeImportModal = () => {
+  showImportModal.value = false
+  importFileContent.value = ''
+  forceImport.value = false
 }
 
 // 加载账户列表
