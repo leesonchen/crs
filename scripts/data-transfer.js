@@ -568,7 +568,7 @@ async function importData() {
       logger.info('\n📥 Importing Claude accounts...')
       for (const account of importDataObj.data.claudeAccounts) {
         try {
-          const exists = await redis.client.exists(`claude_account:${account.id}`)
+          const exists = await redis.client.exists(`claude:account:${account.id}`)
 
           if (exists && !forceOverwrite) {
             if (skipConflicts) {
@@ -591,9 +591,9 @@ async function importData() {
           for (const [field, value] of Object.entries(account)) {
             // 如果是对象，需要序列化
             if (field === 'claudeAiOauth' && typeof value === 'object') {
-              pipeline.hset(`claude_account:${account.id}`, field, JSON.stringify(value))
+              pipeline.hset(`claude:account:${account.id}`, field, JSON.stringify(value))
             } else {
-              pipeline.hset(`claude_account:${account.id}`, field, value)
+              pipeline.hset(`claude:account:${account.id}`, field, value)
             }
           }
           await pipeline.exec()
@@ -611,7 +611,7 @@ async function importData() {
       logger.info('\n📥 Importing Gemini accounts...')
       for (const account of importDataObj.data.geminiAccounts) {
         try {
-          const exists = await redis.client.exists(`gemini_account:${account.id}`)
+          const exists = await redis.client.exists(`gemini:account:${account.id}`)
 
           if (exists && !forceOverwrite) {
             if (skipConflicts) {
@@ -632,7 +632,7 @@ async function importData() {
           // 使用 hset 存储到哈希表
           const pipeline = redis.client.pipeline()
           for (const [field, value] of Object.entries(account)) {
-            pipeline.hset(`gemini_account:${account.id}`, field, value)
+            pipeline.hset(`gemini:account:${account.id}`, field, value)
           }
           await pipeline.exec()
           logger.success(`✅ Imported Gemini account: ${account.name} (${account.id})`)
