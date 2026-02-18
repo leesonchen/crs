@@ -332,6 +332,15 @@ export const getClaudeRelayConfigApi = (config) =>
 export const updateClaudeRelayConfigApi = (data, config) =>
   request({ url: '/admin/claude-relay-config', method: 'PUT', data, ...config })
 
+// 账户导入导出
+export const exportAccountsApi = (includeSecrets = true) =>
+  request({
+    url: `/admin/sync/export-accounts?include_secrets=${includeSecrets}`,
+    method: 'GET'
+  })
+export const importAccountsApi = (data) =>
+  request({ url: '/admin/sync/import-accounts', method: 'POST', data })
+
 // 服务倍率配置（管理端）
 export const getAdminServiceRatesApi = (config) =>
   request({ url: '/admin/service-rates', method: 'GET', ...config })
