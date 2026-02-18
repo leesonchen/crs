@@ -199,6 +199,103 @@ router.get('/accounts/usage-stats', authenticateAdmin, async (req, res) => {
   }
 })
 
+// 📋 获取使用明细列表（使用详细记录数据）
+router.get('/usage-details', authenticateAdmin, async (req, res) => {
+  try {
+    const { limit = 200, apiKeyId } = req.query
+
+    logger.info(`📋 Fetching usage details: limit=${limit}, apiKeyId=${apiKeyId || 'all'}`)
+
+    // 如果指定了 apiKeyId，只查询该 key 的记录
+    if (apiKeyId) {
+      const records = await redis.getUsageRecords(apiKeyId, parseInt(limit))
+
+      // 获取 API Key 名称
+      let apiKeyName = apiKeyId
+      try {
+        const apiKey = await apiKeyService.getApiKeyById(apiKeyId)
+        if (apiKey) {
+          apiKeyName = apiKey.name || apiKeyId
+        }
+      } catch (e) {
+        // 忽略错误
+      }
+
+      // 格式化返回数据
+      const formattedRecords = records.map((record) => ({
+        timestamp: record.timestamp, // ISO 8601 格式: 2025-10-05T18:23:45.123Z
+        apiKey: apiKeyName,
+        apiKeyId,
+        account: record.accountId || 'N/A',
+        model: record.model,
+        inputTokens: record.inputTokens,
+        outputTokens: record.outputTokens,
+        cacheCreateTokens: record.cacheCreateTokens || 0,
+        cacheReadTokens: record.cacheReadTokens || 0,
+        totalTokens: record.totalTokens,
+        cost: record.cost ? `$${record.cost.toFixed(6)}` : '$0.000000',
+        costValue: record.cost || 0,
+        requests: 1 // 单次请求
+      }))
+
+      return res.json({
+        success: true,
+        data: {
+          records: formattedRecords,
+          total: formattedRecords.length,
+          apiKeyId
+        }
+      })
+    }
+
+    // 未指定 apiKeyId，返回所有 API Key 的最新记录
+    const allKeys = await apiKeyService.getAllApiKeys()
+    const allRecords = []
+
+    for (const key of allKeys) {
+      const records = await redis.getUsageRecords(key.id, 50) // 每个key取50条
+
+      records.forEach((record) => {
+        allRecords.push({
+          timestamp: record.timestamp,
+          apiKey: key.name || key.id,
+          apiKeyId: key.id,
+          account: record.accountId || 'N/A',
+          model: record.model,
+          inputTokens: record.inputTokens,
+          outputTokens: record.outputTokens,
+          cacheCreateTokens: record.cacheCreateTokens || 0,
+          cacheReadTokens: record.cacheReadTokens || 0,
+          totalTokens: record.totalTokens,
+          cost: record.cost ? `$${record.cost.toFixed(6)}` : '$0.000000',
+          costValue: record.cost || 0,
+          requests: 1
+        })
+      })
+    }
+
+    // 按时间倒序排序
+    allRecords.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+
+    // 取前 limit 条
+    const limitedRecords = allRecords.slice(0, parseInt(limit))
+
+    return res.json({
+      success: true,
+      data: {
+        records: limitedRecords,
+        total: limitedRecords.length
+      }
+    })
+  } catch (error) {
+    logger.error('❌ Failed to get usage details:', error)
+    return res.status(500).json({
+      error: 'Failed to get usage details',
+      message: error.message
+    })
+  }
+})
+
 // 获取单个账户的使用统计
 router.get('/accounts/:accountId/usage-stats', authenticateAdmin, async (req, res) => {
   try {
@@ -1115,12 +1212,13 @@ router.get('/api-keys/:keyId/model-stats', authenticateAdmin, async (req, res) =
 })
 
 // 获取按账号分组的使用趋势
-router.get('/account-usage-trend', authenticateAdmin, async (req, res) => {
+router.get('/account-usage-records', authenticateAdmin, async (req, res) => {
   try {
     const { granularity = 'day', group = 'claude', days = 7, startDate, endDate } = req.query
 
     const allowedGroups = ['claude', 'openai', 'gemini', 'droid', 'bedrock']
     if (!allowedGroups.includes(group)) {
+      // ...
       return res.status(400).json({
         success: false,
         error: 'Invalid account group'
