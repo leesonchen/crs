@@ -5046,7 +5046,10 @@ const checkHorizontalScroll = () => {
 // 窗口大小变化时重新检测
 let resizeObserver = null
 
-onMounted(() => {
+onMounted(async () => {
+  // 加载OEM设置
+  await settingsStore.loadOemSettings()
+
   // 首次加载时强制刷新所有数据
   loadAccounts(true)
 
