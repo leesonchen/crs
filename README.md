@@ -11,8 +11,8 @@
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
 [![Redis](https://img.shields.io/badge/Redis-6+-red.svg)](https://redis.io/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://www.docker.com/)
-[![Docker Build](https://git.leeson.top/leesonchen/crs/actions/workflows/auto-release-pipeline.yml/badge.svg)](https://git.leeson.top/leesonchen/crs/actions/workflows/auto-release-pipeline.yml)
-[![Docker Pulls](https://img.shields.io/docker/pulls/leesonchen/crs)](https://hub.docker.com/r/leesonchen/crs)
+[![Docker Build](https://github.com/Wei-Shaw/claude-relay-service/actions/workflows/auto-release-pipeline.yml/badge.svg)](https://github.com/Wei-Shaw/claude-relay-service/actions/workflows/auto-release-pipeline.yml)
+[![Docker Pulls](https://img.shields.io/docker/pulls/weishaw/claude-relay-service)](https://hub.docker.com/r/weishaw/claude-relay-service)
 
 **🔐 自行搭建Claude API中转服务，支持多账户管理**
 
@@ -28,7 +28,7 @@
 
 | 平台 | 服务 | 介绍 |
 |:---|:---|:---|
-| **[pincc.ai](https://pincc.ai/)** | <small>✅ Claude Code<br>✅ Codex CLI</small> | 提供稳定的 Codex CLI 拼车服务<br><br> **全新上线 2API 渠道**：接入CC的效果媲美官方 Anthropic Console 账号，暂不支持 Websearch 和 PDF 识别功能（Websearch 后期会支持）<br>💰 单价：0.8元=1美金额度 |
+| **[pincc.ai](https://pincc.ai/)** | <small>✅ Claude Code<br>✅ Codex CLI</small> | 提供稳定的 Codex CLI 拼车服务<br><br> **全新上线 2API 渠道**：接入CC的效果媲美官方 Anthropic Console 账号，暂不支持 PDF 识别功能 <br>💰 单价：0.8元=1美金额度 |
 
 
 </div>
@@ -42,6 +42,7 @@
 🚨 **服务条款风险**: 使用本项目可能违反Anthropic的服务条款。请在使用前仔细阅读Anthropic的用户协议，使用本项目的一切风险由用户自行承担。
 
 📖 **免责声明**: 本项目仅供技术学习和研究使用，作者不对因使用本项目导致的账户封禁、服务中断或其他损失承担任何责任。
+
 
 ## 🤔 这个项目适合你吗？
 
@@ -157,7 +158,7 @@ crs uninstall # 卸载服务
 $ crs install
 
 # 会依次询问：
-安装目录 (默认: ~/crs):
+安装目录 (默认: ~/claude-relay-service):
 服务端口 (默认: 3000): 8080
 Redis 地址 (默认: localhost):
 Redis 端口 (默认: 6379):
@@ -214,8 +215,8 @@ sudo systemctl start redis
 
 ```bash
 # 下载项目
-git clone https://git.leeson.top/leesonchen//crs.git
-cd crs
+git clone https://github.com/Wei-Shaw//claude-relay-service.git
+cd claude-relay-service
 
 # 安装依赖
 npm install
@@ -290,13 +291,11 @@ npm run service:status
 ### Docker compose
 
 #### 第一步：下载构建docker-compose.yml文件的脚本并执行
-
 ```bash
 curl -fsSL https://pincc.ai/crs-compose.sh -o crs-compose.sh && chmod +x crs-compose.sh && ./crs-compose.sh
 ```
 
 #### 第二步：启动
-
 ```bash
 docker-compose up -d
 ```
@@ -491,21 +490,14 @@ name = "crs"
 base_url = "http://127.0.0.1:3000/openai"  # 根据实际填写你服务器的ip地址或者域名
 wire_api = "responses"
 requires_openai_auth = true
-env_key = "CRS_OAI_KEY"
 ```
 
 在 `~/.codex/auth.json` 文件中配置API密钥为 null：
 
 ```json
 {
-  "OPENAI_API_KEY": null
+    "OPENAI_API_KEY": "后台创建的API密钥"  
 }
-```
-
-环境变量设置：
-
-```bash
-export CRS_OAI_KEY="后台创建的API密钥"
 ```
 
 > ⚠️ 在通过 Nginx 反向代理 CRS 服务并使用 Codex CLI 时，需要在 http 块中添加 underscores_in_headers on;。因为 Nginx 默认会移除带下划线的请求头（如 session_id），一旦该头被丢弃，多账号环境下的粘性会话功能将失效。
@@ -575,7 +567,6 @@ claude-opus-4-20250514     # Claude Opus 4
 ```
 
 配置步骤：
-
 - 供应商类型选择"Anthropic"
 - API地址填入：`http://你的服务器:3000/claude`
 - API Key填入：后台创建的API密钥（cr_开头）
@@ -591,7 +582,6 @@ gemini-2.5-pro             # Gemini 2.5 Pro
 ```
 
 配置步骤：
-
 - 供应商类型选择"Gemini"
 - API地址填入：`http://你的服务器:3000/gemini`
 - API Key填入：后台创建的API密钥（cr_开头）
@@ -607,7 +597,6 @@ gpt-5                      # Codex使用固定模型ID
 ```
 
 配置步骤：
-
 - 供应商类型选择"Openai-Response"
 - API地址填入：`http://你的服务器:3000/openai`
 - API Key填入：后台创建的API密钥（cr_开头）
@@ -673,7 +662,7 @@ npm run service:stop
 
 ```bash
 # 1. 进入项目目录
-cd crs
+cd claude-relay-service
 
 # 2. 拉取最新代码
 git pull origin main
@@ -724,6 +713,7 @@ npm run service:status
    - 系统会在日志中记录所有请求的User-Agent
    - 客户端验证失败时会返回403错误并记录详细信息
    - 通过日志可以查看实际的User-Agent格式，方便配置自定义客户端
+
 
 ### 日志示例
 
@@ -990,27 +980,6 @@ proxy_request_buffering off;
 - **GitHub Issues**: 提交详细的错误信息
 - **查看文档**: 仔细阅读错误信息和文档
 - **社区讨论**: 看看其他人是否遇到类似问题
-
----
-
-## ❤️ 赞助支持
-
-如果您觉得这个项目对您有帮助，请考虑赞助支持项目的持续开发。您的支持是我们最大的动力！
-
-<div align="center">
-
-<a href="https://afdian.com/a/claude-relay-service" target="_blank">
-  <img src="https://img.shields.io/badge/请我喝杯咖啡-爱发电-946ce6?style=for-the-badge&logo=buy-me-a-coffee&logoColor=white" alt="Sponsor">
-</a>
-
-<table>
-  <tr>
-    <td><img src="docs/sponsoring/wechat.jpg" width="200" alt="wechat" /></td>
-    <td><img src="docs/sponsoring/alipay.jpg" width="200" alt="alipay" /></td>
-  </tr>
-</table>
-
-</div>
 
 ---
 

@@ -1,12 +1,13 @@
-const claudeAccountService = require('./claudeAccountService')
-const claudeConsoleAccountService = require('./claudeConsoleAccountService')
-const bedrockAccountService = require('./bedrockAccountService')
-const ccrAccountService = require('./ccrAccountService')
-const accountGroupService = require('./accountGroupService')
-const redis = require('../models/redis')
-const logger = require('../utils/logger')
-const { parseVendorPrefixedModel, isOpus45OrNewer } = require('../utils/modelHelper')
-const { isSchedulable, sortAccountsByPriority } = require('../utils/commonHelper')
+const claudeAccountService = require('../account/claudeAccountService')
+const claudeConsoleAccountService = require('../account/claudeConsoleAccountService')
+const bedrockAccountService = require('../account/bedrockAccountService')
+const ccrAccountService = require('../account/ccrAccountService')
+const accountGroupService = require('../accountGroupService')
+const redis = require('../../models/redis')
+const logger = require('../../utils/logger')
+const { parseVendorPrefixedModel, isOpus45OrNewer } = require('../../utils/modelHelper')
+const { isSchedulable, sortAccountsByPriority } = require('../../utils/commonHelper')
+const upstreamErrorHelper = require('../../utils/upstreamErrorHelper')
 
 /**
  * Check if account is Pro (not Max)
@@ -1299,7 +1300,7 @@ class UnifiedClaudeScheduler {
     const client = redis.getClientSafe()
     const mappingData = JSON.stringify({ accountId, accountType })
     // 依据配置设置TTL（小时）
-    const appConfig = require('../../config/config')
+    const appConfig = require('../../../config/config')
     const ttlHours = appConfig.session?.stickyTtlHours || 1
     const ttlSeconds = Math.max(1, Math.floor(ttlHours * 60 * 60))
     await client.setex(`${this.SESSION_MAPPING_PREFIX}${sessionHash}`, ttlSeconds, mappingData)
@@ -1348,7 +1349,7 @@ class UnifiedClaudeScheduler {
         return true
       }
 
-      const appConfig = require('../../config/config')
+      const appConfig = require('../../../config/config')
       const ttlHours = appConfig.session?.stickyTtlHours || 1
       const renewalThresholdMinutes = appConfig.session?.renewalThresholdMinutes || 0
 
@@ -1385,15 +1386,10 @@ class UnifiedClaudeScheduler {
     ttlSeconds = 300
   ) {
     try {
-      const client = redis.getClientSafe()
-      const key = `temp_unavailable:${accountType}:${accountId}`
-      await client.setex(key, ttlSeconds, '1')
+      await upstreamErrorHelper.markTempUnavailable(accountId, accountType, 500, ttlSeconds)
       if (sessionHash) {
         await this._deleteSessionMapping(sessionHash)
       }
-      logger.warn(
-        `⏱️ Account ${accountId} (${accountType}) marked temporarily unavailable for ${ttlSeconds}s`
-      )
       return { success: true }
     } catch (error) {
       logger.error(`❌ Failed to mark account temporarily unavailable: ${accountId}`, error)
@@ -1403,14 +1399,7 @@ class UnifiedClaudeScheduler {
 
   // 🔍 检查账户是否临时不可用
   async isAccountTemporarilyUnavailable(accountId, accountType) {
-    try {
-      const client = redis.getClientSafe()
-      const key = `temp_unavailable:${accountType}:${accountId}`
-      return (await client.exists(key)) === 1
-    } catch (error) {
-      logger.error(`❌ Failed to check temp unavailable status: ${accountId}`, error)
-      return false
-    }
+    return upstreamErrorHelper.isTempUnavailable(accountId, accountType)
   }
 
   // 🚫 标记账户为限流状态

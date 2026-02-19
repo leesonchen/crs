@@ -1,9 +1,10 @@
 const { v4: uuidv4 } = require('uuid')
 const crypto = require('crypto')
-const redis = require('../models/redis')
-const logger = require('../utils/logger')
-const config = require('../../config/config')
-const LRUCache = require('../utils/lruCache')
+const redis = require('../../models/redis')
+const logger = require('../../utils/logger')
+const config = require('../../../config/config')
+const LRUCache = require('../../utils/lruCache')
+const upstreamErrorHelper = require('../../utils/upstreamErrorHelper')
 
 class OpenAIResponsesAccountService {
   constructor() {
@@ -50,7 +51,8 @@ class OpenAIResponsesAccountService {
       dailyQuota = 0, // 每日额度限制（美元），0表示不限制
       quotaResetTime = '00:00', // 额度重置时间（HH:mm格式）
       rateLimitDuration = 60, // 限流时间（分钟）
-      supportedModels = [] // 支持的模型列表或映射表，空数组/对象表示支持所有
+      supportedModels = [], // 支持的模型列表或映射表，空数组/对象表示支持所有
+      disableAutoProtection = false // 是否关闭自动防护（429/401/400/529 不自动禁用）
     } = options
 
     // 验证必填字段
@@ -99,7 +101,8 @@ class OpenAIResponsesAccountService {
       quotaResetTime,
       quotaStoppedAt: '',
       // ✅ 模型映射：使用supportedModels字段（与Claude Console保持一致）
-      supportedModels: JSON.stringify(processedModels)
+      supportedModels: JSON.stringify(processedModels),
+      disableAutoProtection: disableAutoProtection.toString() // 关闭自动防护
     }
 
     // 保存到 Redis
@@ -184,6 +187,11 @@ class OpenAIResponsesAccountService {
     // OpenAI-Responses 使用 API Key，没有 token 刷新逻辑，不会覆盖此字段
     if (updates.subscriptionExpiresAt !== undefined) {
       // 直接保存，不做任何调整
+    }
+
+    // 自动防护开关
+    if (updates.disableAutoProtection !== undefined) {
+      updates.disableAutoProtection = updates.disableAutoProtection.toString()
     }
 
     // 更新 Redis
@@ -345,7 +353,7 @@ class OpenAIResponsesAccountService {
     )
 
     try {
-      const webhookNotifier = require('../utils/webhookNotifier')
+      const webhookNotifier = require('../../utils/webhookNotifier')
       await webhookNotifier.sendAccountAnomalyNotification({
         accountId,
         accountName: account.name || accountId,
@@ -510,9 +518,12 @@ class OpenAIResponsesAccountService {
     await this.updateAccount(accountId, updates)
     logger.info(`✅ Reset all error status for OpenAI-Responses account ${accountId}`)
 
+    // 清除临时不可用状态
+    await upstreamErrorHelper.clearTempUnavailable(accountId, 'openai-responses').catch(() => {})
+
     // 发送 Webhook 通知
     try {
-      const webhookNotifier = require('../utils/webhookNotifier')
+      const webhookNotifier = require('../../utils/webhookNotifier')
       await webhookNotifier.sendAccountAnomalyNotification({
         accountId,
         accountName: account.name || accountId,

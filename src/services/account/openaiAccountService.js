@@ -1,19 +1,20 @@
-const redisClient = require('../models/redis')
+const redisClient = require('../../models/redis')
 const { v4: uuidv4 } = require('uuid')
 const axios = require('axios')
-const ProxyHelper = require('../utils/proxyHelper')
-const config = require('../../config/config')
-const logger = require('../utils/logger')
-// const { maskToken } = require('../utils/tokenMask')
+const ProxyHelper = require('../../utils/proxyHelper')
+const config = require('../../../config/config')
+const logger = require('../../utils/logger')
+const upstreamErrorHelper = require('../../utils/upstreamErrorHelper')
+// const { maskToken } = require('../../utils/tokenMask')
 const {
   logRefreshStart,
   logRefreshSuccess,
   logRefreshError,
   logTokenUsage,
   logRefreshSkipped
-} = require('../utils/tokenRefreshLogger')
-const tokenRefreshService = require('./tokenRefreshService')
-const { createEncryptor } = require('../utils/commonHelper')
+} = require('../../utils/tokenRefreshLogger')
+const tokenRefreshService = require('../tokenRefreshService')
+const { createEncryptor } = require('../../utils/commonHelper')
 
 // 使用 commonHelper 的加密器
 const encryptor = createEncryptor('openai-account-salt')
@@ -465,7 +466,7 @@ async function refreshAccountToken(accountId) {
 
     // 发送 Webhook 通知（如果启用）
     try {
-      const webhookNotifier = require('../utils/webhookNotifier')
+      const webhookNotifier = require('../../utils/webhookNotifier')
       await webhookNotifier.sendAccountAnomalyNotification({
         accountId,
         accountName: account?.name || accountName,
@@ -556,6 +557,11 @@ async function createAccount(accountData) {
     isActive: accountData.isActive !== false ? 'true' : 'false',
     status: 'active',
     schedulable: accountData.schedulable !== false ? 'true' : 'false',
+    // 自动防护开关
+    disableAutoProtection:
+      accountData.disableAutoProtection === true || accountData.disableAutoProtection === 'true'
+        ? 'true'
+        : 'false',
     lastRefresh: now,
     createdAt: now,
     updatedAt: now,
@@ -670,6 +676,14 @@ async function updateAccount(accountId, updates) {
   // subscriptionExpiresAt 是业务字段，与 token 刷新独立
   if (updates.subscriptionExpiresAt !== undefined) {
     // 直接保存，不做任何调整
+  }
+
+  // 处理 disableAutoProtection 布尔值转字符串
+  if (updates.disableAutoProtection !== undefined) {
+    updates.disableAutoProtection =
+      updates.disableAutoProtection === true || updates.disableAutoProtection === 'true'
+        ? 'true'
+        : 'false'
   }
 
   // 更新账户类型时处理共享账户集合
@@ -1019,7 +1033,7 @@ async function setAccountRateLimited(accountId, isLimited, resetsInSeconds = nul
   if (isLimited) {
     try {
       const account = await getAccount(accountId)
-      const webhookNotifier = require('../utils/webhookNotifier')
+      const webhookNotifier = require('../../utils/webhookNotifier')
       await webhookNotifier.sendAccountAnomalyNotification({
         accountId,
         accountName: account.name || accountId,
@@ -1063,7 +1077,7 @@ async function markAccountUnauthorized(accountId, reason = 'OpenAI账号认证�
   )
 
   try {
-    const webhookNotifier = require('../utils/webhookNotifier')
+    const webhookNotifier = require('../../utils/webhookNotifier')
     await webhookNotifier.sendAccountAnomalyNotification({
       accountId,
       accountName: account.name || accountId,
@@ -1103,9 +1117,12 @@ async function resetAccountStatus(accountId) {
   await updateAccount(accountId, updates)
   logger.info(`✅ Reset all error status for OpenAI account ${accountId}`)
 
+  // 清除临时不可用状态
+  await upstreamErrorHelper.clearTempUnavailable(accountId, 'openai').catch(() => {})
+
   // 发送 Webhook 通知
   try {
-    const webhookNotifier = require('../utils/webhookNotifier')
+    const webhookNotifier = require('../../utils/webhookNotifier')
     await webhookNotifier.sendAccountAnomalyNotification({
       accountId,
       accountName: account.name || accountId,

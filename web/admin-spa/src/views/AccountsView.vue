@@ -794,6 +794,23 @@
                       >
                     </span>
                     <span
+                      v-if="account.tempUnavailable"
+                      class="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+                    >
+                      <i class="fas fa-clock mr-1" />
+                      临时暂停
+                      <span v-if="account.tempUnavailable.ttl > 0"
+                        >({{ formatTempUnavailableTime(account.tempUnavailable.ttl) }})</span
+                      >
+                      <el-tooltip
+                        :content="`${account.tempUnavailable.errorType} (HTTP ${account.tempUnavailable.statusCode})`"
+                        effect="dark"
+                        placement="top"
+                      >
+                        <i class="fas fa-info-circle ml-1 cursor-help" />
+                      </el-tooltip>
+                    </span>
+                    <span
                       v-if="account.schedulable === false"
                       class="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700"
                     >
@@ -2035,8 +2052,9 @@
     />
 
     <!-- 账户测试弹窗 -->
-    <AccountTestModal
+    <UnifiedTestModal
       :account="testingAccount"
+      mode="account"
       :show="showAccountTestModal"
       @close="closeAccountTestModal"
     />
@@ -2288,7 +2306,7 @@ import AccountForm from '@/components/accounts/AccountForm.vue'
 import CcrAccountForm from '@/components/accounts/CcrAccountForm.vue'
 import AccountUsageDetailModal from '@/components/accounts/AccountUsageDetailModal.vue'
 import AccountExpiryEditModal from '@/components/accounts/AccountExpiryEditModal.vue'
-import AccountTestModal from '@/components/accounts/AccountTestModal.vue'
+import UnifiedTestModal from '@/components/common/UnifiedTestModal.vue'
 import AccountScheduledTestModal from '@/components/accounts/AccountScheduledTestModal.vue'
 import ConfirmModal from '@/components/common/ConfirmModal.vue'
 import CustomDropdown from '@/components/common/CustomDropdown.vue'
@@ -2621,7 +2639,10 @@ const showResetButton = (account) => {
     'openai-responses',
     'gemini',
     'gemini-api',
-    'ccr'
+    'ccr',
+    'droid',
+    'bedrock',
+    'azure-openai'
   ]
   return (
     supportedPlatforms.includes(account.platform) &&
@@ -2629,6 +2650,7 @@ const showResetButton = (account) => {
       account.status !== 'active' ||
       account.rateLimitStatus?.isRateLimited ||
       account.rateLimitStatus === 'limited' ||
+      account.tempUnavailable ||
       !account.isActive)
   )
 }
@@ -2729,6 +2751,7 @@ const supportedTestPlatforms = [
   'bedrock',
   'gemini',
   'openai-chat',
+  'gemini-api',
   'openai-responses',
   'azure-openai',
   'droid',
@@ -3568,6 +3591,39 @@ const loadAccounts = async (forceReload = false) => {
       }
     })
 
+    // 获取临时不可用状态并附加到账户数据
+    try {
+      const tempRes = await httpApis.getTempUnavailableApi()
+      if (tempRes?.success && tempRes.data) {
+        const tempStatuses = tempRes.data
+        filteredAccounts = filteredAccounts.map((account) => {
+          // 尝试匹配 accountType:accountId
+          const platformTypeMap = {
+            claude: 'claude-official',
+            'claude-console': 'claude-console',
+            bedrock: 'bedrock',
+            gemini: 'gemini',
+            'gemini-api': 'gemini-api',
+            openai: 'openai',
+            'openai-responses': 'openai-responses',
+            ccr: 'ccr',
+            droid: 'droid',
+            azure_openai: 'azure-openai',
+            'azure-openai': 'azure-openai'
+          }
+          const accountType = platformTypeMap[account.platform] || account.platform
+          const key = `${accountType}:${account.id}`
+          const tempStatus = tempStatuses[key]
+          if (tempStatus) {
+            return { ...account, tempUnavailable: tempStatus }
+          }
+          return account
+        })
+      }
+    } catch {
+      // 忽略错误，不影响账户列表显示
+    }
+
     accounts.value = filteredAccounts
     cleanupSelectedAccounts()
 
@@ -3849,6 +3905,16 @@ const formatRateLimitTime = (minutes) => {
     // 不到1小时，只显示分钟
     return `${mins}分钟`
   }
+}
+
+// 格式化临时暂停剩余时间（秒 → 可读格式）
+const formatTempUnavailableTime = (seconds) => {
+  if (!seconds || seconds <= 0) return ''
+  seconds = Math.floor(seconds)
+  const mins = Math.floor(seconds / 60)
+  const secs = seconds % 60
+  if (mins > 0) return `${mins}m${secs > 0 ? secs + 's' : ''}`
+  return `${secs}s`
 }
 
 // 检查账户是否被限流
@@ -4136,6 +4202,10 @@ const resetAccountStatus = async (account) => {
       endpoint = `/admin/gemini-api-accounts/${account.id}/reset-status`
     } else if (account.platform === 'gemini') {
       endpoint = `/admin/gemini-accounts/${account.id}/reset-status`
+    } else if (account.platform === 'bedrock') {
+      endpoint = `/admin/bedrock-accounts/${account.id}/reset-status`
+    } else if (account.platform === 'azure-openai') {
+      endpoint = `/admin/azure-openai-accounts/${account.id}/reset-status`
     } else {
       showToast('不支持的账户类型', 'error')
       account.isResetting = false
