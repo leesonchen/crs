@@ -1521,7 +1521,8 @@ class ApiKeyService {
     cacheReadTokens = 0,
     model = 'unknown',
     accountId = null,
-    accountType = null
+    accountType = null,
+    req = null
   ) {
     try {
       const totalTokens = inputTokens + outputTokens + cacheCreateTokens + cacheReadTokens
@@ -1626,6 +1627,7 @@ class ApiKeyService {
         model,
         accountId: accountId || null,
         accountType: accountType || null,
+        clientIP: req.ip || req.connection?.remoteAddress || req.socket?.remoteAddress || 'unknown',
         inputTokens,
         outputTokens,
         cacheCreateTokens,
@@ -1684,7 +1686,8 @@ class ApiKeyService {
     usageObject,
     model = 'unknown',
     accountId = null,
-    accountType = null
+    accountType = null,
+    req = null
   ) {
     try {
       // 提取 token 数量
@@ -1860,6 +1863,7 @@ class ApiKeyService {
         model,
         accountId: accountId || null,
         accountType: accountType || null,
+        clientIP: req.ip || req.connection?.remoteAddress || req.socket?.remoteAddress || 'unknown',
         inputTokens,
         outputTokens,
         cacheCreateTokens,

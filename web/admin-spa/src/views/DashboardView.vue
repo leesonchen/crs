@@ -824,6 +824,11 @@
                     模型
                   </th>
                   <th
+                    class="hidden px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 sm:table-cell sm:px-4 sm:text-sm"
+                  >
+                    客户端IP
+                  </th>
+                  <th
                     class="hidden px-3 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300 sm:px-4 sm:text-sm md:table-cell"
                   >
                     Token
@@ -870,6 +875,16 @@
                   <td class="px-3 py-2 text-xs text-gray-900 dark:text-gray-100 sm:px-4 sm:text-sm">
                     <span class="block max-w-[120px] truncate sm:max-w-none" :title="record.model">
                       {{ record.model }}
+                    </span>
+                  </td>
+                  <td
+                    class="hidden px-3 py-2 text-xs text-gray-600 dark:text-gray-400 sm:table-cell sm:px-4 sm:text-sm"
+                  >
+                    <span
+                      class="block max-w-[120px] truncate font-mono text-xs sm:max-w-none"
+                      :title="record.clientIP"
+                    >
+                      {{ record.clientIP }}
                     </span>
                   </td>
                   <td

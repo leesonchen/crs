@@ -917,7 +917,8 @@ class OpenAIResponsesRelayService {
             cacheReadTokens,
             modelToRecord,
             account.id,
-            'openai-responses'
+            'openai-responses',
+            req
           )
 
           logger.info(
@@ -1004,7 +1005,8 @@ class OpenAIResponsesRelayService {
             0, // cache_create_tokens
             0, // cache_read_tokens
             modelToRecord,
-            account.id
+            account.id,
+            req
           )
 
           logger.info(
@@ -1241,7 +1243,8 @@ class OpenAIResponsesRelayService {
           cacheReadTokens,
           actualModel,
           account.id,
-          'openai-responses'
+          'openai-responses',
+          req
         )
 
         logger.info(
@@ -1339,7 +1342,8 @@ class OpenAIResponsesRelayService {
           0, // cache_create_tokens
           0, // cache_read_tokens
           modelToRecord,
-          account.id
+          account.id,
+          req
         )
 
         logger.info(
