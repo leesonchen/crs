@@ -621,7 +621,7 @@ class UnifiedOpenAIScheduler {
     // 注意：移除了"没有OpenAI账户可用"的前提条件限制
     try {
       // 检查系统级桥接配置是否启用
-      const redisModel = require('../models/redis')
+      const redisModel = require('../../models/redis')
       const client = redisModel.getClientSafe()
       const bridgeConfigStr = await client.get('system:bridge_config')
 
@@ -635,8 +635,8 @@ class UnifiedOpenAIScheduler {
         logger.debug(`🌉 System bridge config enabled, checking Claude bridge candidates`)
 
         // 导入 Claude 相关服务
-        const claudeAccountService = require('./claudeAccountService')
-        const claudeConsoleAccountService = require('./claudeConsoleAccountService')
+        const claudeAccountService = require('../account/claudeAccountService')
+        const claudeConsoleAccountService = require('../account/claudeConsoleAccountService')
 
         // 获取系统级模型映射配置
         let systemMapping = {}

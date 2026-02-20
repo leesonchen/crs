@@ -35,18 +35,18 @@ const LAST_USED_AT_THROTTLE_MS = 60000
 // 账户服务映射（简化后仍保留，供其他函数使用）
 function getAccountService(accountType) {
   if (accountType === 'openai') {
-    return require('./openaiAccountService')
+    return require('../account/openaiAccountService')
   } else if (accountType === 'openai-chat') {
-    return require('./openaiChatAccountService')
+    return require('../openaiChatAccountService')
   } else if (accountType === 'openai-responses') {
-    return require('./openaiResponsesAccountService')
+    return require('../account/openaiResponsesAccountService')
   } else if (accountType === 'claude-official') {
-    return require('./claudeAccountService')
+    return require('../account/claudeAccountService')
   } else if (accountType === 'claude-console') {
-    return require('./claudeConsoleAccountService')
+    return require('../account/claudeConsoleAccountService')
   }
   // 默认使用 openai-responses
-  return require('./openaiResponsesAccountService')
+  return require('../account/openaiResponsesAccountService')
 }
 
 // 抽取缓存写入 token，兼容多种字段命名
