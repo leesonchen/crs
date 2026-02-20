@@ -1627,7 +1627,8 @@ class ApiKeyService {
         model,
         accountId: accountId || null,
         accountType: accountType || null,
-        clientIP: req.ip || req.connection?.remoteAddress || req.socket?.remoteAddress || 'unknown',
+        clientIP:
+          req?.ip || req?.connection?.remoteAddress || req?.socket?.remoteAddress || 'unknown',
         inputTokens,
         outputTokens,
         cacheCreateTokens,
@@ -1863,7 +1864,8 @@ class ApiKeyService {
         model,
         accountId: accountId || null,
         accountType: accountType || null,
-        clientIP: req.ip || req.connection?.remoteAddress || req.socket?.remoteAddress || 'unknown',
+        clientIP:
+          req?.ip || req?.connection?.remoteAddress || req?.socket?.remoteAddress || 'unknown',
         inputTokens,
         outputTokens,
         cacheCreateTokens,
