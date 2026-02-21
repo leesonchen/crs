@@ -521,7 +521,14 @@ async function handleMessagesRequest(req, res) {
               }
 
               apiKeyService
-                .recordUsageWithDetails(_apiKeyId, usageObject, model, usageAccountId, accountType)
+                .recordUsageWithDetails(
+                  _apiKeyId,
+                  usageObject,
+                  model,
+                  usageAccountId,
+                  accountType,
+                  req
+                )
                 .catch((error) => {
                   logger.error('❌ Failed to record stream usage:', error)
                 })
@@ -620,7 +627,8 @@ async function handleMessagesRequest(req, res) {
                   usageObject,
                   model,
                   usageAccountId,
-                  'claude-console'
+                  'claude-console',
+                  req
                 )
                 .catch((error) => {
                   logger.error('❌ Failed to record stream usage:', error)
@@ -781,7 +789,14 @@ async function handleMessagesRequest(req, res) {
               }
 
               apiKeyService
-                .recordUsageWithDetails(_apiKeyIdCcr, usageObject, model, usageAccountId, 'ccr')
+                .recordUsageWithDetails(
+                  _apiKeyIdCcr,
+                  usageObject,
+                  model,
+                  usageAccountId,
+                  'ccr',
+                  req
+                )
                 .catch((error) => {
                   logger.error('❌ Failed to record CCR stream usage:', error)
                 })
@@ -1152,7 +1167,8 @@ async function handleMessagesRequest(req, res) {
             cacheReadTokens,
             model,
             responseAccountId,
-            accountType
+            accountType,
+            req
           )
 
           await queueRateLimitUpdate(
