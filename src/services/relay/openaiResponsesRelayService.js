@@ -1033,6 +1033,7 @@ class OpenAIResponsesRelayService {
             0, // cache_read_tokens
             modelToRecord,
             account.id,
+            'openai-responses',
             req
           )
 
@@ -1370,6 +1371,7 @@ class OpenAIResponsesRelayService {
           0, // cache_read_tokens
           modelToRecord,
           account.id,
+          'openai-responses',
           req
         )
 
