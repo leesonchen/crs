@@ -1628,7 +1628,11 @@ class ApiKeyService {
         accountId: accountId || null,
         accountType: accountType || null,
         clientIP:
-          req?.ip || req?.connection?.remoteAddress || req?.socket?.remoteAddress || 'unknown',
+          req?.ip ||
+          req?.headers?.['x-real-ip'] ||
+          req?.connection?.remoteAddress ||
+          req?.socket?.remoteAddress ||
+          'unknown',
         inputTokens,
         outputTokens,
         cacheCreateTokens,
@@ -1865,7 +1869,11 @@ class ApiKeyService {
         accountId: accountId || null,
         accountType: accountType || null,
         clientIP:
-          req?.ip || req?.connection?.remoteAddress || req?.socket?.remoteAddress || 'unknown',
+          req?.ip ||
+          req?.headers?.['x-real-ip'] ||
+          req?.connection?.remoteAddress ||
+          req?.socket?.remoteAddress ||
+          'unknown',
         inputTokens,
         outputTokens,
         cacheCreateTokens,

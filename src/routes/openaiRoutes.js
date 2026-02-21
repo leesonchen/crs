@@ -828,7 +828,8 @@ const handleResponses = async (req, res) => {
             cacheReadTokens,
             actualModel,
             accountId,
-            'openai'
+            'openai',
+            req
           )
 
           logger.info(
@@ -944,7 +945,8 @@ const handleResponses = async (req, res) => {
             cacheReadTokens,
             modelToRecord,
             accountId,
-            'openai'
+            'openai',
+            req
           )
 
           logger.info(
