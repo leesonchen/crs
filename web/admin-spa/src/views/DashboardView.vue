@@ -884,7 +884,7 @@
                       class="block max-w-[120px] truncate font-mono text-xs sm:max-w-none"
                       :title="record.clientIP"
                     >
-                      {{ record.clientIP }}
+                      {{ formatIP(record.clientIP) }}
                     </span>
                   </td>
                   <td
@@ -1931,6 +1931,16 @@ const formatFullTimestamp = (timestamp) => {
   const minute = String(date.getMinutes()).padStart(2, '0')
   const second = String(date.getSeconds()).padStart(2, '0')
   return `${month}-${day} ${hour}:${minute}:${second}`
+}
+
+// 格式化IP（去除端口号）
+const formatIP = (ip) => {
+  if (!ip) return ''
+  // 如果包含端口号（IPv4:port 格式），只取IP部分
+  if (ip.includes(':') && !ip.includes('[')) {
+    return ip.split(':')[0]
+  }
+  return ip
 }
 
 // 格式化Token数量（添加千位分隔符）
