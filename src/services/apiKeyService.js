@@ -1628,8 +1628,8 @@ class ApiKeyService {
         accountId: accountId || null,
         accountType: accountType || null,
         clientIP:
-          req?.ip ||
           req?.headers?.['x-real-ip'] ||
+          req?.ip ||
           req?.connection?.remoteAddress ||
           req?.socket?.remoteAddress ||
           'unknown',
@@ -1869,8 +1869,8 @@ class ApiKeyService {
         accountId: accountId || null,
         accountType: accountType || null,
         clientIP:
-          req?.ip ||
           req?.headers?.['x-real-ip'] ||
+          req?.ip ||
           req?.connection?.remoteAddress ||
           req?.socket?.remoteAddress ||
           'unknown',
