@@ -42,7 +42,7 @@ const redisConfig = {
   retryStrategy: (times) => {
     const delay = Math.min(times * 50, 2000)
     return delay
-  },
+  }
 }
 
 // 创建 Redis 连接
@@ -89,7 +89,7 @@ async function migrateClaudeConsoleAccounts(dryRun = false) {
       claudeOfficial: 0,
       migrated: 0,
       skipped: 0,
-      errors: 0,
+      errors: 0
     }
 
     // 迁移列表
@@ -110,7 +110,7 @@ async function migrateClaudeConsoleAccounts(dryRun = false) {
             key,
             accountId,
             name,
-            data,
+            data
           })
           stats.claudeConsole++
         } else if (platform === 'claude-official' || platform === '') {
@@ -118,7 +118,7 @@ async function migrateClaudeConsoleAccounts(dryRun = false) {
             key,
             accountId,
             name,
-            platform,
+            platform
           })
           stats.claudeOfficial++
         } else {
@@ -152,7 +152,9 @@ async function migrateClaudeConsoleAccounts(dryRun = false) {
     if (accountsToSkip.length > 0) {
       console.log('\n保留的 Claude 官方账户:')
       for (const account of accountsToSkip) {
-        console.log(`  ✅ ${account.name} (ID: ${account.accountId}, Platform: ${account.platform})`)
+        console.log(
+          `  ✅ ${account.name} (ID: ${account.accountId}, Platform: ${account.platform})`
+        )
       }
     }
 

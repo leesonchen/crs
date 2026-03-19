@@ -197,7 +197,10 @@ async function main() {
 
         // 显示前几个键名作为示例
         if (keys.length > 0) {
-          const examples = keys.slice(0, 3).map(k => `    ${k}`).join('\n')
+          const examples = keys
+            .slice(0, 3)
+            .map((k) => `    ${k}`)
+            .join('\n')
           if (keys.length > 3) {
             console.log(`${examples}\n    ... 还有 ${keys.length - 3} 个`)
           } else {
@@ -244,7 +247,7 @@ async function main() {
         metadata: {
           backupTime: new Date().toISOString(),
           reason: 'force-clear-accounts',
-          totalKeys: totalKeys
+          totalKeys
         },
         data: {}
       }
@@ -345,8 +348,8 @@ async function main() {
     let failedCount = 0
     const failures = []
 
-    for (const result of results) {
-      const { type, keys } = result
+    for (const item of results) {
+      const { type, keys } = item
 
       if (keys.length > 0) {
         console.log(`  🗑️  正在清空: ${type.name}`)
@@ -355,15 +358,15 @@ async function main() {
         // 使用 pipeline 删除，提高性能
         try {
           const pipeline = redisClient.pipeline()
-          keys.forEach(key => pipeline.del(key))
+          keys.forEach((key) => pipeline.del(key))
           const deleteResults = await pipeline.exec()
 
           // 检查哪些键删除成功/失败
           let successCount = 0
           let typeFailedCount = 0
 
-          deleteResults.forEach((result, index) => {
-            if (result[1] === 0) {
+          deleteResults.forEach((deleteResult, index) => {
+            if (deleteResult[1] === 0) {
               // 键不存在或删除失败
               typeFailedCount++
               failures.push({
@@ -371,7 +374,7 @@ async function main() {
                 key: keys[index],
                 error: '删除失败或键不存在'
               })
-            } else if (result[1] === 1) {
+            } else if (deleteResult[1] === 1) {
               successCount++
             }
           })
@@ -387,11 +390,13 @@ async function main() {
         } catch (error) {
           console.error(`     ❌ 批量删除失败: ${error.message}`)
           failedCount += keys.length
-          keys.forEach(key => failures.push({
-            type: type.name,
-            key,
-            error: error.message
-          }))
+          keys.forEach((key) =>
+            failures.push({
+              type: type.name,
+              key,
+              error: error.message
+            })
+          )
         }
       }
     }
@@ -404,14 +409,18 @@ async function main() {
       console.log(`❌ ${failedCount} 个键删除失败`)
       console.log(`\n失败详情：`)
       const failureByType = {}
-      failures.forEach(f => {
-        if (!failureByType[f.type]) failureByType[f.type] = []
+      failures.forEach((f) => {
+        if (!failureByType[f.type]) {
+          failureByType[f.type] = []
+        }
         failureByType[f.type].push(f)
       })
       Object.entries(failureByType).forEach(([type, list]) => {
         console.log(`  ${type}: ${list.length} 个`)
-        list.slice(0, 3).forEach(f => console.log(`    ${f.key}: ${f.error}`))
-        if (list.length > 3) console.log(`    ... 还有 ${list.length - 3} 个`)
+        list.slice(0, 3).forEach((f) => console.log(`    ${f.key}: ${f.error}`))
+        if (list.length > 3) {
+          console.log(`    ... 还有 ${list.length - 3} 个`)
+        }
       })
     }
     console.log(`========================================\n`)

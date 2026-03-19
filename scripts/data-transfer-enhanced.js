@@ -28,6 +28,20 @@ const rl = readline.createInterface({
   output: process.stdout
 })
 
+// Redis SCAN 辅助函数（避免 KEYS 命令阻塞）
+async function scanKeys(pattern) {
+  const keys = []
+  let cursor = '0'
+
+  do {
+    const result = await redis.client.scan(cursor, 'MATCH', pattern, 'COUNT', 100)
+    cursor = result[0]
+    keys.push(...result[1])
+  } while (cursor !== '0')
+
+  return keys
+}
+
 async function askConfirmation(question) {
   return new Promise((resolve) => {
     rl.question(`${question} (yes/no): `, (answer) => {
@@ -539,19 +553,6 @@ async function exportData() {
 
     await redis.connect()
 
-    // Redis SCAN 辅助函数（避免 KEYS 命令阻塞）
-    async function scanKeys(pattern) {
-      const keys = []
-      let cursor = '0'
-
-      do {
-        const result = await redis.client.scan(cursor, 'MATCH', pattern, 'COUNT', 100)
-        cursor = result[0]
-        keys.push(...result[1])
-      } while (cursor !== '0')
-
-      return keys
-    }
     logger.success('✅ Connected to Redis')
 
     const exportDataObj = {
@@ -657,7 +658,9 @@ async function exportData() {
             }
           }
 
-          claudeConsoleAccounts.push(shouldSanitize ? sanitizeData(data, 'claude_console_account') : data)
+          claudeConsoleAccounts.push(
+            shouldSanitize ? sanitizeData(data, 'claude_console_account') : data
+          )
         }
       }
 
@@ -731,7 +734,9 @@ async function exportData() {
             }
           }
 
-          openaiResponsesAccounts.push(shouldSanitize ? sanitizeData(data, 'openai_responses_account') : data)
+          openaiResponsesAccounts.push(
+            shouldSanitize ? sanitizeData(data, 'openai_responses_account') : data
+          )
         }
       }
 
@@ -1274,7 +1279,9 @@ async function importData() {
 
           if (exists && !forceOverwrite) {
             if (skipConflicts) {
-              logger.warn(`⏭️  Skipped existing Claude Console account: ${account.name} (${account.id})`)
+              logger.warn(
+                `⏭️  Skipped existing Claude Console account: ${account.name} (${account.id})`
+              )
               stats.skipped++
               continue
             } else {
@@ -1293,7 +1300,9 @@ async function importData() {
 
           // 如果数据已解密且不是脱敏数据，需要重新加密
           if (importDataObj.metadata.decrypted && !importDataObj.metadata.sanitized) {
-            logger.info(`🔐 Re-encrypting sensitive data for Claude Console account: ${account.name}`)
+            logger.info(
+              `🔐 Re-encrypting sensitive data for Claude Console account: ${account.name}`
+            )
 
             if (accountData.email) {
               accountData.email = encryptClaudeData(accountData.email)
@@ -1379,7 +1388,9 @@ async function importData() {
 
           if (exists && !forceOverwrite) {
             if (skipConflicts) {
-              logger.warn(`⏭️  Skipped existing OpenAI Responses account: ${account.name} (${account.id})`)
+              logger.warn(
+                `⏭️  Skipped existing OpenAI Responses account: ${account.name} (${account.id})`
+              )
               stats.skipped++
               continue
             } else {
@@ -1398,7 +1409,9 @@ async function importData() {
 
           // 如果数据已解密且不是脱敏数据，需要重新加密
           if (importDataObj.metadata.decrypted && !importDataObj.metadata.sanitized) {
-            logger.info(`🔐 Re-encrypting sensitive data for OpenAI Responses account: ${account.name}`)
+            logger.info(
+              `🔐 Re-encrypting sensitive data for OpenAI Responses account: ${account.name}`
+            )
 
             if (accountData.apiKey) {
               accountData.apiKey = encryptOpenAIData(accountData.apiKey)
@@ -1430,7 +1443,9 @@ async function importData() {
 
           if (exists && !forceOverwrite) {
             if (skipConflicts) {
-              logger.warn(`⏭️  Skipped existing OpenAI Chat account: ${account.name} (${account.id})`)
+              logger.warn(
+                `⏭️  Skipped existing OpenAI Chat account: ${account.name} (${account.id})`
+              )
               stats.skipped++
               continue
             } else {
