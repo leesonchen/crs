@@ -194,15 +194,38 @@ class OpenAIResponsesRelayService {
       req.once('close', handleClientDisconnect)
       res.once('close', handleClientDisconnect)
 
-      // 构建目标 URL，允许通过头覆盖上游路径
+      // 构建目标 URL（允许通过头覆盖上游路径，并根据 providerEndpoint 归一化）
+      const providerEndpoint = fullAccount.providerEndpoint || 'responses'
       const upstreamPath = req.headers['x-crs-upstream-path'] || req.path
+      let targetPath = upstreamPath
+
+      // 根据 providerEndpoint 配置归一化路径
+      // 注意：unified.js 已将 /v1/chat/completions 的请求体转换为 Responses 格式，
+      // 因此这里只需归一化路径即可；反向 responses→completions 需要同时转换请求体，
+      // 目前不支持，所以只保留 responses 和 auto 两种模式
+      if (
+        providerEndpoint === 'responses' &&
+        (targetPath === '/v1/chat/completions' || targetPath === '/chat/completions')
+      ) {
+        const newPath = targetPath.startsWith('/v1') ? '/v1/responses' : '/responses'
+        logger.info(`📝 Normalized path (${req.path}) → ${newPath} (providerEndpoint=responses)`)
+        targetPath = newPath
+      }
+      // providerEndpoint === 'auto' 时保持原始路径不变
+
       // 智能拼接 URL，避免重复路径片段
       let targetUrl
       const baseApi = fullAccount.baseApi.replace(/\/+$/, '') // 移除末尾斜杠
-      const upstreamVersionedPathMatch = upstreamPath.match(/^\/v\d+(\/.*)$/)
+
+      // 防止 baseApi 已含 /v1 时路径重复（如 baseApi=http://host/v1 + targetPath=/v1/responses → /v1/v1/responses）
+      if (baseApi.endsWith('/v1') && targetPath.startsWith('/v1/')) {
+        targetPath = targetPath.slice(3) // '/v1/responses' → '/responses'
+      }
+
+      const upstreamVersionedPathMatch = targetPath.match(/^\/v\d+(\/.*)$/)
       const baseApiVersionedMatch = baseApi.match(/\/v\d+$/)
       // 如果 baseApi 已包含完整路径（如 /v1/responses），则检测并避免重复
-      if (baseApi.endsWith(upstreamPath)) {
+      if (baseApi.endsWith(targetPath)) {
         targetUrl = baseApi
       } else if (baseApiVersionedMatch && upstreamVersionedPathMatch) {
         // baseApi 已带版本路径（如 /v1、/v2），请求路径也带版本时仅拼接资源部分
@@ -210,7 +233,7 @@ class OpenAIResponsesRelayService {
         targetUrl = `${baseApi}${upstreamVersionedPathMatch[1]}`
       } else {
         // 正常拼接
-        targetUrl = `${baseApi}${upstreamPath}`
+        targetUrl = `${baseApi}${targetPath}`
       }
       logger.info(`🎯 Forwarding to: ${targetUrl}`)
 
@@ -936,6 +959,7 @@ class OpenAIResponsesRelayService {
 
           const modelToRecord = actualModel || requestedModel || 'unknown'
 
+          const serviceTier = req._serviceTier || null
           await apiKeyService.recordUsage(
             apiKeyData.id,
             actualInputTokens, // 传递实际输入（不含缓存）
@@ -945,6 +969,7 @@ class OpenAIResponsesRelayService {
             modelToRecord,
             account.id,
             'openai-responses',
+            serviceTier,
             req
           )
 
@@ -969,7 +994,8 @@ class OpenAIResponsesRelayService {
                 cache_creation_input_tokens: cacheCreateTokens,
                 cache_read_input_tokens: cacheReadTokens
               },
-              modelToRecord
+              modelToRecord,
+              serviceTier
             )
             if (accountService.updateUsageQuota) {
               await accountService.updateUsageQuota(account.id, costInfo.costs.total)
@@ -1263,6 +1289,7 @@ class OpenAIResponsesRelayService {
         const totalTokens =
           usageData.total_tokens || totalInputTokens + outputTokens + cacheCreateTokens
 
+        const serviceTier = req._serviceTier || null
         await apiKeyService.recordUsage(
           apiKeyData.id,
           actualInputTokens, // 传递实际输入（不含缓存）
@@ -1272,6 +1299,7 @@ class OpenAIResponsesRelayService {
           actualModel,
           account.id,
           'openai-responses',
+          serviceTier,
           req
         )
 
@@ -1296,7 +1324,8 @@ class OpenAIResponsesRelayService {
               cache_creation_input_tokens: cacheCreateTokens,
               cache_read_input_tokens: cacheReadTokens
             },
-            actualModel
+            actualModel,
+            serviceTier
           )
           if (accountService.updateUsageQuota) {
             await accountService.updateUsageQuota(account.id, costInfo.costs.total)

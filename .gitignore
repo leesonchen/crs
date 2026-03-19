@@ -251,3 +251,4 @@ web/admin-spa/assets/
 /update_dist.sh
 test_anyrouter.sh
 /web/admin-spa/dist1
+.serena/

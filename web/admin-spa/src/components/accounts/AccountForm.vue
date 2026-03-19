@@ -1666,6 +1666,13 @@
                   勾选后遇到 401/400/429/529 等上游错误仅记录日志并透传，不自动禁用或限流
                 </p>
               </div>
+
+              <TempUnavailablePolicyFields
+                v-if="form.platform === 'claude'"
+                v-model:disable-temp-unavailable="form.disableTempUnavailable"
+                v-model:temp-unavailable-503-ttl-seconds="form.tempUnavailable503TtlSeconds"
+                v-model:temp-unavailable-5xx-ttl-seconds="form.tempUnavailable5xxTtlSeconds"
+              />
             </div>
 
             <!-- OpenAI-Responses 特定字段 -->
@@ -1723,6 +1730,23 @@
                 />
                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                   可选项。如果设置，所有请求将使用此 User-Agent；否则透传客户端的 User-Agent
+                </p>
+              </div>
+
+              <div>
+                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
+                  >Provider 端点类型</label
+                >
+                <select
+                  v-model="form.providerEndpoint"
+                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                >
+                  <option value="responses">Responses（推荐）</option>
+                  <option value="auto">自动（保持原始路径）</option>
+                </select>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  指定 Provider 支持的端点类型。Responses 会将所有请求路由到（包括来自
+                  /v1/chat/completions 的请求会自动转换）；自动则保持客户端请求的原始路径
                 </p>
               </div>
 
@@ -3542,6 +3566,13 @@
             </p>
           </div>
 
+          <TempUnavailablePolicyFields
+            v-if="form.platform === 'claude'"
+            v-model:disable-temp-unavailable="form.disableTempUnavailable"
+            v-model:temp-unavailable-503-ttl-seconds="form.tempUnavailable503TtlSeconds"
+            v-model:temp-unavailable-5xx-ttl-seconds="form.tempUnavailable5xxTtlSeconds"
+          />
+
           <!-- OpenAI-Responses 特定字段（编辑模式）-->
           <div v-if="form.platform === 'openai-responses'" class="space-y-4">
             <div>
@@ -3586,6 +3617,24 @@
               />
               <p class="mt-1 text-xs text-gray-500">
                 留空时将自动使用客户端的 User-Agent，仅在需要固定特定 UA 时填写
+              </p>
+            </div>
+
+            <div>
+              <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
+                >Provider 端点类型</label
+              >
+              <select
+                v-model="form.providerEndpoint"
+                class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+              >
+                <option value="responses">Responses（推荐）</option>
+                <option value="completions">Chat Completions</option>
+                <option value="auto">自动（保持原始路径）</option>
+              </select>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                指定 Provider 支持的端点类型。Responses 会将所有请求路由到（包括来自
+                /v1/chat/completions 的请求会自动转换）；自动则保持原始路径
               </p>
             </div>
 
@@ -4149,6 +4198,7 @@ import * as httpApis from '@/utils/http_apis'
 import { useAccountsStore } from '@/stores/accounts'
 import ProxyConfig from './ProxyConfig.vue'
 import OAuthFlow from './OAuthFlow.vue'
+import TempUnavailablePolicyFields from './TempUnavailablePolicyFields.vue'
 import ConfirmModal from '@/components/common/ConfirmModal.vue'
 import GroupManagementModal from './GroupManagementModal.vue'
 import ApiKeyManagementModal from './ApiKeyManagementModal.vue'
@@ -4384,6 +4434,27 @@ const initProxyConfig = () => {
   return normalizeProxyFormState(props.account?.proxy)
 }
 
+const toFormCooldownOverrideValue = (value) => {
+  if (value === null || value === undefined || value === '') {
+    return ''
+  }
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : ''
+}
+
+const normalizeAccountCooldownOverride = (value) => {
+  if (value === null || value === undefined || value === '') {
+    return null
+  }
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return null
+  }
+  return Math.floor(parsed)
+}
+
+const toFormBoolean = (value) => value === true || value === 'true'
+
 // 表单数据
 const form = ref({
   platform: props.account?.platform || 'claude',
@@ -4422,6 +4493,7 @@ const form = ref({
   endpointType: props.account?.endpointType || 'anthropic',
   // OpenAI-Responses 特定字段
   baseApi: props.account?.baseApi || '',
+  providerEndpoint: props.account?.providerEndpoint || 'responses',
   // Gemini-API 特定字段
   baseUrl: props.account?.baseUrl || 'https://generativelanguage.googleapis.com',
   rateLimitDuration: props.account?.rateLimitDuration || 60,
@@ -4440,9 +4512,14 @@ const form = ref({
   })(),
   userAgent: props.account?.userAgent || '',
   enableRateLimit: props.account ? props.account.rateLimitDuration > 0 : true,
-  disableAutoProtection:
-    props.account?.disableAutoProtection === true ||
-    props.account?.disableAutoProtection === 'true',
+  disableAutoProtection: toFormBoolean(props.account?.disableAutoProtection),
+  disableTempUnavailable: toFormBoolean(props.account?.disableTempUnavailable),
+  tempUnavailable503TtlSeconds: toFormCooldownOverrideValue(
+    props.account?.tempUnavailable503TtlSeconds
+  ),
+  tempUnavailable5xxTtlSeconds: toFormCooldownOverrideValue(
+    props.account?.tempUnavailable5xxTtlSeconds
+  ),
   // 额度管理字段
   dailyQuota: props.account?.dailyQuota || 0,
   dailyUsage: props.account?.dailyUsage || 0,
@@ -4479,6 +4556,16 @@ const form = ref({
     return ''
   })(),
   expiresAt: props.account?.expiresAt || null
+})
+
+const buildClaudeTempUnavailablePolicyPayload = () => ({
+  disableTempUnavailable: !!form.value.disableTempUnavailable,
+  tempUnavailable503TtlSeconds: normalizeAccountCooldownOverride(
+    form.value.tempUnavailable503TtlSeconds
+  ),
+  tempUnavailable5xxTtlSeconds: normalizeAccountCooldownOverride(
+    form.value.tempUnavailable5xxTtlSeconds
+  )
 })
 
 // 模型限制配置
@@ -5176,6 +5263,7 @@ const handleOAuthSuccess = async (tokenInfoOrList) => {
       data.useUnifiedClientId = form.value.useUnifiedClientId || false
       data.unifiedClientId = form.value.unifiedClientId || ''
       data.maxConcurrency = form.value.serialQueueEnabled ? 1 : 0
+      Object.assign(data, buildClaudeTempUnavailablePolicyPayload())
       // 添加订阅类型信息
       data.subscriptionInfo = {
         accountType: form.value.subscriptionType || 'claude_max',
@@ -5617,6 +5705,7 @@ const createAccount = async () => {
       data.baseApi = form.value.baseApi
       data.apiKey = form.value.apiKey
       data.userAgent = form.value.userAgent || ''
+      data.providerEndpoint = form.value.providerEndpoint || 'responses'
       data.priority = form.value.priority || 50
       data.rateLimitDuration = 60 // 默认值60，不从用户输入获取
       data.dailyQuota = form.value.dailyQuota || 0
@@ -5932,6 +6021,7 @@ const updateAccount = async () => {
       data.useUnifiedClientId = form.value.useUnifiedClientId || false
       data.unifiedClientId = form.value.unifiedClientId || ''
       data.maxConcurrency = form.value.serialQueueEnabled ? 1 : 0
+      Object.assign(data, buildClaudeTempUnavailablePolicyPayload())
       // 更新订阅类型信息
       data.subscriptionInfo = {
         accountType: form.value.subscriptionType || 'claude_max',
@@ -5980,6 +6070,7 @@ const updateAccount = async () => {
         data.apiKey = form.value.apiKey
       }
       data.userAgent = form.value.userAgent || ''
+      data.providerEndpoint = form.value.providerEndpoint || 'responses'
       data.priority = form.value.priority || 50
       // 编辑时不上传 rateLimitDuration，保持原值
       data.dailyQuota = form.value.dailyQuota || 0
@@ -6614,6 +6705,7 @@ watch(
         deploymentName: newAccount.deploymentName || '',
         // OpenAI-Responses 特定字段
         baseApi: newAccount.baseApi || '',
+        providerEndpoint: newAccount.providerEndpoint || 'responses',
         // Gemini-API 特定字段
         baseUrl: newAccount.baseUrl || 'https://generativelanguage.googleapis.com',
         // 额度管理字段
@@ -6623,8 +6715,14 @@ watch(
         // 并发控制字段
         maxConcurrentTasks: newAccount.maxConcurrentTasks || 0,
         // 上游错误处理
-        disableAutoProtection:
-          newAccount.disableAutoProtection === true || newAccount.disableAutoProtection === 'true'
+        disableAutoProtection: toFormBoolean(newAccount.disableAutoProtection),
+        disableTempUnavailable: toFormBoolean(newAccount.disableTempUnavailable),
+        tempUnavailable503TtlSeconds: toFormCooldownOverrideValue(
+          newAccount.tempUnavailable503TtlSeconds
+        ),
+        tempUnavailable5xxTtlSeconds: toFormCooldownOverrideValue(
+          newAccount.tempUnavailable5xxTtlSeconds
+        )
       }
 
       // 如果是Claude Console账户，加载实时使用情况
