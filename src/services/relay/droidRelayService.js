@@ -377,7 +377,8 @@ class DroidRelayService {
             selectedAccountApiKey: selectedApiKey,
             endpointType: normalizedEndpoint,
             sessionHash,
-            clientApiKeyId
+            clientApiKeyId,
+            upstreamErrorBody: error?.response?.data
           })
         } catch (handlingError) {
           logger.error('❌ 处理 Droid 4xx 异常失败:', handlingError)
@@ -557,7 +558,8 @@ class DroidRelayService {
                 selectedAccountApiKey,
                 endpointType,
                 sessionHash,
-                clientApiKeyId
+                clientApiKeyId,
+                upstreamErrorBody: body
               }).catch((handlingError) => {
                 logger.error('❌ 处理 Droid 流式4xx 异常失败:', handlingError)
               })
@@ -1351,7 +1353,8 @@ class DroidRelayService {
       selectedAccountApiKey = null,
       endpointType = null,
       sessionHash = null,
-      clientApiKeyId = null
+      clientApiKeyId = null,
+      upstreamErrorBody = null
     } = context
 
     const accountId = this._extractAccountId(account)
@@ -1370,6 +1373,16 @@ class DroidRelayService {
 
     if (authMethod === 'api_key') {
       if (selectedAccountApiKey?.id) {
+        const shouldMarkApiKey = this._shouldMarkApiKeyAsError(statusCode, upstreamErrorBody)
+
+        if (!shouldMarkApiKey) {
+          logger.warn(
+            `⚠️ 上游返回 ${statusCode}，疑似请求参数/协议错误，不标记 Droid API Key 异常（Account: ${accountId}, Key: ${selectedAccountApiKey.id}）`
+          )
+          await this._clearApiKeyStickyMapping(accountId, normalizedEndpoint, sessionHash)
+          return
+        }
+
         let markResult = null
         const errorMessage = `${statusCode}`
 
@@ -1433,6 +1446,45 @@ class DroidRelayService {
       await upstreamErrorHelper.markTempUnavailable(accountId, 'droid', statusCode)
     }
     await this._clearAccountStickyMapping(normalizedEndpoint, sessionHash, clientApiKeyId)
+  }
+
+  _shouldMarkApiKeyAsError(statusCode, upstreamErrorBody = null) {
+    if (!statusCode || statusCode < 400 || statusCode >= 500) {
+      return false
+    }
+
+    if (statusCode === 401 || statusCode === 403) {
+      return true
+    }
+
+    if (statusCode !== 400) {
+      return true
+    }
+
+    let bodyText = ''
+    if (typeof upstreamErrorBody === 'string') {
+      bodyText = upstreamErrorBody
+    } else if (upstreamErrorBody && typeof upstreamErrorBody === 'object') {
+      try {
+        bodyText = JSON.stringify(upstreamErrorBody)
+      } catch (_error) {
+        bodyText = ''
+      }
+    }
+
+    const normalizedText = bodyText.toLowerCase()
+    if (!normalizedText) {
+      // 没有明确证据时保持原有策略，避免错过真实失效 key
+      return true
+    }
+
+    const requestConfigErrorHints = [
+      'invalid x-api-provider header',
+      'too old to use this endpoint',
+      'does not support model'
+    ]
+
+    return !requestConfigErrorHints.some((hint) => normalizedText.includes(hint))
   }
 
   /**
