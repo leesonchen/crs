@@ -6,6 +6,7 @@ const redis = require('../../models/redis')
 const logger = require('../../utils/logger')
 const { isSchedulable, sortAccountsByPriority } = require('../../utils/commonHelper')
 const upstreamErrorHelper = require('../../utils/upstreamErrorHelper')
+const { resolveMappedModel } = require('../../utils/modelMappingHelper')
 
 /**
  * Unified OpenAI Account Scheduler
@@ -20,6 +21,22 @@ const upstreamErrorHelper = require('../../utils/upstreamErrorHelper')
 class UnifiedOpenAIScheduler {
   constructor() {
     this.SESSION_MAPPING_PREFIX = 'unified_openai_session_mapping:'
+  }
+
+  _getAccountModelRules(account, accountType) {
+    if (!account) {
+      return {}
+    }
+
+    if (accountType === 'openai') {
+      return account.modelMapping || {}
+    }
+
+    return account.supportedModels || {}
+  }
+
+  _resolveAccountModel(account, accountType, requestedModel) {
+    return resolveMappedModel(this._getAccountModelRules(account, accountType), requestedModel)
   }
 
   // ✅ 根据账户类型获取对应的账户服务
@@ -275,22 +292,14 @@ class UnifiedOpenAIScheduler {
 
             // 专属账户：可选的模型检查（只有明确配置了supportedModels（映射表）且不为空才检查）
             // OpenAI-Responses 账户默认支持所有模型
-            if (
-              accountType === 'openai' &&
-              requestedModel &&
-              boundAccount.supportedModels &&
-              typeof boundAccount.supportedModels === 'object'
-            ) {
-              const supportedModelKeys = Object.keys(boundAccount.supportedModels)
-              if (supportedModelKeys.length > 0) {
-                const modelSupported = supportedModelKeys.includes(requestedModel)
-                if (!modelSupported) {
-                  const errorMsg = `Dedicated account ${boundAccount.name} does not support model ${requestedModel}`
-                  logger.warn(`⚠️ ${errorMsg}`)
-                  const error = new Error(errorMsg)
-                  error.statusCode = 400 // Bad Request - 请求参数错误
-                  throw error
-                }
+            if (requestedModel) {
+              const resolution = this._resolveAccountModel(boundAccount, accountType, requestedModel)
+              if (!resolution.supported) {
+                const errorMsg = `Dedicated account ${boundAccount.name} does not support model ${requestedModel}`
+                logger.warn(`⚠️ ${errorMsg}`)
+                const error = new Error(errorMsg)
+                error.statusCode = 400 // Bad Request - 请求参数错误
+                throw error
               }
             }
 
@@ -334,7 +343,8 @@ class UnifiedOpenAIScheduler {
           // 验证映射的账户是否仍然可用
           const isAvailable = await this._isAccountAvailable(
             mappedAccount.accountId,
-            mappedAccount.accountType
+            mappedAccount.accountType,
+            requestedModel
           )
           if (isAvailable) {
             // 🚀 智能会话续期（续期 unified 映射键，按配置）
@@ -476,20 +486,13 @@ class UnifiedOpenAIScheduler {
 
         // 检查模型支持（仅在明确设置了supportedModels（映射表）且不为空时才检查）
         // 如果没有设置supportedModels或为空对象，则支持所有模型
-        if (
-          requestedModel &&
-          account.supportedModels &&
-          typeof account.supportedModels === 'object'
-        ) {
-          const supportedModelKeys = Object.keys(account.supportedModels)
-          if (supportedModelKeys.length > 0) {
-            const modelSupported = supportedModelKeys.includes(requestedModel)
-            if (!modelSupported) {
-              logger.debug(
-                `⏭️ Skipping OpenAI account ${account.name} - doesn't support model ${requestedModel}`
-              )
-              continue
-            }
+        if (requestedModel) {
+          const resolution = this._resolveAccountModel(account, 'openai', requestedModel)
+          if (!resolution.supported) {
+            logger.debug(
+              `⏭️ Skipping OpenAI account ${account.name} - doesn't support model ${requestedModel}`
+            )
+            continue
           }
         }
 
@@ -572,8 +575,15 @@ class UnifiedOpenAIScheduler {
           continue
         }
 
-        // OpenAI-Responses 账户默认支持所有模型
-        // 因为它们是第三方兼容 API，模型支持由第三方决定
+        if (requestedModel) {
+          const resolution = this._resolveAccountModel(account, 'openai-responses', requestedModel)
+          if (!resolution.supported) {
+            logger.debug(
+              `⏭️ Skipping OpenAI-Responses account ${account.name} - doesn't support model ${requestedModel}`
+            )
+            continue
+          }
+        }
 
         availableAccounts.push({
           ...account,
@@ -605,6 +615,16 @@ class UnifiedOpenAIScheduler {
         if (openaiChatAccountService.isSubscriptionExpired(account)) {
           logger.debug(`⏭️ Skipping OpenAI-Chat account ${account.name} - subscription expired`)
           continue
+        }
+
+        if (requestedModel) {
+          const resolution = this._resolveAccountModel(account, 'openai-chat', requestedModel)
+          if (!resolution.supported) {
+            logger.debug(
+              `⏭️ Skipping OpenAI-Chat account ${account.name} - doesn't support model ${requestedModel}`
+            )
+            continue
+          }
         }
 
         availableAccounts.push({
@@ -649,7 +669,15 @@ class UnifiedOpenAIScheduler {
         }
 
         // 将请求的OpenAI模型映射到Claude模型
-        const mappedModel = requestedModel ? systemMapping[requestedModel] || defaultModel : null
+        let mappedModel = null
+        if (requestedModel) {
+          const systemResolution = resolveMappedModel(systemMapping, requestedModel)
+          if (!systemResolution.hasRules) {
+            mappedModel = defaultModel
+          } else if (systemResolution.supported) {
+            mappedModel = systemResolution.mappedModel
+          }
+        }
 
         // 检查是否有启用的 Claude 账户支持桥接
         const claudeAccounts = await claudeAccountService.getAllAccounts()
@@ -659,15 +687,14 @@ class UnifiedOpenAIScheduler {
             // 桥接调度时，只检查映射后的 Claude 模型是否被支持
             // 检查账户是否支持映射后的 Claude 模型
             let supportsMappedModel = true
-            if (
-              mappedModel &&
-              account.supportedModels &&
-              typeof account.supportedModels === 'object'
-            ) {
-              const supportedModelKeys = Object.keys(account.supportedModels)
-              if (supportedModelKeys.length > 0) {
-                supportsMappedModel = supportedModelKeys.includes(mappedModel)
-              }
+            if (requestedModel && !mappedModel) {
+              supportsMappedModel = false
+            } else if (mappedModel) {
+              supportsMappedModel = this._resolveAccountModel(
+                account,
+                'claude-official',
+                mappedModel
+              ).supported
             }
 
             if (supportsMappedModel) {
@@ -688,15 +715,14 @@ class UnifiedOpenAIScheduler {
           if (account.isActive && account.status !== 'error' && account.schedulable !== false) {
             // 检查账户是否支持映射后的 Claude 模型
             let supportsMappedModel = true
-            if (
-              mappedModel &&
-              account.supportedModels &&
-              typeof account.supportedModels === 'object'
-            ) {
-              const supportedModelKeys = Object.keys(account.supportedModels)
-              if (supportedModelKeys.length > 0) {
-                supportsMappedModel = supportedModelKeys.includes(mappedModel)
-              }
+            if (requestedModel && !mappedModel) {
+              supportsMappedModel = false
+            } else if (mappedModel) {
+              supportsMappedModel = this._resolveAccountModel(
+                account,
+                'claude-console',
+                mappedModel
+              ).supported
             }
 
             if (supportsMappedModel) {
@@ -722,7 +748,7 @@ class UnifiedOpenAIScheduler {
   }
 
   // 🔍 检查账户是否可用
-  async _isAccountAvailable(accountId, accountType) {
+  async _isAccountAvailable(accountId, accountType, requestedModel = null) {
     try {
       if (accountType === 'openai') {
         const account = await openaiAccountService.getAccount(accountId)
@@ -756,6 +782,16 @@ class UnifiedOpenAIScheduler {
         if (isTempUnavailable) {
           logger.info(`⏱️ OpenAI account ${accountId} (${accountType}) is temporarily unavailable`)
           return false
+        }
+
+        if (requestedModel) {
+          const resolution = this._resolveAccountModel(account, accountType, requestedModel)
+          if (!resolution.supported) {
+            logger.info(
+              `🚫 OpenAI account ${accountId} (${accountType}) does not support sticky-session model ${requestedModel}`
+            )
+            return false
+          }
         }
 
         return true
@@ -793,6 +829,16 @@ class UnifiedOpenAIScheduler {
         if (isTempUnavailable) {
           logger.info(`⏱️ OpenAI account ${accountId} (${accountType}) is temporarily unavailable`)
           return false
+        }
+
+        if (requestedModel) {
+          const resolution = this._resolveAccountModel(account, accountType, requestedModel)
+          if (!resolution.supported) {
+            logger.info(
+              `🚫 OpenAI account ${accountId} (${accountType}) does not support sticky-session model ${requestedModel}`
+            )
+            return false
+          }
         }
 
         return true
@@ -1048,7 +1094,8 @@ class UnifiedOpenAIScheduler {
           if (isInGroup) {
             const isAvailable = await this._isAccountAvailable(
               mappedAccount.accountId,
-              mappedAccount.accountType
+              mappedAccount.accountType,
+              requestedModel
             )
             if (isAvailable) {
               // 🚀 智能会话续期（续期 unified 映射键，按配置）
@@ -1135,21 +1182,9 @@ class UnifiedOpenAIScheduler {
           // 兼容两种格式：
           // 1) object 映射表（key 为 model 名）
           // 2) array 列表（元素为 model 名）
-          if (requestedModel && account.supportedModels) {
-            let modelSupported = true
-
-            if (Array.isArray(account.supportedModels)) {
-              if (account.supportedModels.length > 0) {
-                modelSupported = account.supportedModels.includes(requestedModel)
-              }
-            } else if (typeof account.supportedModels === 'object') {
-              const supportedModelKeys = Object.keys(account.supportedModels)
-              if (supportedModelKeys.length > 0) {
-                modelSupported = supportedModelKeys.includes(requestedModel)
-              }
-            }
-
-            if (!modelSupported) {
+          if (requestedModel) {
+            const resolution = this._resolveAccountModel(account, accountType, requestedModel)
+            if (!resolution.supported) {
               logger.debug(
                 `⏭️ Skipping group member ${accountType} account ${account.name} - doesn't support model ${requestedModel}`
               )

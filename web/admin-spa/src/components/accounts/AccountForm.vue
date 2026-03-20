@@ -1437,7 +1437,8 @@
                   <div class="mb-3 rounded-lg bg-blue-50 p-3 dark:bg-blue-900/30">
                     <p class="text-xs text-blue-700 dark:text-blue-400">
                       <i class="fas fa-info-circle mr-1" />
-                      选择允许使用此账户的模型。留空表示支持所有模型。
+                      选择允许使用此账户的模型。留空表示支持所有模型；白名单会保存为 `&lt;keep&gt;`
+                      自保持映射。
                     </p>
                   </div>
 
@@ -1476,7 +1477,8 @@
                   <div class="mb-3 rounded-lg bg-purple-50 p-3 dark:bg-purple-900/30">
                     <p class="text-xs text-purple-700 dark:text-purple-400">
                       <i class="fas fa-info-circle mr-1" />
-                      配置模型映射关系。左侧是客户端请求的模型，右侧是实际发送给API的模型。
+                      配置模型映射关系。左侧是客户端请求的模型，右侧是实际发送给 API 的模型； `*`
+                      表示其他所有模型，`&lt;keep&gt;` 表示保留原模型不做映射。
                     </p>
                   </div>
 
@@ -3128,7 +3130,8 @@
               <div class="mb-3 rounded-lg bg-blue-50 p-3 dark:bg-blue-900/30">
                 <p class="text-xs text-blue-700 dark:text-blue-300">
                   <i class="fas fa-info-circle mr-1" />
-                  描述账户实际支持的模型能力。用于同平台模型适配（如请求高级模型但账户仅支持基础模型）。留空表示不进行模型适配。
+                  描述账户实际支持的模型能力。映射表非空时即启用白名单；`*`
+                  表示其他所有模型，`&lt;keep&gt;` 表示允许通过但保留原模型名。
                 </p>
               </div>
 
@@ -3324,7 +3327,8 @@
                 <div class="mb-3 rounded-lg bg-blue-50 p-3 dark:bg-blue-900/30">
                   <p class="text-xs text-blue-700 dark:text-blue-400">
                     <i class="fas fa-info-circle mr-1" />
-                    选择允许使用此账户的模型。留空表示支持所有模型。
+                    选择允许使用此账户的模型。留空表示支持所有模型；白名单会保存为 `&lt;keep&gt;`
+                    自保持映射。
                   </p>
                 </div>
 
@@ -3363,7 +3367,8 @@
                 <div class="mb-3 rounded-lg bg-purple-50 p-3 dark:bg-purple-900/30">
                   <p class="text-xs text-purple-700 dark:text-purple-400">
                     <i class="fas fa-info-circle mr-1" />
-                    配置模型映射关系。左侧是客户端请求的模型，右侧是实际发送给API的模型。
+                    配置模型映射关系。左侧是客户端请求的模型，右侧是实际发送给 API 的模型； `*`
+                    表示其他所有模型，`&lt;keep&gt;` 表示保留原模型不做映射。
                   </p>
                 </div>
 
@@ -4607,7 +4612,9 @@ const initModelMappings = () => {
 
       // 判断是白名单模式还是映射模式
       const isEmptyObject = entries.length === 0
-      const isWhitelist = !isEmptyObject && entries.every(([from, to]) => from === to)
+      const isWhitelist =
+        !isEmptyObject &&
+        entries.every(([from, to]) => from !== '*' && (from === to || to === '<keep>'))
       console.log('🔍 [DEBUG] 初始化 - 模式判断:', {
         isEmptyObject,
         isWhitelist,
@@ -4640,7 +4647,7 @@ const initModelMappings = () => {
       // 同时设置 modelMappings 为自映射
       modelMappings.value = props.account.supportedModels.map((model) => ({
         from: model,
-        to: model
+        to: '<keep>'
       }))
     }
   } else {
@@ -5664,6 +5671,7 @@ const createAccount = async () => {
       data.priority = form.value.priority || 50
       data.endpointType = form.value.endpointType || 'anthropic'
       data.platform = 'droid'
+      data.userAgent = form.value.userAgent || ''
 
       if (form.value.addType === 'apikey') {
         const apiKeys = parseApiKeysInput(form.value.apiKeysInput)
@@ -6005,6 +6013,7 @@ const updateAccount = async () => {
     if (props.account.platform === 'droid') {
       data.priority = form.value.priority || 50
       data.endpointType = form.value.endpointType || 'anthropic'
+      data.userAgent = form.value.userAgent || ''
     }
 
     // Claude 官方账号优先级和订阅类型更新
@@ -6581,9 +6590,9 @@ const convertMappingsToObject = () => {
   const mapping = {}
 
   if (modelRestrictionMode.value === 'whitelist') {
-    // 白名单模式：将选中的模型映射到自己
+    // 白名单模式：将选中的模型映射为保留原模型
     allowedModels.value.forEach((model) => {
-      mapping[model] = model
+      mapping[model] = '<keep>'
     })
     console.log('🔍 [DEBUG] 白名单模式转换:', {
       allowedModels: allowedModels.value,

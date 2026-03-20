@@ -15,6 +15,11 @@ const {
 } = require('../../utils/tokenRefreshLogger')
 const tokenRefreshService = require('../tokenRefreshService')
 const { createEncryptor } = require('../../utils/commonHelper')
+const {
+  normalizeModelMapping,
+  resolveMappedModel,
+  isModelSupported
+} = require('../../utils/modelMappingHelper')
 
 // 使用 commonHelper 的加密器
 const encryptor = createEncryptor('openai-account-salt')
@@ -69,7 +74,7 @@ function parseModelMapping(rawMapping) {
   }
 
   if (typeof rawMapping === 'object') {
-    return rawMapping
+    return normalizeModelMapping(rawMapping)
   }
 
   if (typeof rawMapping === 'string') {
@@ -81,7 +86,7 @@ function parseModelMapping(rawMapping) {
     try {
       const parsed = JSON.parse(trimmed)
       if (parsed && typeof parsed === 'object') {
-        return parsed
+        return normalizeModelMapping(parsed)
       }
     } catch (error) {
       logger.warn('Failed to parse modelMapping for OpenAI account', {
@@ -92,6 +97,10 @@ function parseModelMapping(rawMapping) {
   }
 
   return {}
+}
+
+function getMappedModel(modelMapping, requestedModel) {
+  return resolveMappedModel(modelMapping, requestedModel).mappedModel || requestedModel
 }
 
 function toNumberOrNull(value) {
@@ -1307,6 +1316,8 @@ module.exports = {
   updateAccountUsage,
   recordUsage, // 别名，指向updateAccountUsage
   updateCodexUsageSnapshot,
+  isModelSupported,
+  getMappedModel,
   encrypt,
   decrypt,
   encryptor // 暴露加密器以便测试和监控

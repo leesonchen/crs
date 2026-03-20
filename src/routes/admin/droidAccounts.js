@@ -691,7 +691,7 @@ router.post('/droid-accounts/:accountId/test', authenticateAdmin, async (req, re
 })
 
 // 重置 Droid 账户状态
-router.post('/:accountId/reset-status', authenticateAdmin, async (req, res) => {
+router.post('/droid-accounts/:accountId/reset-status', authenticateAdmin, async (req, res) => {
   try {
     const { accountId } = req.params
     const result = await droidAccountService.resetAccountStatus(accountId)

@@ -18,6 +18,7 @@ const ClaudeToOpenAIResponsesConverter = require('./claudeToOpenAIResponses')
 const OpenAIResponsesToClaudeConverter = require('./openaiResponsesToClaude')
 const OpenAIToClaudeConverter = require('./openaiToClaude')
 const { CODEX_CLI_INSTRUCTIONS, INCOMPATIBLE_FIELDS } = require('../../config/codexInstructions')
+const { resolveMappedModel } = require('../utils/modelMappingHelper')
 
 class BridgeService {
   constructor() {
@@ -28,6 +29,21 @@ class BridgeService {
     this._configCache = null
     this._configCacheTime = 0
     this._configCacheTTL = 60000 // 1分钟
+  }
+
+  _resolveSystemBridgeModel(modelMapping, requestedModel, defaultModel) {
+    const resolution = resolveMappedModel(modelMapping, requestedModel)
+    if (!resolution.hasRules) {
+      return {
+        supported: true,
+        mappedModel: defaultModel
+      }
+    }
+
+    return {
+      supported: resolution.supported,
+      mappedModel: resolution.mappedModel
+    }
   }
 
   /**
@@ -72,7 +88,19 @@ class BridgeService {
 
       // Layer 1: 系统级虚拟模型映射
       const currentModel = claudeRequest.model
-      const systemModel = systemMapping[currentModel] || defaultModel
+      const systemResolution = this._resolveSystemBridgeModel(
+        systemMapping,
+        currentModel,
+        defaultModel
+      )
+      if (!systemResolution.supported) {
+        throw new BridgeError(
+          `System bridge mapping does not support model: ${currentModel}`,
+          'UNSUPPORTED_MODEL',
+          { currentModel, direction: 'claude-to-openai' }
+        )
+      }
+      const systemModel = systemResolution.mappedModel
       logger.info(`📍 Layer 1 (System): ${currentModel} → ${systemModel}`)
 
       // 4. 转换请求格式
@@ -87,8 +115,15 @@ class BridgeService {
       openaiRequest.model = systemModel // 使用系统级映射的模型
 
       // Layer 3: 账户级模型能力适配（同平台降级）
-      const accountMapping = standardAccount.modelMapping || {}
-      const finalModel = accountMapping[systemModel] || systemModel
+      const accountResolution = resolveMappedModel(standardAccount.modelMapping || {}, systemModel)
+      if (accountResolution.hasRules && !accountResolution.supported) {
+        throw new BridgeError(
+          `Account mapping does not support model: ${systemModel}`,
+          'UNSUPPORTED_MODEL',
+          { accountId: standardAccount.id, accountType, systemModel, direction: 'claude-to-openai' }
+        )
+      }
+      const finalModel = accountResolution.mappedModel || systemModel
 
       if (finalModel !== systemModel) {
         logger.info(
@@ -126,6 +161,7 @@ class BridgeService {
           original: currentModel,
           systemLevel: systemModel,
           accountLevel: finalModel,
+          mapped: finalModel,
           chain: [currentModel, systemModel, finalModel].filter(
             (m, i, arr) => i === 0 || m !== arr[i - 1]
           )
@@ -184,7 +220,19 @@ class BridgeService {
 
       // Layer 1: 系统级虚拟模型映射
       const currentModel = openaiRequest.model
-      const systemModel = systemMapping[currentModel] || defaultModel
+      const systemResolution = this._resolveSystemBridgeModel(
+        systemMapping,
+        currentModel,
+        defaultModel
+      )
+      if (!systemResolution.supported) {
+        throw new BridgeError(
+          `System bridge mapping does not support model: ${currentModel}`,
+          'UNSUPPORTED_MODEL',
+          { currentModel, direction: 'openai-to-claude' }
+        )
+      }
+      const systemModel = systemResolution.mappedModel
       logger.info(`📍 Layer 1 (System): ${currentModel} → ${systemModel}`)
 
       // 4. 检测请求格式并选择合适的转换器
@@ -205,8 +253,15 @@ class BridgeService {
       claudeRequest.model = systemModel // 使用系统级映射的模型
 
       // Layer 3: 账户级模型能力适配（同平台降级）
-      const accountMapping = standardAccount.modelMapping || {}
-      const finalModel = accountMapping[systemModel] || systemModel
+      const accountResolution = resolveMappedModel(standardAccount.modelMapping || {}, systemModel)
+      if (accountResolution.hasRules && !accountResolution.supported) {
+        throw new BridgeError(
+          `Account mapping does not support model: ${systemModel}`,
+          'UNSUPPORTED_MODEL',
+          { accountId: standardAccount.id, accountType, systemModel, direction: 'openai-to-claude' }
+        )
+      }
+      const finalModel = accountResolution.mappedModel || systemModel
 
       if (finalModel !== systemModel) {
         logger.info(
@@ -231,6 +286,7 @@ class BridgeService {
           original: currentModel,
           systemLevel: systemModel,
           accountLevel: finalModel,
+          mapped: finalModel,
           chain: [currentModel, systemModel, finalModel].filter(
             (m, i, arr) => i === 0 || m !== arr[i - 1]
           )
@@ -266,7 +322,7 @@ class BridgeService {
     if (accountType === 'openai') {
       // OAuth 账户：accessToken 加密存储，需解密
       if (account.accessToken && !account.apiKey) {
-        const openaiAccountService = require('./openaiAccountService')
+        const openaiAccountService = require('./account/openaiAccountService')
         account.apiKey = openaiAccountService.decrypt(account.accessToken)
       }
 
@@ -362,7 +418,7 @@ class BridgeService {
         if (!account.apiKey && account.sessionKey) {
           // 优先使用 sessionKey（加密存储）
           logger.info(`🔑 [Bridge] Using sessionKey to derive apiKey`)
-          const claudeAccountService = require('./claudeAccountService')
+          const claudeAccountService = require('./account/claudeAccountService')
           try {
             account.apiKey = claudeAccountService.decrypt(account.sessionKey)
             logger.info(
@@ -412,13 +468,13 @@ class BridgeService {
    */
   async _fetchAccount(accountId, accountType) {
     if (accountType === 'openai') {
-      const openaiAccountService = require('./openaiAccountService')
+      const openaiAccountService = require('./account/openaiAccountService')
       return await openaiAccountService.getAccount(accountId)
     } else if (accountType === 'openai-chat') {
       const openaiChatAccountService = require('./openaiChatAccountService')
       return await openaiChatAccountService.getAccount(accountId)
     } else {
-      const openaiResponsesAccountService = require('./openaiResponsesAccountService')
+      const openaiResponsesAccountService = require('./account/openaiResponsesAccountService')
       return await openaiResponsesAccountService.getAccount(accountId)
     }
   }
@@ -430,13 +486,13 @@ class BridgeService {
   async _fetchClaudeAccount(accountId, accountType) {
     let rawAccount = null
     if (accountType === 'claude-official') {
-      const claudeAccountService = require('./claudeAccountService')
+      const claudeAccountService = require('./account/claudeAccountService')
       rawAccount = await claudeAccountService.getAccount(accountId)
     } else if (accountType === 'claude-console') {
-      const claudeConsoleAccountService = require('./claudeConsoleAccountService')
+      const claudeConsoleAccountService = require('./account/claudeConsoleAccountService')
       rawAccount = await claudeConsoleAccountService.getAccount(accountId)
     } else if (accountType === 'bedrock') {
-      const bedrockAccountService = require('./bedrockAccountService')
+      const bedrockAccountService = require('./account/bedrockAccountService')
       const result = await bedrockAccountService.getAccount(accountId)
       rawAccount = result.success ? result.data : null
     }

@@ -30,6 +30,11 @@ const fs = require('fs')
 const path = require('path')
 const config = require('../../config/config')
 const ProxyHelper = require('../utils/proxyHelper')
+const {
+  KEEP_MODEL_TOKEN,
+  WILDCARD_MODEL_KEY,
+  normalizeModelMapping
+} = require('../utils/modelMappingHelper')
 
 const router = express.Router()
 
@@ -66,16 +71,30 @@ function parseClaudeModelMappingPayload(input) {
     try {
       const parsed = JSON.parse(trimmed)
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        return parsed
+        const normalized = normalizeModelMapping(parsed)
+        if (Object.keys(normalized).length !== Object.keys(parsed).length) {
+          throw new Error('claudeModelMapping entries must use non-empty string keys and values')
+        }
+        return normalized
       }
       throw new Error('claudeModelMapping must be a JSON object')
     } catch (error) {
+      if (
+        error.message === 'claudeModelMapping must be a JSON object' ||
+        error.message === 'claudeModelMapping entries must use non-empty string keys and values'
+      ) {
+        throw error
+      }
       throw new Error('claudeModelMapping must be valid JSON')
     }
   }
 
   if (typeof input === 'object' && !Array.isArray(input)) {
-    return input
+    const normalized = normalizeModelMapping(input)
+    if (Object.keys(normalized).length !== Object.keys(input).length) {
+      throw new Error('claudeModelMapping entries must use non-empty string keys and values')
+    }
+    return normalized
   }
 
   throw new Error('claudeModelMapping must be an object')
@@ -7267,6 +7286,7 @@ router.get('/openai-accounts', authenticateAdmin, async (req, res) => {
           const formattedAccount = formatAccountExpiry(account)
           return {
             ...formattedAccount,
+            supportedModels: formattedAccount.modelMapping || {},
             groupInfos,
             usage: {
               daily: usageStats.daily,
@@ -7280,6 +7300,7 @@ router.get('/openai-accounts', authenticateAdmin, async (req, res) => {
           const formattedAccount = formatAccountExpiry(account)
           return {
             ...formattedAccount,
+            supportedModels: formattedAccount.modelMapping || {},
             groupInfos,
             usage: {
               daily: { requests: 0, tokens: 0, allTokens: 0 },
@@ -7321,13 +7342,16 @@ router.post('/openai-accounts', authenticateAdmin, async (req, res) => {
       rateLimitDuration,
       priority,
       modelMapping,
+      supportedModels,
       needsImmediateRefresh, // 是否需要立即刷新
       requireRefreshSuccess // 是否必须刷新成功才能创建
     } = req.body
 
     let normalizedModelMapping
     try {
-      normalizedModelMapping = parseClaudeModelMappingPayload(modelMapping)
+      normalizedModelMapping = parseClaudeModelMappingPayload(
+        supportedModels !== undefined ? supportedModels : modelMapping
+      )
     } catch (error) {
       return res.status(400).json({
         success: false,
@@ -7607,9 +7631,11 @@ router.put('/openai-accounts/:id', authenticateAdmin, async (req, res) => {
     const updateData = { ...mappedUpdates }
 
     // 处理模型映射
-    if (updates.modelMapping !== undefined) {
+    if (updates.modelMapping !== undefined || updates.supportedModels !== undefined) {
       try {
-        const normalizedModelMapping = parseClaudeModelMappingPayload(updates.modelMapping)
+        const normalizedModelMapping = parseClaudeModelMappingPayload(
+          updates.supportedModels !== undefined ? updates.supportedModels : updates.modelMapping
+        )
         updateData.modelMapping = normalizedModelMapping
       } catch (error) {
         return res.status(400).json({
@@ -9530,17 +9556,21 @@ router.put('/bridge/config', authenticateAdmin, async (req, res) => {
     // 验证模型名称格式
     const openaiModelRegex = /^gpt-[a-z0-9-]+$/i
     const claudeModelRegex = /^claude-[a-z0-9.-]+$/i
+    const isValidOpenAIKey = (model) => model === WILDCARD_MODEL_KEY || openaiModelRegex.test(model)
+    const isValidClaudeKey = (model) => model === WILDCARD_MODEL_KEY || claudeModelRegex.test(model)
+    const isValidOpenAIValue = (model) => model === KEEP_MODEL_TOKEN || openaiModelRegex.test(model)
+    const isValidClaudeValue = (model) => model === KEEP_MODEL_TOKEN || claudeModelRegex.test(model)
 
     if (openaiToClaude.modelMapping) {
       for (const [openaiModel, claudeModel] of Object.entries(openaiToClaude.modelMapping)) {
-        if (!openaiModelRegex.test(openaiModel)) {
+        if (!isValidOpenAIKey(openaiModel)) {
           return res.status(400).json({
             success: false,
             error: 'Invalid OpenAI model name',
             message: `Model "${openaiModel}" does not match required format`
           })
         }
-        if (!claudeModelRegex.test(claudeModel)) {
+        if (!isValidClaudeValue(claudeModel)) {
           return res.status(400).json({
             success: false,
             error: 'Invalid Claude model name',
@@ -9552,14 +9582,14 @@ router.put('/bridge/config', authenticateAdmin, async (req, res) => {
 
     if (claudeToOpenai.modelMapping) {
       for (const [claudeModel, openaiModel] of Object.entries(claudeToOpenai.modelMapping)) {
-        if (!claudeModelRegex.test(claudeModel)) {
+        if (!isValidClaudeKey(claudeModel)) {
           return res.status(400).json({
             success: false,
             error: 'Invalid Claude model name',
             message: `Model "${claudeModel}" does not match required format`
           })
         }
-        if (!openaiModelRegex.test(openaiModel)) {
+        if (!isValidOpenAIValue(openaiModel)) {
           return res.status(400).json({
             success: false,
             error: 'Invalid OpenAI model name',

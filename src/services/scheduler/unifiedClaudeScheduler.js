@@ -8,6 +8,7 @@ const logger = require('../../utils/logger')
 const { parseVendorPrefixedModel, isOpus45OrNewer } = require('../../utils/modelHelper')
 const { isSchedulable, sortAccountsByPriority } = require('../../utils/commonHelper')
 const upstreamErrorHelper = require('../../utils/upstreamErrorHelper')
+const { resolveMappedModel } = require('../../utils/modelMappingHelper')
 
 /**
  * Check if account is Pro (not Max)
@@ -38,6 +39,21 @@ function isProAccount(info) {
 class UnifiedClaudeScheduler {
   constructor() {
     this.SESSION_MAPPING_PREFIX = 'unified_claude_session_mapping:'
+  }
+
+  _resolveBridgeModel(modelMapping, requestedModel, defaultModel) {
+    const resolution = resolveMappedModel(modelMapping, requestedModel)
+    if (!resolution.hasRules) {
+      return {
+        supported: true,
+        mappedModel: defaultModel
+      }
+    }
+
+    return {
+      supported: resolution.supported,
+      mappedModel: resolution.mappedModel
+    }
   }
 
   // 🔍 检查账户是否支持请求的模型
@@ -961,24 +977,33 @@ class UnifiedClaudeScheduler {
       const client = redisModel.getClientSafe()
       const bridgeConfigStr = await client.get('system:bridge_config')
 
-      let openaiToClaudeEnabled = false
+      let claudeToOpenaiEnabled = false
       if (bridgeConfigStr) {
         try {
           const bridgeConfig = JSON.parse(bridgeConfigStr)
-          openaiToClaudeEnabled = bridgeConfig.openaiToClaude?.enabled === true
+          claudeToOpenaiEnabled = bridgeConfig.claudeToOpenai?.enabled === true
         } catch (err) {
           logger.warn('⚠️ Failed to parse bridge config:', err.message)
         }
       }
 
-      if (!openaiToClaudeEnabled) {
-        logger.info('🌉 OpenAI → Claude bridge is disabled at system level')
+      if (!claudeToOpenaiEnabled) {
+        logger.info('🌉 Claude → OpenAI bridge is disabled at system level')
       } else {
-        logger.info('✅ OpenAI → Claude bridge is enabled, loading OpenAI accounts...')
+        logger.info('✅ Claude → OpenAI bridge is enabled, loading OpenAI accounts...')
 
         // 导入 OpenAI 服务（延迟加载避免循环依赖）
-        const openaiAccountService = require('./openaiAccountService')
-        const openaiResponsesAccountService = require('./openaiResponsesAccountService')
+        const openaiAccountService = require('../account/openaiAccountService')
+        const openaiResponsesAccountService = require('../account/openaiResponsesAccountService')
+        const systemMapping = bridgeConfigStr
+          ? JSON.parse(bridgeConfigStr).claudeToOpenai?.modelMapping || {}
+          : {}
+        const defaultModel = bridgeConfigStr
+          ? JSON.parse(bridgeConfigStr).claudeToOpenai?.defaultModel || 'gpt-5'
+          : 'gpt-5'
+        const bridgeTarget = requestedModel
+          ? this._resolveBridgeModel(systemMapping, requestedModel, defaultModel)
+          : { supported: true, mappedModel: defaultModel }
 
         // 获取 OpenAI 账户
         const openaiAccounts = await openaiAccountService.getAllAccounts()
@@ -990,6 +1015,20 @@ class UnifiedClaudeScheduler {
             account.accountType === 'shared' &&
             this._isSchedulable(account.schedulable)
           ) {
+            if (requestedModel && !bridgeTarget.supported) {
+              continue
+            }
+
+            if (bridgeTarget.mappedModel) {
+              const accountResolution = resolveMappedModel(
+                account.modelMapping || {},
+                bridgeTarget.mappedModel
+              )
+              if (accountResolution.hasRules && !accountResolution.supported) {
+                continue
+              }
+            }
+
             // 检查限流状态（openaiAccountService.isRateLimited接受account对象）
             const isRateLimited = openaiAccountService.isRateLimited(account)
             if (!isRateLimited) {
@@ -1015,6 +1054,20 @@ class UnifiedClaudeScheduler {
             account.accountType === 'shared' &&
             this._isSchedulable(account.schedulable)
           ) {
+            if (requestedModel && !bridgeTarget.supported) {
+              continue
+            }
+
+            if (bridgeTarget.mappedModel) {
+              const accountResolution = resolveMappedModel(
+                account.supportedModels || {},
+                bridgeTarget.mappedModel
+              )
+              if (accountResolution.hasRules && !accountResolution.supported) {
+                continue
+              }
+            }
+
             // 检查限流状态
             const isRateLimited = await openaiResponsesAccountService.checkAndClearRateLimit(
               account.id

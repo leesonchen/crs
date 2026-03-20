@@ -5,6 +5,11 @@ const logger = require('../../utils/logger')
 const config = require('../../../config/config')
 const LRUCache = require('../../utils/lruCache')
 const upstreamErrorHelper = require('../../utils/upstreamErrorHelper')
+const {
+  normalizeModelMapping,
+  resolveMappedModel,
+  isModelSupported
+} = require('../../utils/modelMappingHelper')
 
 class OpenAIResponsesAccountService {
   constructor() {
@@ -719,76 +724,17 @@ class OpenAIResponsesAccountService {
 
   // 🔄 处理模型映射，确保向后兼容（与Claude Console完全一致）
   _processModelMapping(supportedModels) {
-    // 如果是空值，返回空对象（支持所有模型）
-    if (!supportedModels || (Array.isArray(supportedModels) && supportedModels.length === 0)) {
-      return {}
-    }
-
-    // 如果已经是对象格式（新的映射表格式），直接返回
-    if (typeof supportedModels === 'object' && !Array.isArray(supportedModels)) {
-      return supportedModels
-    }
-
-    // 如果是数组格式（旧格式），转换为映射表
-    if (Array.isArray(supportedModels)) {
-      const mapping = {}
-      supportedModels.forEach((model) => {
-        if (model && typeof model === 'string') {
-          mapping[model] = model // 映射到自身
-        }
-      })
-      return mapping
-    }
-
-    // 其他情况返回空对象
-    return {}
+    return normalizeModelMapping(supportedModels)
   }
 
   // 🔍 检查模型是否支持（用于调度，与Claude Console完全一致）
   isModelSupported(supportedModels, requestedModel) {
-    // 如果映射表为空，支持所有模型
-    if (!supportedModels || Object.keys(supportedModels).length === 0) {
-      return true
-    }
-
-    // 检查请求的模型是否在映射表的键中（精确匹配）
-    if (Object.prototype.hasOwnProperty.call(supportedModels, requestedModel)) {
-      return true
-    }
-
-    // 尝试大小写不敏感匹配
-    const requestedModelLower = requestedModel.toLowerCase()
-    for (const key of Object.keys(supportedModels)) {
-      if (key.toLowerCase() === requestedModelLower) {
-        return true
-      }
-    }
-
-    return false
+    return isModelSupported(supportedModels, requestedModel)
   }
 
   // 🔄 获取映射后的模型名称（与Claude Console完全一致）
   getMappedModel(supportedModels, requestedModel) {
-    // 如果映射表为空，返回原模型
-    if (!supportedModels || Object.keys(supportedModels).length === 0) {
-      return requestedModel
-    }
-
-    // 精确匹配
-    if (supportedModels[requestedModel]) {
-      return supportedModels[requestedModel]
-    }
-
-    // 大小写不敏感匹配
-    const requestedModelLower = requestedModel.toLowerCase()
-    for (const [key, value] of Object.entries(supportedModels)) {
-      if (key.toLowerCase() === requestedModelLower) {
-        return value
-      }
-    }
-
-    // 如果不存在则返回原模型
-    return requestedModel
+    return resolveMappedModel(supportedModels, requestedModel).mappedModel || requestedModel
   }
 }
 

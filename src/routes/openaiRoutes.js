@@ -28,6 +28,26 @@ function createProxyAgent(proxy) {
   return ProxyHelper.createProxyAgent(proxy)
 }
 
+function normalizeCodexModelForAccount(requestedModel, accountType) {
+  const isCodexModel =
+    typeof requestedModel === 'string' && requestedModel.toLowerCase().includes('codex')
+
+  if (
+    accountType === 'openai' &&
+    requestedModel &&
+    typeof requestedModel === 'string' &&
+    requestedModel.startsWith('gpt-5-') &&
+    !isCodexModel
+  ) {
+    logger.info(
+      `📝 Model ${requestedModel} detected, normalizing to gpt-5 for Codex API after account selection`
+    )
+    return 'gpt-5'
+  }
+
+  return requestedModel
+}
+
 /**
  * 准备 OpenAI → Claude 桥接配置
  * @param {Object} req - Express 请求对象
@@ -402,21 +422,7 @@ const handleResponses = async (req, res) => {
     sessionHash = sessionId ? crypto.createHash('sha256').update(sessionId).digest('hex') : null
 
     // 从请求体中提取模型和流式标志
-    let requestedModel = req.body?.model || null
-    const isCodexModel =
-      typeof requestedModel === 'string' && requestedModel.toLowerCase().includes('codex')
-
-    // 如果模型是 gpt-5 开头且后面还有内容（如 gpt-5-2025-08-07），并且不是 Codex 系列，则覆盖为 gpt-5
-    if (
-      requestedModel &&
-      typeof requestedModel === 'string' &&
-      requestedModel.startsWith('gpt-5-') &&
-      !isCodexModel
-    ) {
-      logger.info(`📝 Model ${requestedModel} detected, normalizing to gpt-5 for Codex API`)
-      requestedModel = 'gpt-5'
-      req.body.model = 'gpt-5' // 同时更新请求体中的模型
-    }
+    const requestedModel = req.body?.model || null
 
     const isStream = req.body?.stream !== false // 默认为流式（兼容现有行为）
 
@@ -551,6 +557,11 @@ const handleResponses = async (req, res) => {
       req.path === '/responses/compact' ||
       req.path === '/v1/responses/compact' ||
       (req.originalUrl && req.originalUrl.includes('/responses/compact'))
+
+    const upstreamModel = normalizeCodexModelForAccount(requestedModel, accountType)
+    if (upstreamModel && req.body?.model !== upstreamModel) {
+      req.body.model = upstreamModel
+    }
 
     // 覆盖或新增必要头部
     headers['authorization'] = `Bearer ${accessToken}`
