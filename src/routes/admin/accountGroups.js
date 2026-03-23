@@ -4,7 +4,7 @@ const claudeAccountService = require('../../services/account/claudeAccountServic
 const claudeConsoleAccountService = require('../../services/account/claudeConsoleAccountService')
 const geminiAccountService = require('../../services/account/geminiAccountService')
 const openaiAccountService = require('../../services/account/openaiAccountService')
-const openaiChatAccountService = require('../../services/openaiChatAccountService')
+const openaiResponsesAccountService = require('../../services/account/openaiResponsesAccountService')
 const droidAccountService = require('../../services/account/droidAccountService')
 const { authenticateAdmin } = require('../../middleware/auth')
 const logger = require('../../utils/logger')
@@ -110,11 +110,11 @@ router.get('/:groupId/members', authenticateAdmin, async (req, res) => {
         case 'gemini':
           account = await geminiAccountService.getAccount(memberId)
           break
-        case 'openai-chat':
-          account = await openaiChatAccountService.getAccount(memberId)
-          break
         case 'openai':
           account = await openaiAccountService.getAccount(memberId)
+          if (!account) {
+            account = await openaiResponsesAccountService.getAccount(memberId)
+          }
           break
         case 'claude':
         default:
@@ -139,7 +139,7 @@ router.get('/:groupId/members', authenticateAdmin, async (req, res) => {
         account = await openaiAccountService.getAccount(memberId)
       }
       if (!account) {
-        account = await openaiChatAccountService.getAccount(memberId)
+        account = await openaiResponsesAccountService.getAccount(memberId)
       }
       if (!account && group.platform !== 'droid') {
         account = await droidAccountService.getAccount(memberId)

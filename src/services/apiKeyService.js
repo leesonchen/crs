@@ -2433,7 +2433,6 @@ class ApiKeyService {
         'gemini-api': 'geminiAccountId', // 特殊处理，带 api: 前缀
         openai: 'openaiAccountId',
         'openai-responses': 'openaiAccountId', // 特殊处理，带 responses: 前缀
-        'openai-chat': 'openaiAccountId', // 特殊处理，带 chat: 前缀
         azure_openai: 'azureOpenaiAccountId',
         bedrock: 'bedrockAccountId',
         droid: 'droidAccountId',
@@ -2454,9 +2453,6 @@ class ApiKeyService {
       if (accountType === 'openai-responses') {
         // OpenAI-Responses 特殊处理：查找 openaiAccountId 字段中带 responses: 前缀的
         boundKeys = allKeys.filter((key) => key.openaiAccountId === `responses:${accountId}`)
-      } else if (accountType === 'openai-chat') {
-        // OpenAI-Chat 特殊处理：查找 openaiAccountId 字段中带 chat: 前缀的
-        boundKeys = allKeys.filter((key) => key.openaiAccountId === `chat:${accountId}`)
       } else if (accountType === 'gemini-api') {
         // Gemini-API 特殊处理：查找 geminiAccountId 字段中带 api: 前缀的
         boundKeys = allKeys.filter((key) => key.geminiAccountId === `api:${accountId}`)
@@ -2469,8 +2465,6 @@ class ApiKeyService {
       for (const key of boundKeys) {
         const updates = {}
         if (accountType === 'openai-responses') {
-          updates.openaiAccountId = null
-        } else if (accountType === 'openai-chat') {
           updates.openaiAccountId = null
         } else if (accountType === 'gemini-api') {
           updates.geminiAccountId = null

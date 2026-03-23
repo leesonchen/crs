@@ -58,7 +58,7 @@ class OpenAIResponsesAccountService {
       rateLimitDuration = 60, // 限流时间（分钟）
       supportedModels = [], // 支持的模型列表或映射表，空数组/对象表示支持所有
       disableAutoProtection = false, // 是否关闭自动防护（429/401/400/529 不自动禁用）
-      providerEndpoint = 'responses' // Provider 端点类型：responses | auto
+      providerEndpoint = 'responses' // Provider 端点类型：responses | completions | auto
     } = options
 
     // 验证必填字段
@@ -67,7 +67,7 @@ class OpenAIResponsesAccountService {
     }
 
     // 验证 providerEndpoint 枚举值
-    const validEndpoints = ['responses', 'auto']
+    const validEndpoints = ['responses', 'completions', 'auto']
     if (!validEndpoints.includes(providerEndpoint)) {
       throw new Error(
         `Invalid providerEndpoint: ${providerEndpoint}. Must be one of: ${validEndpoints.join(', ')}`
@@ -119,7 +119,7 @@ class OpenAIResponsesAccountService {
       disableAutoProtection: disableAutoProtection.toString(), // 关闭自动防护
       // ✅ 模型映射：使用supportedModels字段（与Claude Console保持一致）
       supportedModels: JSON.stringify(processedModels),
-      providerEndpoint // Provider 端点类型：responses(默认) | auto
+      providerEndpoint // Provider 端点类型：responses(默认) | completions | auto
     }
 
     // 保存到 Redis
@@ -208,7 +208,7 @@ class OpenAIResponsesAccountService {
 
     // 验证 providerEndpoint 枚举值
     if (updates.providerEndpoint !== undefined) {
-      const validEndpoints = ['responses', 'auto']
+      const validEndpoints = ['responses', 'completions', 'auto']
       if (!validEndpoints.includes(updates.providerEndpoint)) {
         throw new Error(
           `Invalid providerEndpoint: ${updates.providerEndpoint}. Must be one of: ${validEndpoints.join(', ')}`

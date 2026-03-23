@@ -36,8 +36,6 @@ const LAST_USED_AT_THROTTLE_MS = 60000
 function getAccountService(accountType) {
   if (accountType === 'openai') {
     return require('../account/openaiAccountService')
-  } else if (accountType === 'openai-chat') {
-    return require('../openaiChatAccountService')
   } else if (accountType === 'openai-responses') {
     return require('../account/openaiResponsesAccountService')
   } else if (accountType === 'claude-official') {
@@ -200,15 +198,21 @@ class OpenAIResponsesRelayService {
       let targetPath = upstreamPath
 
       // 根据 providerEndpoint 配置归一化路径
-      // 注意：unified.js 已将 /v1/chat/completions 的请求体转换为 Responses 格式，
-      // 因此这里只需归一化路径即可；反向 responses→completions 需要同时转换请求体，
-      // 目前不支持，所以只保留 responses 和 auto 两种模式
       if (
         providerEndpoint === 'responses' &&
         (targetPath === '/v1/chat/completions' || targetPath === '/chat/completions')
       ) {
         const newPath = targetPath.startsWith('/v1') ? '/v1/responses' : '/responses'
         logger.info(`📝 Normalized path (${req.path}) → ${newPath} (providerEndpoint=responses)`)
+        targetPath = newPath
+      } else if (
+        providerEndpoint === 'completions' &&
+        (targetPath === '/v1/responses' || targetPath === '/responses')
+      ) {
+        const newPath = targetPath.startsWith('/v1')
+          ? '/v1/chat/completions'
+          : '/chat/completions'
+        logger.info(`📝 Normalized path (${req.path}) → ${newPath} (providerEndpoint=completions)`)
         targetPath = newPath
       }
       // providerEndpoint === 'auto' 时保持原始路径不变
@@ -823,6 +827,27 @@ class OpenAIResponsesRelayService {
               if (eventData.usage) {
                 usageData = { ...usageData, ...eventData.usage }
                 logger.debug('📊 Captured usage data from direct event:', eventData.usage)
+              }
+            }
+            // 5. OpenAI Chat Completions 流式格式：chat.completion.chunk
+            else if (eventData.object === 'chat.completion.chunk') {
+              if (eventData.model) {
+                actualModel = eventData.model
+                logger.debug(`📊 Captured actual model from chat chunk: ${actualModel}`)
+              }
+              if (eventData.usage) {
+                usageData = {
+                  ...(usageData || {}),
+                  prompt_tokens: eventData.usage.prompt_tokens,
+                  completion_tokens: eventData.usage.completion_tokens,
+                  total_tokens: eventData.usage.total_tokens
+                }
+                logger.debug('📊 Captured usage data from chat chunk:', eventData.usage)
+              }
+              if (eventData.choices && eventData.choices[0]?.finish_reason) {
+                logger.debug(
+                  `📊 Stream completion detected via chat finish_reason: ${eventData.choices[0].finish_reason}`
+                )
               }
             }
 

@@ -414,39 +414,6 @@
                       <label
                         class="group relative flex cursor-pointer items-center rounded-md border p-2 transition-all"
                         :class="[
-                          form.platform === 'openai-chat'
-                            ? 'border-green-500 bg-green-50 dark:border-green-400 dark:bg-green-900/30'
-                            : 'border-gray-300 bg-white hover:border-green-400 hover:bg-green-50/50 dark:border-gray-600 dark:bg-gray-700 dark:hover:border-green-500 dark:hover:bg-green-900/20'
-                        ]"
-                      >
-                        <input
-                          v-model="form.platform"
-                          class="sr-only"
-                          type="radio"
-                          value="openai-chat"
-                        />
-                        <div class="flex items-center gap-2">
-                          <i class="fas fa-comments text-sm text-green-600 dark:text-green-400"></i>
-                          <div>
-                            <span class="block text-xs font-medium text-gray-900 dark:text-gray-100"
-                              >Chat</span
-                            >
-                            <span class="text-xs text-gray-500 dark:text-gray-400"
-                              >Openai-Chat</span
-                            >
-                          </div>
-                        </div>
-                        <div
-                          v-if="form.platform === 'openai-chat'"
-                          class="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-green-500"
-                        >
-                          <i class="fas fa-check text-xs text-white"></i>
-                        </div>
-                      </label>
-
-                      <label
-                        class="group relative flex cursor-pointer items-center rounded-md border p-2 transition-all"
-                        :class="[
                           form.platform === 'azure_openai'
                             ? 'border-blue-500 bg-blue-50 dark:border-blue-400 dark:bg-blue-900/30'
                             : 'border-gray-300 bg-white hover:border-blue-400 hover:bg-blue-50/50 dark:border-gray-600 dark:bg-gray-700 dark:hover:border-blue-500 dark:hover:bg-blue-900/20'
@@ -614,7 +581,6 @@
                 form.platform !== 'bedrock' &&
                 form.platform !== 'azure_openai' &&
                 form.platform !== 'openai-responses' &&
-                form.platform !== 'openai-chat' &&
                 form.platform !== 'gemini-api'
               "
             >
@@ -1756,53 +1722,6 @@
               <input v-model.number="form.rateLimitDuration" type="hidden" value="60" />
             </div>
 
-            <!-- OpenAI-Chat 特定字段 -->
-            <div v-if="form.platform === 'openai-chat' && !isEdit" class="space-y-4">
-              <div>
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                  >API 基础地址 *</label
-                >
-                <input
-                  v-model="form.baseApi"
-                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                  placeholder="https://chatgpt.com"
-                  required
-                  type="url"
-                />
-                <p v-if="errors.baseApi" class="mt-1 text-sm text-red-500">
-                  {{ errors.baseApi }}
-                </p>
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  OpenAI Chat API 的基础地址
-                </p>
-              </div>
-
-              <div>
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                  >API Key *</label
-                >
-                <div class="relative">
-                  <input
-                    v-model="form.apiKey"
-                    class="form-input w-full border-gray-300 pr-10 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                    placeholder="sk-xxxxxxxxxxxx"
-                    required
-                    :type="showApiKey ? 'text' : 'password'"
-                  />
-                  <button
-                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-400"
-                    type="button"
-                    @click="showApiKey = !showApiKey"
-                  >
-                    <i :class="showApiKey ? 'fas fa-eye-slash' : 'fas fa-eye'" />
-                  </button>
-                </div>
-                <p v-if="errors.apiKey" class="mt-1 text-sm text-red-500">
-                  {{ errors.apiKey }}
-                </p>
-              </div>
-            </div>
-
             <!-- Gemini API 配置 -->
             <div v-if="form.platform === 'gemini-api' && !isEdit" class="space-y-4">
               <div>
@@ -2090,8 +2009,7 @@
                 form.platform !== 'ccr' &&
                 form.platform !== 'bedrock' &&
                 form.platform !== 'azure_openai' &&
-                form.platform !== 'openai-responses' &&
-                form.platform !== 'openai-chat'
+                form.platform !== 'openai-responses'
               "
               class="space-y-4 rounded-lg border border-blue-200 bg-blue-50 p-4"
             >
@@ -2251,8 +2169,7 @@
               <div
                 v-if="
                   form.platform !== 'openai' &&
-                  form.platform !== 'openai-responses' &&
-                  form.platform !== 'openai-chat'
+                  form.platform !== 'openai-responses'
                 "
               >
                 <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
@@ -3117,9 +3034,7 @@
           <div
             v-if="
               form.addType === 'oauth' &&
-              (form.platform === 'openai' ||
-                form.platform === 'openai-responses' ||
-                form.platform === 'openai-chat')
+              (form.platform === 'openai' || form.platform === 'openai-responses')
             "
             class="space-y-4"
           >
@@ -4468,7 +4383,6 @@ const form = ref({
     if (platform === 'gemini' || platform === 'gemini-antigravity' || platform === 'openai')
       return 'oauth'
     if (platform === 'claude') return 'oauth'
-    if (platform === 'openai-chat') return 'manual'
     return 'manual'
   })(),
   name: props.account?.name || '',
@@ -5720,13 +5634,6 @@ const createAccount = async () => {
       data.quotaResetTime = form.value.quotaResetTime || '00:00'
       // 模型映射配置 - 与Claude Console保持一致
       data.supportedModels = convertMappingsToObject() || {}
-    } else if (form.value.platform === 'openai-chat') {
-      // OpenAI-Chat 账户特定数据
-      data.baseApi = form.value.baseApi
-      data.apiKey = form.value.apiKey
-      data.userAgent = form.value.userAgent || ''
-      data.priority = form.value.priority || 50
-      data.supportedModels = convertMappingsToObject() || {}
     } else if (form.value.platform === 'gemini-antigravity') {
       // Antigravity OAuth - set oauthProvider, submission happens below
       data.oauthProvider = 'antigravity'
@@ -5800,8 +5707,6 @@ const createAccount = async () => {
       result = await accountsStore.createGeminiAccount(data)
     } else if (form.value.platform === 'gemini-api') {
       result = await accountsStore.createGeminiApiAccount(data)
-    } else if (form.value.platform === 'openai-chat') {
-      result = await accountsStore.createOpenAIChatAccount(data)
     } else {
       throw new Error(`不支持的平台: ${form.value.platform}`)
     }
@@ -6380,9 +6285,6 @@ watch(
     } else if (newPlatform === 'openai') {
       // 切换到 OpenAI 时，使用 OAuth 作为默认方式
       form.value.addType = 'oauth'
-    } else if (newPlatform === 'openai-chat') {
-      // OpenAI-Chat 不需要 OAuth，使用手动模式
-      form.value.addType = 'manual'
     } else if (newPlatform === 'gemini-api' || newPlatform === 'azure_openai') {
       // 切换到 Gemini API 或 Azure OpenAI 时，使用 apikey 模式（直接创建，不需要 OAuth 流程）
       form.value.addType = 'apikey'

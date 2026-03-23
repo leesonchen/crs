@@ -16,7 +16,6 @@ const PLATFORM_CONFIG = {
     endpoint: 'openai-responses-accounts',
     stateKey: 'openaiResponsesAccounts'
   },
-  'openai-chat': { endpoint: 'openai-chat-accounts', stateKey: 'openaiChatAccounts' },
   droid: { endpoint: 'droid-accounts', stateKey: 'droidAccounts' }
 }
 
@@ -29,7 +28,6 @@ export const useAccountsStore = defineStore('accounts', () => {
   const openaiAccounts = ref([])
   const azureOpenaiAccounts = ref([])
   const openaiResponsesAccounts = ref([])
-  const openaiChatAccounts = ref([])
   const droidAccounts = ref([])
   const loading = ref(false)
   const error = ref(null)
@@ -68,8 +66,6 @@ export const useAccountsStore = defineStore('accounts', () => {
     fetchAccounts(httpApis.getAzureOpenAIAccountsApi, azureOpenaiAccounts)
   const fetchOpenAIResponsesAccounts = () =>
     fetchAccounts(httpApis.getOpenAIResponsesAccountsApi, openaiResponsesAccounts)
-  const fetchOpenAIChatAccounts = () =>
-    fetchAccounts(httpApis.getOpenAIChatAccountsApi, openaiChatAccounts)
   const fetchDroidAccounts = () => fetchAccounts(httpApis.getDroidAccountsApi, droidAccounts)
 
   const fetchAllAccounts = async () => {
@@ -83,7 +79,6 @@ export const useAccountsStore = defineStore('accounts', () => {
       fetchOpenAIAccounts(),
       fetchAzureOpenAIAccounts(),
       fetchOpenAIResponsesAccounts(),
-      fetchOpenAIChatAccounts(),
       fetchDroidAccounts()
     ])
     loading.value = false
@@ -106,8 +101,6 @@ export const useAccountsStore = defineStore('accounts', () => {
     mutateAccount(httpApis.createAzureOpenAIAccountApi, fetchAzureOpenAIAccounts, data)
   const createOpenAIResponsesAccount = (data) =>
     mutateAccount(httpApis.createOpenAIResponsesAccountApi, fetchOpenAIResponsesAccounts, data)
-  const createOpenAIChatAccount = (data) =>
-    mutateAccount(httpApis.createOpenAIChatAccountApi, fetchOpenAIChatAccounts, data)
   const createGeminiApiAccount = (data) =>
     mutateAccount(httpApis.createGeminiApiAccountApi, fetchGeminiApiAccounts, data)
 
@@ -127,8 +120,6 @@ export const useAccountsStore = defineStore('accounts', () => {
     mutateAccount(httpApis.updateAzureOpenAIAccountApi, fetchAzureOpenAIAccounts, id, data)
   const updateOpenAIResponsesAccount = (id, data) =>
     mutateAccount(httpApis.updateOpenAIResponsesAccountApi, fetchOpenAIResponsesAccounts, id, data)
-  const updateOpenAIChatAccount = (id, data) =>
-    mutateAccount(httpApis.updateOpenAIChatAccountApi, fetchOpenAIChatAccounts, id, data)
   const updateDroidAccount = (id, data) =>
     mutateAccount(httpApis.updateDroidAccountApi, fetchDroidAccounts, id, data)
 
@@ -148,7 +139,6 @@ export const useAccountsStore = defineStore('accounts', () => {
         openai: fetchOpenAIAccounts,
         azure_openai: fetchAzureOpenAIAccounts,
         'openai-responses': fetchOpenAIResponsesAccounts,
-        'openai-chat': fetchOpenAIChatAccounts,
         droid: fetchDroidAccounts
       }
       if (fetchMap[platform]) {
@@ -177,7 +167,6 @@ export const useAccountsStore = defineStore('accounts', () => {
         openai: fetchOpenAIAccounts,
         azure_openai: fetchAzureOpenAIAccounts,
         'openai-responses': fetchOpenAIResponsesAccounts,
-        'openai-chat': fetchOpenAIChatAccounts,
         droid: fetchDroidAccounts
       }
       await fetchMap[platform]()
@@ -285,7 +274,6 @@ export const useAccountsStore = defineStore('accounts', () => {
     openaiAccounts.value = []
     azureOpenaiAccounts.value = []
     openaiResponsesAccounts.value = []
-    openaiChatAccounts.value = []
     droidAccounts.value = []
     loading.value = false
     error.value = null
@@ -302,7 +290,6 @@ export const useAccountsStore = defineStore('accounts', () => {
     openaiAccounts,
     azureOpenaiAccounts,
     openaiResponsesAccounts,
-    openaiChatAccounts,
     droidAccounts,
     loading,
     error,
@@ -316,7 +303,6 @@ export const useAccountsStore = defineStore('accounts', () => {
     fetchOpenAIAccounts,
     fetchAzureOpenAIAccounts,
     fetchOpenAIResponsesAccounts,
-    fetchOpenAIChatAccounts,
     fetchDroidAccounts,
     fetchAllAccounts,
     createClaudeAccount,
@@ -328,7 +314,6 @@ export const useAccountsStore = defineStore('accounts', () => {
     updateDroidAccount,
     createAzureOpenAIAccount,
     createOpenAIResponsesAccount,
-    createOpenAIChatAccount,
     createGeminiApiAccount,
     updateClaudeAccount,
     updateClaudeConsoleAccount,
@@ -337,7 +322,6 @@ export const useAccountsStore = defineStore('accounts', () => {
     updateOpenAIAccount,
     updateAzureOpenAIAccount,
     updateOpenAIResponsesAccount,
-    updateOpenAIChatAccount,
     updateGeminiApiAccount,
     toggleAccount,
     deleteAccount,

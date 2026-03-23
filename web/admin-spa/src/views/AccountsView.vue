@@ -625,19 +625,6 @@
                       </span>
                     </div>
                     <div
-                      v-else-if="account.platform === 'openai-chat'"
-                      class="flex items-center gap-1.5 rounded-lg border border-orange-200 bg-gradient-to-r from-orange-100 to-yellow-100 px-2.5 py-1 dark:border-orange-700 dark:from-orange-900/20 dark:to-yellow-900/20"
-                    >
-                      <i class="fas fa-comments text-xs text-orange-700 dark:text-orange-400" />
-                      <span class="text-xs font-semibold text-orange-800 dark:text-orange-300"
-                        >OpenAI-Chat</span
-                      >
-                      <span class="mx-1 h-4 w-px bg-orange-300 dark:bg-orange-600" />
-                      <span class="text-xs font-medium text-orange-700 dark:text-orange-400"
-                        >API Key</span
-                      >
-                    </div>
-                    <div
                       v-else-if="account.platform === 'azure_openai'"
                       class="flex items-center gap-1.5 rounded-lg border border-blue-200 bg-gradient-to-r from-blue-100 to-cyan-100 px-2.5 py-1 dark:border-blue-700 dark:from-blue-900/20 dark:to-cyan-900/20"
                     >
@@ -1274,7 +1261,6 @@
                       account.platform === 'bedrock' ||
                       account.platform === 'gemini' ||
                       account.platform === 'openai' ||
-                      account.platform === 'openai-chat' ||
                       account.platform === 'openai-responses' ||
                       account.platform === 'azure_openai' ||
                       account.platform === 'ccr' ||
@@ -2517,7 +2503,6 @@ const supportedUsagePlatforms = [
   'claude',
   'claude-console',
   'openai',
-  'openai-chat',
   'openai-responses',
   'gemini',
   'droid',
@@ -2583,7 +2568,6 @@ const platformHierarchy = [
     icon: 'fa-openai',
     children: [
       { value: 'openai', label: 'OpenAI 官方', icon: 'fa-openai' },
-      { value: 'openai-chat', label: 'OpenAI-Chat', icon: 'fa-comments' },
       { value: 'openai-responses', label: 'OpenAI-Responses (Codex)', icon: 'fa-server' },
       { value: 'azure_openai', label: 'Azure OpenAI', icon: 'fab fa-microsoft' }
     ]
@@ -2608,7 +2592,7 @@ const platformHierarchy = [
 // 平台分组映射
 const platformGroupMap = {
   'group-claude': ['claude', 'claude-console', 'bedrock', 'ccr'],
-  'group-openai': ['openai', 'openai-chat', 'openai-responses', 'azure_openai'],
+  'group-openai': ['openai', 'openai-responses', 'azure_openai'],
   'group-gemini': ['gemini', 'gemini-api'],
   'group-droid': ['droid']
 }
@@ -2620,7 +2604,6 @@ const platformRequestHandlers = {
   bedrock: () => httpApis.getBedrockAccountsApi(),
   gemini: () => httpApis.getGeminiAccountsApi(),
   openai: () => httpApis.getOpenAIAccountsApi(),
-  'openai-chat': () => httpApis.getOpenAIChatAccountsApi(),
   azure_openai: () => httpApis.getAzureOpenAIAccountsApi(),
   'openai-responses': () => httpApis.getOpenAIResponsesAccountsApi(),
   ccr: () => httpApis.getCcrAccountsApi(),
@@ -2764,7 +2747,6 @@ const showResetButton = (account) => {
     'claude',
     'claude-console',
     'openai',
-    'openai-chat',
     'openai-responses',
     'gemini',
     'gemini-api',
@@ -2881,7 +2863,6 @@ const supportedTestPlatforms = [
   'claude-console',
   'bedrock',
   'gemini',
-  'openai-chat',
   'gemini-api',
   'openai-responses',
   'azure-openai',
@@ -3070,7 +3051,6 @@ const accountStats = computed(() => {
     { value: 'gemini', label: 'Gemini' },
     { value: 'gemini-api', label: 'Gemini API' },
     { value: 'openai', label: 'OpenAI' },
-    { value: 'openai-chat', label: 'OpenAI-Chat' },
     { value: 'azure_openai', label: 'Azure OpenAI' },
     { value: 'bedrock', label: 'Bedrock' },
     { value: 'openai-responses', label: 'OpenAI-Responses' },
@@ -3650,14 +3630,6 @@ const loadAccounts = async (forceReload = false) => {
           allAccounts.push(...items)
           break
         }
-        case 'openai-chat': {
-          const items = list.map((acc) => {
-            const boundApiKeysCount = counts.openaiAccountId?.[`chat:${acc.id}`] || 0
-            return { ...acc, platform: 'openai-chat', boundApiKeysCount }
-          })
-          allAccounts.push(...items)
-          break
-        }
         case 'azure_openai': {
           const items = list.map((acc) => {
             const boundApiKeysCount = counts.azureOpenaiAccountId?.[acc.id] || 0
@@ -4228,7 +4200,6 @@ const getBoundApiKeysForAccount = (account) => {
       key.geminiAccountId === accountId ||
       key.openaiAccountId === accountId ||
       key.azureOpenaiAccountId === accountId ||
-      key.openaiAccountId === `chat:${accountId}` ||
       key.openaiAccountId === `responses:${accountId}` ||
       key.geminiAccountId === `api:${accountId}`
     )
@@ -4245,8 +4216,6 @@ const resolveAccountDeleteEndpoint = (account) => {
       return `/admin/bedrock-accounts/${account.id}`
     case 'openai':
       return `/admin/openai-accounts/${account.id}`
-    case 'openai-chat':
-      return `/admin/openai-chat-accounts/${account.id}`
     case 'azure_openai':
       return `/admin/azure-openai-accounts/${account.id}`
     case 'openai-responses':
@@ -4398,7 +4367,6 @@ const batchDeleteAccounts = async () => {
 
 const RESET_STATUS_ENDPOINT_MAP = {
   openai: (id) => `/admin/openai-accounts/${id}/reset-status`,
-  'openai-chat': (id) => `/admin/openai-chat-accounts/${id}/reset-status`,
   'openai-responses': (id) => `/admin/openai-responses-accounts/${id}/reset-status`,
   claude: (id) => `/admin/claude-accounts/${id}/reset-status`,
   'claude-console': (id) => `/admin/claude-console-accounts/${id}/reset-status`,
@@ -4417,7 +4385,6 @@ const TOGGLE_SCHEDULABLE_ENDPOINT_MAP = {
   bedrock: (id) => `/admin/bedrock-accounts/${id}/toggle-schedulable`,
   gemini: (id) => `/admin/gemini-accounts/${id}/toggle-schedulable`,
   openai: (id) => `/admin/openai-accounts/${id}/toggle-schedulable`,
-  'openai-chat': (id) => `/admin/openai-chat-accounts/${id}/toggle-schedulable`,
   azure_openai: (id) => `/admin/azure-openai-accounts/${id}/toggle-schedulable`,
   'azure-openai': (id) => `/admin/azure-openai-accounts/${id}/toggle-schedulable`,
   'openai-responses': (id) => `/admin/openai-responses-accounts/${id}/toggle-schedulable`,
@@ -5461,9 +5428,6 @@ const handleSaveAccountExpiry = async ({ accountId, expiresAt }) => {
         break
       case 'openai':
         endpoint = `/admin/openai-accounts/${accountId}` // 使用 :id
-        break
-      case 'openai-chat':
-        endpoint = `/admin/openai-chat-accounts/${accountId}` // 使用 :id
         break
       case 'droid':
         endpoint = `/admin/droid-accounts/${accountId}` // 使用 :id

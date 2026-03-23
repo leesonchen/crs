@@ -6,11 +6,11 @@ const config = require('../../config/config')
 const { authenticateApiKey } = require('../middleware/auth')
 const unifiedOpenAIScheduler = require('../services/scheduler/unifiedOpenAIScheduler')
 const openaiAccountService = require('../services/account/openaiAccountService')
-const openaiChatAccountService = require('../services/openaiChatAccountService')
 const openaiResponsesAccountService = require('../services/account/openaiResponsesAccountService')
 const openaiResponsesRelayService = require('../services/relay/openaiResponsesRelayService')
 const bridgeService = require('../services/bridgeService')
 const ClaudeToOpenAIResponsesConverter = require('../services/claudeToOpenAIResponses')
+const OpenAICompletionsToResponsesConverter = require('../services/openaiCompletionsToResponses')
 const apiKeyService = require('../services/apiKeyService')
 const redis = require('../models/redis')
 const crypto = require('crypto')
@@ -108,6 +108,32 @@ async function prepareClaudeBridge(req, accountId, accountType) {
     fullAccount: bridgeResult.account,
     claudeRequest: bridgeResult.request
   }
+}
+
+function configureOpenAIResponsesCompletionsBridge(req, account, requestedModel) {
+  const useResponsesBridge = req._fromUnifiedEndpoint || req.path.includes('/responses')
+  if (!useResponsesBridge) {
+    return false
+  }
+
+  const bridgeConverter = new OpenAICompletionsToResponsesConverter({
+    requestedModel: requestedModel || req.body?.model || 'gpt-5'
+  })
+
+  req.body = bridgeConverter.buildChatRequestFromResponses(req.body)
+  req.headers['x-crs-upstream-path'] = '/v1/chat/completions'
+  req._bridgeStreamTransform = (chunkStr) => bridgeConverter.convertStreamChunk(chunkStr)
+  req._bridgeStreamFinalize = () => bridgeConverter.finalizeStream()
+  req._bridgeNonStreamConvert = (responseData) => bridgeConverter.convertNonStream(responseData)
+
+  logger.info(`🔁 Enabled openai-responses completions bridge (responses -> chat -> responses)`, {
+    accountId: account.id,
+    accountName: account.name,
+    path: req.path,
+    fromUnified: !!req._fromUnifiedEndpoint
+  })
+
+  return true
 }
 
 // 检查 API Key 是否具备 OpenAI 权限
@@ -242,28 +268,6 @@ async function getOpenAIAuthToken(apiKeyData, sessionId = null, requestedModel =
       }
 
       logger.info(`Selected OpenAI-Responses account: ${account.name} (${result.accountId})`)
-    } else if (result.accountType === 'openai-chat') {
-      // 处理 OpenAI-Chat 账户
-      account = await openaiChatAccountService.getAccount(result.accountId)
-      if (!account || !account.apiKey) {
-        const error = new Error(`OpenAI-Chat account ${result.accountId} has no valid apiKey`)
-        error.statusCode = 403 // Forbidden - 账户配置错误
-        throw error
-      }
-
-      // OpenAI-Chat 使用账户内的 apiKey，不需要 accessToken
-      accessToken = null
-
-      // 解析代理配置
-      if (account.proxy) {
-        try {
-          proxy = typeof account.proxy === 'string' ? JSON.parse(account.proxy) : account.proxy
-        } catch (e) {
-          logger.warn('Failed to parse proxy configuration for OpenAI-Chat account:', e)
-        }
-      }
-
-      logger.info(`Selected OpenAI-Chat account: ${account.name} (${result.accountId})`)
     } else if (
       result.accountType === 'claude-official' ||
       result.accountType === 'claude-console'
@@ -385,8 +389,7 @@ async function getOpenAIAuthToken(apiKeyData, sessionId = null, requestedModel =
 const handleResponses = async (req, res) => {
   let upstream = null
   let accountId = null
-  // ✅ 根据请求路径确定账户类型
-  let accountType = req.path.includes('/chat/') ? 'openai-chat' : 'openai-responses'
+  let accountType = 'openai-responses'
   let sessionHash = null
   let account = null
   let proxy = null
@@ -469,15 +472,14 @@ const handleResponses = async (req, res) => {
       requestedModel
     ))
 
-    // 如果是 OpenAI-Responses 账户，直接使用中继服务
     if (accountType === 'openai-responses') {
-      logger.info(`🔀 Using OpenAI-Responses relay service for account: ${account.name}`)
-      return await openaiResponsesRelayService.handleRequest(req, res, account, apiKeyData)
-    }
+      if (account.providerEndpoint === 'completions') {
+        configureOpenAIResponsesCompletionsBridge(req, account, requestedModel)
+      }
 
-    // 如果是 OpenAI-Chat 账户，使用标准 OpenAI API 兼容模式
-    if (accountType === 'openai-chat') {
-      logger.info(`🔀 Using OpenAI-Chat account for OpenAI-compatible API: ${account.name}`)
+      logger.info(`🔀 Using OpenAI-Responses relay service for account: ${account.name}`, {
+        providerEndpoint: account.providerEndpoint || 'responses'
+      })
       return await openaiResponsesRelayService.handleRequest(req, res, account, apiKeyData)
     }
 

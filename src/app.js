@@ -53,6 +53,9 @@ class Application {
       await redis.connect()
       logger.success('Redis connected successfully')
 
+      const { runOpenAIChatCleanupMigration } = require('./services/migrations/openaiChatCleanupMigration')
+      await runOpenAIChatCleanupMigration()
+
       // 📊 检查数据迁移（版本 > 1.1.250 时执行）
       const { getAppVersion, versionGt } = require('./utils/commonHelper')
       const currentVersion = getAppVersion()
