@@ -293,6 +293,15 @@ class DroidRelayService {
         }
       }
 
+      this._logForwardRequestSummary({
+        endpointType: normalizedEndpoint,
+        apiUrl,
+        headers,
+        originalRequest: requestBody,
+        normalizedRequestBody,
+        processedBody
+      })
+
       // 发送请求
       const isStreaming = streamRequested
 
@@ -1220,6 +1229,69 @@ class DroidRelayService {
     }
 
     return processedBody
+  }
+
+  _logForwardRequestSummary({
+    endpointType,
+    apiUrl,
+    headers = {},
+    originalRequest = null,
+    normalizedRequestBody = null,
+    processedBody = null
+  }) {
+    const originalModel = originalRequest?.model || null
+    const normalizedModel = normalizedRequestBody?.model || null
+    const forwardedModel = processedBody?.model || null
+    const messages = Array.isArray(processedBody?.messages) ? processedBody.messages : []
+    const input = Array.isArray(processedBody?.input) ? processedBody.input : []
+    const systemMessage = messages.find((item) => item && item.role === 'system')
+    const instructions =
+      typeof processedBody?.instructions === 'string' ? processedBody.instructions : ''
+
+    logger.info('🧭 Droid forwarded request summary', {
+      endpointType,
+      apiUrl,
+      originalModel,
+      normalizedModel,
+      forwardedModel,
+      xApiProvider: headers['x-api-provider'] || null,
+      forwardedUserAgent: headers['user-agent'] || null,
+      stream: this._isStreamRequested(processedBody),
+      hasInstructions: Boolean(instructions),
+      instructionsPrefixedWithSystemPrompt: Boolean(
+        instructions && this.systemPrompt && instructions.startsWith(this.systemPrompt)
+      ),
+      inputCount: input.length,
+      messagesCount: messages.length,
+      firstMessageRole: messages[0]?.role || null,
+      systemPromptInjected:
+        Boolean(systemMessage) &&
+        this._extractTextContent(systemMessage.content).includes(this.systemPrompt)
+    })
+  }
+
+  _extractTextContent(content) {
+    if (typeof content === 'string') {
+      return content
+    }
+
+    if (!Array.isArray(content)) {
+      return ''
+    }
+
+    return content
+      .map((item) => {
+        if (typeof item === 'string') {
+          return item
+        }
+
+        if (item && typeof item.text === 'string') {
+          return item.text
+        }
+
+        return ''
+      })
+      .join('\n')
   }
 
   /**
