@@ -716,6 +716,89 @@ const openaiResponse = openaiToClaudeConverter.convertResponse(claudeResponse, r
 const openaiChunk = openaiToClaudeConverter.convertStreamChunk(chunk, requestModel, sessionId)
 ```
 
+#### 5.3.2.1 OpenAI Chat → OpenAI Responses SSE 桥接契约
+
+当上游账户仅支持 `/v1/chat/completions`，而客户端请求 `/v1/responses` 时，桥接层必须把 `chat.completion.chunk` 流稳定转换为 OpenAI Responses SSE 事件流。该转换不是“字段改名”，而是**事件级协议转换**。
+
+**目标事件顺序**:
+
+```text
+response.created
+response.in_progress
+response.output_item.added           // assistant message
+response.content_part.added          // output text part
+response.output_text.delta           // 0..n 次
+response.output_text.done
+response.content_part.done
+response.output_item.done            // assistant message done
+response.function_call_arguments.*   // 如果上游返回 tool_calls，则穿插出现
+response.delta                       // usage / stop_reason
+response.completed
+[DONE]
+```
+
+**关键约束**:
+
+- `sequence_number` 必须单调递增，覆盖每一个桥接输出事件。
+- 对 Cherry Studio 而言，`response.output_text.delta.delta` 必须是**字符串**；客户端直接把 `chunk.delta` 当文本增量消费，而不是读取 `chunk.delta.text`。
+- 如果桥接 `reasoning_content`，则 `response.reasoning_summary_text.delta.delta` 也必须是**字符串**。
+- `response.output_text.done` 应携带完整 `text`，便于严格客户端在收尾阶段做最终拼接校验。
+- `response.output_item.added/done` 应使用 `item.id` 作为项目标识；Cherry Studio 会把 `response.output_item.added.item.id` 与后续 `response.function_call_arguments.done.item_id` 关联起来。
+- `response.content_part.done.part` 最好是带 `type` 的对象；Cherry Studio 在处理该事件时会直接读取 `chunk.part.type` 和 `chunk.part.annotations`。
+- `response.output_item.done` 应与对应的 `output_item.added` 配对，消息项和函数项都需要结束事件。
+- `response.completed.response.output` 必须包含最终聚合后的 `message` / `function_call` 项，作为非增量的权威结果。
+- `usage` 若上游在末尾 chunk 返回，桥接层应通过 `response.delta` 或 `response.completed.response.usage` 保留，不得丢失。
+- 如果桥接了推理流，`reasoning` 与最终 `message` 应使用不同的 `output_index`，避免客户端将两类 output item 视为同一槽位。
+
+**请求转换规则**:
+
+桥接层需要将 `/v1/responses` 请求体转换为 `/v1/chat/completions` 格式。`input` 字段支持多种形态：
+
+```javascript
+// 1. 字符串形式
+{ input: "你好" } -> { messages: [{ role: "user", content: "你好" }] }
+
+// 2. 单对象形式（EasyInputMessage）
+{ input: { role: "user", content: [...] } } -> { messages: [{ role: "user", content: "..." }] }
+
+// 3. 数组形式（标准 Responses input）
+{ input: [
+    { role: "developer", content: [...] },  // -> system message
+    { role: "user", content: [...] },       // -> user message
+    { type: "function_call", ... },         // -> assistant tool_calls
+    { type: "function_call_output", ... }   // -> tool message
+] }
+```
+
+**字段映射原则**:
+
+```javascript
+// 请求转换
+responsesBody.instructions          -> chatBody.messages[0] (role: "system")
+responsesBody.input (string)       -> chatBody.messages[...] (role: "user")
+responsesBody.input (object/array) -> chatBody.messages[...] (按 item.role/item.type 映射)
+item.role === "developer"          -> role: "system"
+item.type === "function_call"      -> { role: "assistant", tool_calls: [...] }
+item.type === "function_call_output" -> { role: "tool", tool_call_id: ... }
+
+// 响应转换
+chat.completion.chunk.model            -> response.model
+chat.completion.chunk.created          -> response.created
+choices[0].delta.content              -> response.output_text.delta.delta
+choices[0].delta.reasoning_content    -> response.reasoning_summary_text.delta.delta
+choices[0].delta.tool_calls           -> response.output_item.added / response.function_call_arguments.delta
+choices[0].finish_reason              -> response.delta.stop_reason / response.completed.response.stop_reason
+chunk.usage                           -> response.delta.usage / response.completed.response.usage
+```
+
+**实现注意事项**:
+
+- 第一段文本到达前不能提前创建 message output item，否则空消息项会干扰某些严格客户端。
+- 如果上游返回的是数组型 `delta.content`，桥接层需要先提取可显示文本，再生成 `response.output_text.delta`。
+- Cherry Studio 当前的 Responses 客户端实现是**客户端驱动契约**：它直接读取 `chunk.delta`、`chunk.item.id`、`chunk.item_id`、`chunk.part.type`，因此桥接输出必须按这些访问路径组织字段。
+- 诊断日志要同时区分“上游 chat chunk 是否含内容”和“桥接后 responses event 是否含内容”，避免只看上游日志误判为客户端问题。
+- `response.created` 与 `response.in_progress` 虽然都表示进行中状态，但都应保留；历史抓包和既有客户端都依赖这一前导事件对。
+
 **日志记录特性**:
 ```javascript
 // 请求适配日志

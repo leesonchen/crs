@@ -698,8 +698,75 @@ class OpenAIResponsesRelayService {
     let rateLimitDetected = false
     let rateLimitResetsInSeconds = null
     let streamEnded = false
-    const _eventDebugCount = 0
     const allSSEEvents = [] // 记录所有SSE事件用于完整调试
+    const shouldLogDetailedSSE =
+      process.env.NODE_ENV === 'development' || process.env.DEBUG_SSE_EVENTS === 'true'
+    const bridgeDebug = {
+      sampleLimit: 10,
+      emptyLimit: 5,
+      outputSamples: [],
+      emptyTransforms: 0,
+      outputBytes: 0,
+      outputEvents: 0,
+      producedDone: false,
+      producedCompleted: false
+    }
+
+    const collectBridgeOutputSample = (payload) => {
+      if (!payload || typeof payload !== 'string') {
+        return
+      }
+
+      bridgeDebug.outputBytes += Buffer.byteLength(payload, 'utf8')
+      if (payload.includes('data: [DONE]')) {
+        bridgeDebug.producedDone = true
+      }
+
+      const eventBlocks = payload.split('\n\n').filter((block) => block.trim())
+      for (const block of eventBlocks) {
+        const dataLine = block
+          .split('\n')
+          .find((line) => line.startsWith('data: '))
+        if (!dataLine) {
+          continue
+        }
+
+        const rawPayload = dataLine.slice(6).trim()
+        if (!rawPayload) {
+          continue
+        }
+        if (rawPayload === '[DONE]') {
+          bridgeDebug.outputEvents += 1
+          continue
+        }
+
+        bridgeDebug.outputEvents += 1
+
+        let parsed = null
+        try {
+          parsed = JSON.parse(rawPayload)
+        } catch (_error) {
+          parsed = null
+        }
+
+        if (parsed?.type === 'response.completed') {
+          bridgeDebug.producedCompleted = true
+        }
+
+        if (bridgeDebug.outputSamples.length >= bridgeDebug.sampleLimit) {
+          continue
+        }
+
+        bridgeDebug.outputSamples.push({
+          eventNumber: bridgeDebug.outputEvents,
+          type: parsed?.type || 'unparsed',
+          hasDeltaText: typeof parsed?.delta === 'string' || !!parsed?.delta?.text,
+          hasOutput: Array.isArray(parsed?.response?.output) && parsed.response.output.length > 0,
+          hasUsage: !!(parsed?.response?.usage || parsed?.delta?.usage),
+          preview: rawPayload.substring(0, 120)
+        })
+      }
+    }
 
     // 解析 SSE 事件以捕获 usage 数据和 model - 支持多种供应商格式
     const parseSSEForUsage = (data) => {
@@ -736,34 +803,36 @@ class OpenAIResponsesRelayService {
               hasContent: !!(
                 eventData.content ||
                 eventData.delta ||
-                eventData.response?.output_text
+                eventData.response?.output_text ||
+                eventData.choices?.[0]?.delta?.content ||
+                eventData.choices?.[0]?.delta?.reasoning_content
               ),
               keys: Object.keys(eventData),
-              // 记录完整事件内容用于深度调试
               fullContent: eventData
             }
 
             allSSEEvents.push(eventDataSummary)
 
-            logger.info('📡 [SSE] Received event:', {
-              eventNumber: eventDataSummary.eventNumber,
-              type: eventData.type,
-              vendor: detectedVendor,
-              hasUsage: eventDataSummary.hasUsage,
-              hasModel: eventDataSummary.hasModel,
-              hasContent: eventDataSummary.hasContent,
-              keys: eventDataSummary.keys,
-              // 记录关键内容但避免日志过于冗长
-              ...(eventDataSummary.hasUsage && {
-                usage: eventData.response?.usage || eventData.usage || eventData.message?.usage
-              }),
-              ...(eventDataSummary.hasModel && {
-                model: eventData.response?.model || eventData.model || eventData.message?.model
-              }),
-              ...(eventDataSummary.hasContent && {
-                contentPreview: this._extractContentPreview(eventData)
+            if (shouldLogDetailedSSE) {
+              logger.debug('📡 [SSE] Received event:', {
+                eventNumber: eventDataSummary.eventNumber,
+                type: eventData.type,
+                vendor: detectedVendor,
+                hasUsage: eventDataSummary.hasUsage,
+                hasModel: eventDataSummary.hasModel,
+                hasContent: eventDataSummary.hasContent,
+                keys: eventDataSummary.keys,
+                ...(eventDataSummary.hasUsage && {
+                  usage: eventData.response?.usage || eventData.usage || eventData.message?.usage
+                }),
+                ...(eventDataSummary.hasModel && {
+                  model: eventData.response?.model || eventData.model || eventData.message?.model
+                }),
+                ...(eventDataSummary.hasContent && {
+                  contentPreview: this._extractContentPreview(eventData)
+                })
               })
-            })
+            }
 
             // 支持多种供应商格式的 usage 和 model 提取
 
@@ -895,9 +964,20 @@ class OpenAIResponsesRelayService {
           if (typeof transform === 'function') {
             const converted = transform(chunkStr)
             if (converted) {
+              collectBridgeOutputSample(converted)
               res.write(converted)
               if (typeof res.flush === 'function') {
                 res.flush()
+              }
+            } else {
+              const hasUpstreamData = chunkStr.includes('data: ') && !chunkStr.includes('data: [DONE]')
+              if (hasUpstreamData && bridgeDebug.emptyTransforms < bridgeDebug.emptyLimit) {
+                bridgeDebug.emptyTransforms += 1
+                logger.warn('⚠️ Bridge emitted empty payload for upstream chunk', {
+                  accountId: account.id,
+                  chunkLength: chunkStr.length,
+                  upstreamPreview: chunkStr.substring(0, 160)
+                })
               }
             }
           } else {
@@ -944,6 +1024,9 @@ class OpenAIResponsesRelayService {
       if (typeof req._bridgeStreamFinalize === 'function') {
         try {
           const trailing = req._bridgeStreamFinalize()
+          if (trailing) {
+            collectBridgeOutputSample(trailing)
+          }
           if (!forceNonStream && trailing && !res.destroyed) {
             res.write(trailing)
             if (typeof res.flush === 'function') {
@@ -1183,11 +1266,17 @@ class OpenAIResponsesRelayService {
 
       // 记录完整的SSE事件序列总结
       const vendorsDetected = [...new Set(allSSEEvents.map((e) => e.vendor))]
+      const eventTypes = allSSEEvents.map((e) => e.type).filter(Boolean)
+      const eventTypesSample =
+        eventTypes.length > 10
+          ? [...eventTypes.slice(0, 5), '...', ...eventTypes.slice(-5)]
+          : eventTypes
       logger.info('📊 [SSE] Complete event sequence summary:', {
         accountId: account.id,
         totalEvents: allSSEEvents.length,
         detectedVendors: vendorsDetected,
-        eventTypes: allSSEEvents.map((e) => e.type),
+        uniqueEventTypes: [...new Set(eventTypes)],
+        eventTypesSample,
         hasUsage: !!usageData,
         actualModel: actualModel || 'unknown',
         requestedModel: requestedModel || 'unknown',
@@ -1209,7 +1298,7 @@ class OpenAIResponsesRelayService {
       })
 
       // 如果需要，可以记录详细的事件内容（仅在调试模式下）
-      if (process.env.NODE_ENV === 'development' || process.env.DEBUG_SSE_EVENTS === 'true') {
+      if (shouldLogDetailedSSE) {
         logger.debug('📊 [SSE] Detailed event contents:', {
           accountId: account.id,
           events: allSSEEvents.map((e) => ({
@@ -1228,8 +1317,20 @@ class OpenAIResponsesRelayService {
         hasUsage: !!usageData,
         actualModel: actualModel || 'unknown',
         requestedModel: requestedModel || 'unknown',
-        streamEndedProperly: true
+        streamEndedProperly: true,
+        bridgeOutputBytes: bridgeDebug.outputBytes,
+        bridgeOutputEvents: bridgeDebug.outputEvents,
+        bridgeProducedDone: bridgeDebug.producedDone,
+        bridgeProducedCompleted: bridgeDebug.producedCompleted,
+        bridgeEmptyTransforms: bridgeDebug.emptyTransforms
       })
+
+      if (bridgeDebug.outputSamples.length > 0) {
+        logger.info('📤 [Bridge] Sampled outbound SSE events:', {
+          accountId: account.id,
+          samples: bridgeDebug.outputSamples
+        })
+      }
     })
 
     response.data.on('error', (error) => {
@@ -1695,6 +1796,26 @@ class OpenAIResponsesRelayService {
       contentPreview = eventData.content.substring(0, 50)
     }
 
+    // OpenAI Chat Completions 流式格式
+    else if (typeof eventData.choices?.[0]?.delta?.content === 'string') {
+      contentPreview = eventData.choices[0].delta.content.substring(0, 50)
+    } else if (Array.isArray(eventData.choices?.[0]?.delta?.content)) {
+      contentPreview = eventData.choices[0].delta.content
+        .map((part) => {
+          if (typeof part === 'string') {
+            return part
+          }
+          if (part && typeof part.text === 'string') {
+            return part.text
+          }
+          return ''
+        })
+        .join('')
+        .substring(0, 50)
+    } else if (typeof eventData.choices?.[0]?.delta?.reasoning_content === 'string') {
+      contentPreview = eventData.choices[0].delta.reasoning_content.substring(0, 50)
+    }
+
     // Gemini 格式
     else if (eventData.candidate && eventData.candidate.content) {
       const text = eventData.candidate.content.parts?.[0]?.text || ''
@@ -1709,6 +1830,11 @@ class OpenAIResponsesRelayService {
         typeof eventData.content === 'string'
           ? eventData.content.substring(0, 50)
           : JSON.stringify(eventData.content).substring(0, 50)
+    }
+
+    // OpenAI Chat Completions 格式 (choices[0].delta.content)
+    else if (eventData.choices?.[0]?.delta?.content) {
+      contentPreview = eventData.choices[0].delta.content.substring(0, 50)
     }
 
     return contentPreview || 'no_content'
