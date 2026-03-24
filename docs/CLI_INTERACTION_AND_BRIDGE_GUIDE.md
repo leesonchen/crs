@@ -587,12 +587,14 @@ User-Agent: Mozilla/5.0 ... CherryStudio/1.5.11 ...
 ```json
 {
   "type": "response.output_text.delta",
-  "delta": {
-    "type": "text",
-    "text": "Hello! How can I"
-  }
+  "delta": "Hello! How can I",
+  "item_id": "item_123",
+  "content_index": 0,
+  "output_index": 0
 }
 ```
+
+**注意**: Cherry Studio 客户端直接将 `delta` 作为字符串消费，而不是读取 `delta.text`。桥接层必须确保 `delta` 是字符串类型。
 
 ##### response.completed 事件
 ```json
