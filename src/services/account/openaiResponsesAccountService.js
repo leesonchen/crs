@@ -117,8 +117,6 @@ class OpenAIResponsesAccountService {
       // ✅ 模型映射：使用supportedModels字段（与Claude Console保持一致）
       supportedModels: JSON.stringify(processedModels),
       disableAutoProtection: disableAutoProtection.toString(), // 关闭自动防护
-      // ✅ 模型映射：使用supportedModels字段（与Claude Console保持一致）
-      supportedModels: JSON.stringify(processedModels),
       providerEndpoint // Provider 端点类型：responses(默认) | completions | auto
     }
 

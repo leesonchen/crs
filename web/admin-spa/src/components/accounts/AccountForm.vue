@@ -1365,203 +1365,130 @@
 
               <div>
                 <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                  >模型限制 (可选)</label
+                  >模型映射 (可选)</label
                 >
 
-                <!-- 模式切换 -->
-                <div class="mb-4 flex gap-2">
-                  <button
-                    class="flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-all"
-                    :class="
-                      modelRestrictionMode === 'whitelist'
-                        ? 'bg-blue-500 text-white shadow-md'
-                        : 'border border-gray-300 text-gray-600 hover:border-blue-300 dark:border-gray-600 dark:text-gray-400 dark:hover:border-blue-500'
-                    "
-                    type="button"
-                    @click="modelRestrictionMode = 'whitelist'"
-                  >
-                    <i class="fas fa-check-circle mr-2" />
-                    模型白名单
-                  </button>
-                  <button
-                    class="flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-all"
-                    :class="
-                      modelRestrictionMode === 'mapping'
-                        ? 'bg-purple-500 text-white shadow-md'
-                        : 'border border-gray-300 text-gray-600 hover:border-purple-300 dark:border-gray-600 dark:text-gray-400 dark:hover:border-purple-500'
-                    "
-                    type="button"
-                    @click="modelRestrictionMode = 'mapping'"
-                  >
-                    <i class="fas fa-random mr-2" />
-                    模型映射
-                  </button>
-                </div>
-
-                <!-- 白名单模式 -->
-                <div v-if="modelRestrictionMode === 'whitelist'">
-                  <div class="mb-3 rounded-lg bg-blue-50 p-3 dark:bg-blue-900/30">
-                    <p class="text-xs text-blue-700 dark:text-blue-400">
-                      <i class="fas fa-info-circle mr-1" />
-                      选择允许使用此账户的模型。留空表示支持所有模型；白名单会保存为 `&lt;keep&gt;`
-                      自保持映射。
-                    </p>
-                  </div>
-
-                  <!-- 模型复选框列表 -->
-                  <div class="mb-3 grid grid-cols-2 gap-2">
-                    <label
-                      v-for="model in commonModels"
-                      :key="model.value"
-                      class="flex cursor-pointer items-center rounded-lg border p-3 transition-all hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700"
-                      :class="
-                        allowedModels.includes(model.value)
-                          ? 'border-blue-500 bg-blue-50 dark:border-blue-400 dark:bg-blue-900/30'
-                          : 'border-gray-300'
-                      "
-                    >
-                      <input
-                        v-model="allowedModels"
-                        class="mr-2 text-blue-600 focus:ring-blue-500"
-                        type="checkbox"
-                        :value="model.value"
-                      />
-                      <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{
-                        model.label
-                      }}</span>
-                    </label>
-                  </div>
-
-                  <p class="text-xs text-gray-500 dark:text-gray-400">
-                    已选择 {{ allowedModels.length }} 个模型
-                    <span v-if="allowedModels.length === 0">（支持所有模型）</span>
+                <div class="mb-3 rounded-lg bg-purple-50 p-3 dark:bg-purple-900/30">
+                  <p class="text-xs text-purple-700 dark:text-purple-400">
+                    <i class="fas fa-info-circle mr-1" />
+                    配置模型映射关系。左侧是客户端请求的模型，右侧是实际发送给 API 的模型；
+                    &lt;keep&gt; 表示保留原模型不做映射。只有出现在映射表中的模型才会被调度。
                   </p>
                 </div>
 
-                <!-- 映射模式 -->
-                <div v-else>
-                  <div class="mb-3 rounded-lg bg-purple-50 p-3 dark:bg-purple-900/30">
-                    <p class="text-xs text-purple-700 dark:text-purple-400">
-                      <i class="fas fa-info-circle mr-1" />
-                      配置模型映射关系。左侧是客户端请求的模型，右侧是实际发送给 API 的模型； `*`
-                      表示其他所有模型，`&lt;keep&gt;` 表示保留原模型不做映射。
-                    </p>
-                  </div>
-
-                  <!-- 模型映射表 -->
-                  <div class="mb-3 space-y-2">
-                    <div
-                      v-for="(mapping, index) in modelMappings"
-                      :key="index"
-                      class="flex items-center gap-2"
-                    >
-                      <input
-                        v-model="mapping.from"
-                        class="form-input flex-1 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                        placeholder="原始模型名称"
-                        type="text"
-                      />
-                      <i class="fas fa-arrow-right text-gray-400 dark:text-gray-500" />
-                      <input
-                        v-model="mapping.to"
-                        class="form-input flex-1 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                        placeholder="映射后的模型名称"
-                        type="text"
-                      />
-                      <button
-                        class="rounded-lg p-2 text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-900/20"
-                        type="button"
-                        @click="removeModelMapping(index)"
-                      >
-                        <i class="fas fa-trash" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <!-- 添加映射按钮 -->
-                  <button
-                    class="w-full rounded-lg border-2 border-dashed border-gray-300 px-4 py-2 text-gray-600 transition-colors hover:border-gray-400 hover:text-gray-700 dark:border-gray-600 dark:text-gray-400 dark:hover:border-gray-500 dark:hover:text-gray-300"
-                    type="button"
-                    @click="addModelMapping"
+                <!-- 模型映射表 -->
+                <div class="mb-3 space-y-2">
+                  <div
+                    v-for="(mapping, index) in modelMappings"
+                    :key="index"
+                    class="flex items-center gap-2"
                   >
-                    <i class="fas fa-plus mr-2" />
-                    添加模型映射
-                  </button>
-
-                  <!-- 快捷添加按钮 -->
-                  <div class="mt-3 flex flex-wrap gap-2">
+                    <input
+                      v-model="mapping.from"
+                      class="form-input flex-1 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                      placeholder="原始模型名称"
+                      type="text"
+                    />
+                    <i class="fas fa-arrow-right text-gray-400 dark:text-gray-500" />
+                    <input
+                      v-model="mapping.to"
+                      class="form-input flex-1 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                      placeholder="映射后的模型名称"
+                      type="text"
+                    />
                     <button
-                      class="rounded-lg bg-violet-100 px-3 py-1 text-xs text-violet-700 transition-colors hover:bg-violet-200 dark:bg-violet-900/30 dark:text-violet-400 dark:hover:bg-violet-900/50"
+                      class="rounded-lg p-2 text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-900/20"
                       type="button"
-                      @click="addPresetMapping('claude-opus-4-6', 'claude-opus-4-6')"
+                      @click="removeModelMapping(index)"
                     >
-                      + Opus 4.6
-                    </button>
-                    <button
-                      class="rounded-lg bg-blue-100 px-3 py-1 text-xs text-blue-700 transition-colors hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50"
-                      type="button"
-                      @click="
-                        addPresetMapping('claude-opus-4-5-20251101', 'claude-opus-4-5-20251101')
-                      "
-                    >
-                      + Opus 4.5
-                    </button>
-                    <button
-                      class="rounded-lg bg-indigo-100 px-3 py-1 text-xs text-indigo-700 transition-colors hover:bg-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400 dark:hover:bg-indigo-900/50"
-                      type="button"
-                      @click="
-                        addPresetMapping('claude-sonnet-4-5-20250929', 'claude-sonnet-4-5-20250929')
-                      "
-                    >
-                      + Sonnet 4.5
-                    </button>
-                    <button
-                      class="rounded-lg bg-emerald-100 px-3 py-1 text-xs text-emerald-700 transition-colors hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:hover:bg-emerald-900/50"
-                      type="button"
-                      @click="
-                        addPresetMapping('claude-haiku-4-5-20251001', 'claude-haiku-4-5-20251001')
-                      "
-                    >
-                      + Haiku 4.5
-                    </button>
-                    <button
-                      class="rounded-lg bg-cyan-100 px-3 py-1 text-xs text-cyan-700 transition-colors hover:bg-cyan-200 dark:bg-cyan-900/30 dark:text-cyan-400 dark:hover:bg-cyan-900/50"
-                      type="button"
-                      @click="addPresetMapping('deepseek-chat', 'deepseek-chat')"
-                    >
-                      + DeepSeek
-                    </button>
-                    <button
-                      class="rounded-lg bg-orange-100 px-3 py-1 text-xs text-orange-700 transition-colors hover:bg-orange-200 dark:bg-orange-900/30 dark:text-orange-400 dark:hover:bg-orange-900/50"
-                      type="button"
-                      @click="addPresetMapping('Qwen', 'Qwen')"
-                    >
-                      + Qwen
-                    </button>
-                    <button
-                      class="rounded-lg bg-pink-100 px-3 py-1 text-xs text-pink-700 transition-colors hover:bg-pink-200 dark:bg-pink-900/30 dark:text-pink-400 dark:hover:bg-pink-900/50"
-                      type="button"
-                      @click="addPresetMapping('Kimi', 'Kimi')"
-                    >
-                      + Kimi
-                    </button>
-                    <button
-                      class="rounded-lg bg-teal-100 px-3 py-1 text-xs text-teal-700 transition-colors hover:bg-teal-200 dark:bg-teal-900/30 dark:text-teal-400 dark:hover:bg-teal-900/50"
-                      type="button"
-                      @click="addPresetMapping('GLM', 'GLM')"
-                    >
-                      + GLM
-                    </button>
-                    <button
-                      class="rounded-lg bg-amber-100 px-3 py-1 text-xs text-amber-700 transition-colors hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:hover:bg-amber-900/50"
-                      type="button"
-                      @click="
-                        addPresetMapping('claude-opus-4-1-20250805', 'claude-sonnet-4-20250514')
-                      "
-                    >
-                      + Opus → Sonnet
+                      <i class="fas fa-trash" />
                     </button>
                   </div>
+                </div>
+
+                <!-- 添加映射按钮 -->
+                <button
+                  class="w-full rounded-lg border-2 border-dashed border-gray-300 px-4 py-2 text-gray-600 transition-colors hover:border-gray-400 hover:text-gray-700 dark:border-gray-600 dark:text-gray-400 dark:hover:border-gray-500 dark:hover:text-gray-300"
+                  type="button"
+                  @click="addModelMapping"
+                >
+                  <i class="fas fa-plus mr-2" />
+                  添加模型映射
+                </button>
+
+                <!-- 快捷添加按钮 -->
+                <div class="mt-3 flex flex-wrap gap-2">
+                  <button
+                    class="rounded-lg bg-violet-100 px-3 py-1 text-xs text-violet-700 transition-colors hover:bg-violet-200 dark:bg-violet-900/30 dark:text-violet-400 dark:hover:bg-violet-900/50"
+                    type="button"
+                    @click="addPresetMapping('claude-opus-4-6', 'claude-opus-4-6')"
+                  >
+                    + Opus 4.6
+                  </button>
+                  <button
+                    class="rounded-lg bg-blue-100 px-3 py-1 text-xs text-blue-700 transition-colors hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50"
+                    type="button"
+                    @click="
+                      addPresetMapping('claude-opus-4-5-20251101', 'claude-opus-4-5-20251101')
+                    "
+                  >
+                    + Opus 4.5
+                  </button>
+                  <button
+                    class="rounded-lg bg-indigo-100 px-3 py-1 text-xs text-indigo-700 transition-colors hover:bg-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400 dark:hover:bg-indigo-900/50"
+                    type="button"
+                    @click="
+                      addPresetMapping('claude-sonnet-4-5-20250929', 'claude-sonnet-4-5-20250929')
+                    "
+                  >
+                    + Sonnet 4.5
+                  </button>
+                  <button
+                    class="rounded-lg bg-emerald-100 px-3 py-1 text-xs text-emerald-700 transition-colors hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:hover:bg-emerald-900/50"
+                    type="button"
+                    @click="
+                      addPresetMapping('claude-haiku-4-5-20251001', 'claude-haiku-4-5-20251001')
+                    "
+                  >
+                    + Haiku 4.5
+                  </button>
+                  <button
+                    class="rounded-lg bg-cyan-100 px-3 py-1 text-xs text-cyan-700 transition-colors hover:bg-cyan-200 dark:bg-cyan-900/30 dark:text-cyan-400 dark:hover:bg-cyan-900/50"
+                    type="button"
+                    @click="addPresetMapping('deepseek-chat', 'deepseek-chat')"
+                  >
+                    + DeepSeek
+                  </button>
+                  <button
+                    class="rounded-lg bg-orange-100 px-3 py-1 text-xs text-orange-700 transition-colors hover:bg-orange-200 dark:bg-orange-900/30 dark:text-orange-400 dark:hover:bg-orange-900/50"
+                    type="button"
+                    @click="addPresetMapping('Qwen', 'Qwen')"
+                  >
+                    + Qwen
+                  </button>
+                  <button
+                    class="rounded-lg bg-pink-100 px-3 py-1 text-xs text-pink-700 transition-colors hover:bg-pink-200 dark:bg-pink-900/30 dark:text-pink-400 dark:hover:bg-pink-900/50"
+                    type="button"
+                    @click="addPresetMapping('Kimi', 'Kimi')"
+                  >
+                    + Kimi
+                  </button>
+                  <button
+                    class="rounded-lg bg-teal-100 px-3 py-1 text-xs text-teal-700 transition-colors hover:bg-teal-200 dark:bg-teal-900/30 dark:text-teal-400 dark:hover:bg-teal-900/50"
+                    type="button"
+                    @click="addPresetMapping('GLM', 'GLM')"
+                  >
+                    + GLM
+                  </button>
+                  <button
+                    class="rounded-lg bg-amber-100 px-3 py-1 text-xs text-amber-700 transition-colors hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:hover:bg-amber-900/50"
+                    type="button"
+                    @click="
+                      addPresetMapping('claude-opus-4-1-20250805', 'claude-sonnet-4-20250514')
+                    "
+                  >
+                    + Opus → Sonnet
+                  </button>
                 </div>
               </div>
 
@@ -2166,12 +2093,7 @@
               </div>
 
               <!-- OpenAI / OpenAI-Responses：Claude 桥接开关 -->
-              <div
-                v-if="
-                  form.platform !== 'openai' &&
-                  form.platform !== 'openai-responses'
-                "
-              >
+              <div v-if="form.platform !== 'openai' && form.platform !== 'openai-responses'">
                 <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
                   >Refresh Token (可选)</label
                 >
@@ -4487,9 +4409,8 @@ const buildClaudeTempUnavailablePolicyPayload = () => ({
   )
 })
 
-// 模型限制配置
-const modelRestrictionMode = ref('whitelist') // 'whitelist' 或 'mapping'
-const allowedModels = ref([]) // 白名单模式下选中的模型列表，初始化为空
+// 模型映射表数据（统一使用映射表格式）
+const modelMappings = ref([])
 
 // 常用模型列表（从 API 获取）
 const commonModels = ref([])
@@ -4506,82 +4427,29 @@ const loadCommonModels = async () => {
   }
 }
 
-// 模型映射表数据
-const modelMappings = ref([])
-
 // 初始化模型映射表
 const initModelMappings = () => {
-  // 优先使用supportedModels字段（更通用且避免watch重置问题）
+  // 统一使用映射表格式
   if (props.account?.supportedModels) {
-    // 如果是对象格式（新的映射表）
+    // 如果是对象格式（映射表）
     if (
       typeof props.account.supportedModels === 'object' &&
       !Array.isArray(props.account.supportedModels)
     ) {
       const entries = Object.entries(props.account.supportedModels)
-      console.log('🔍 [DEBUG] 初始化 - supportedModels数据:', {
-        supportedModels: props.account.supportedModels,
-        entries: entries
-      })
-
-      // 判断是白名单模式还是映射模式
-      const isEmptyObject = entries.length === 0
-      const isWhitelist =
-        !isEmptyObject &&
-        entries.every(([from, to]) => from !== '*' && (from === to || to === '<keep>'))
-      console.log('🔍 [DEBUG] 初始化 - 模式判断:', {
-        isEmptyObject,
-        isWhitelist,
-        length: entries.length
-      })
-
-      if (isWhitelist) {
-        modelRestrictionMode.value = 'whitelist'
-        // 白名单模式：设置 allowedModels（显示勾选的模型）
-        allowedModels.value = entries.map(([from]) => from)
-        // 同时保留 modelMappings（以便用户切换到映射模式时有初始数据）
-        modelMappings.value = entries.map(([from, to]) => ({ from, to }))
-        console.log('🔍 [DEBUG] 初始化 - 白名单模式:', {
-          allowedModels: allowedModels.value,
-          modelMappings: modelMappings.value
-        })
-      } else {
-        modelRestrictionMode.value = 'mapping'
-        // 映射模式：设置 modelMappings（显示映射表）
-        modelMappings.value = entries.map(([from, to]) => ({ from, to }))
-        // 不填充 allowedModels，因为映射模式不使用白名单复选框
-        console.log('🔍 [DEBUG] 初始化 - 映射模式:', {
-          modelMappings: modelMappings.value
-        })
-      }
+      modelMappings.value = entries.map(([from, to]) => ({ from, to }))
+      console.log('🔍 [DEBUG] 初始化模型映射:', modelMappings.value)
     } else if (Array.isArray(props.account.supportedModels)) {
-      // 如果是数组格式（旧格式），转换为白名单模式
-      modelRestrictionMode.value = 'whitelist'
-      allowedModels.value = props.account.supportedModels
-      // 同时设置 modelMappings 为自映射
+      // 如果是数组格式（旧格式），转换为映射表（默认<keep>）
       modelMappings.value = props.account.supportedModels.map((model) => ({
         from: model,
         to: '<keep>'
       }))
+      console.log('🔍 [DEBUG] 转换旧格式数组为映射表:', modelMappings.value)
     }
   } else {
-    // 没有supportedModels数据时，根据账户类型设置合理的默认值
-    if (props.account?.platform === 'openai-responses' || props.account?.platform === 'openai') {
-      // OpenAI类型账户默认使用映射模式
-      modelRestrictionMode.value = 'mapping'
-      modelMappings.value = []
-      allowedModels.value = [] // 清��白名单
-    } else {
-      // 其他账户（Claude Console等）默认使用白名单模式
-      modelRestrictionMode.value = 'whitelist'
-      allowedModels.value = [
-        // 默认勾选所有 Sonnet 和 Haiku 模型
-        'claude-sonnet-4-20250514',
-        'claude-sonnet-4-5-20250929',
-        'claude-3-5-haiku-20241022'
-      ]
-      modelMappings.value = []
-    }
+    // 没有数据时，初始化为空数组
+    modelMappings.value = []
   }
 }
 
@@ -6487,33 +6355,19 @@ const addPresetMapping = (from, to) => {
   showToast(`已添加映射: ${from} → ${to}`, 'success')
 }
 
-// 将模型映射表转换为对象格式（根据当前模式）
+// 将模型映射表转换为对象格式
 const convertMappingsToObject = () => {
   const mapping = {}
-
-  if (modelRestrictionMode.value === 'whitelist') {
-    // 白名单模式：将选中的模型映射为保留原模型
-    allowedModels.value.forEach((model) => {
-      mapping[model] = '<keep>'
-    })
-    console.log('🔍 [DEBUG] 白名单模式转换:', {
-      allowedModels: allowedModels.value,
-      result: mapping
-    })
-  } else {
-    // 映射模式：使用手动配置的映射表
-    modelMappings.value.forEach((item) => {
-      if (item.from && item.to) {
-        mapping[item.from] = item.to
-      }
-    })
-    console.log('🔍 [DEBUG] 映射模式转换:', {
-      modelMappings: modelMappings.value,
-      result: mapping
-    })
-  }
-
-  return mapping // 始终返回对象（即使为空），与Claude Console保持一致
+  modelMappings.value.forEach((item) => {
+    if (item.from && item.to) {
+      mapping[item.from] = item.to
+    }
+  })
+  console.log('🔍 [DEBUG] 映射表转换:', {
+    modelMappings: modelMappings.value,
+    result: mapping
+  })
+  return mapping // 始终返回对象（即使为空）
 }
 
 // 监听账户变化，更新表单
@@ -6702,6 +6556,9 @@ watch(
           form.value.groupIds = foundGroupIds
         })
       }
+
+      // 初始化模型映射表（确保与账户数据同步）
+      initModelMappings()
     }
   },
   { immediate: true }
