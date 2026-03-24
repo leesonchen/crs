@@ -200,30 +200,41 @@ router.get('/accounts/usage-stats', authenticateAdmin, async (req, res) => {
 })
 
 // 📋 获取使用明细列表（使用详细记录数据）
+// 支持过滤参数：apiKey、account、model、clientIP
+// 支持分页数量：默认50，可选200/1000
 router.get('/usage-details', authenticateAdmin, async (req, res) => {
   try {
-    const { limit = 200, apiKeyId } = req.query
+    const { apiKeyId, apiKey, account, model, clientIP, limit = 50 } = req.query
 
-    logger.info(`📋 Fetching usage details: limit=${limit}, apiKeyId=${apiKeyId || 'all'}`)
+    // 验证 limit 值，只允许 50/200/1000
+    const allowedLimits = [50, 200, 1000]
+    const parsedLimit = parseInt(limit)
+    const validLimit = allowedLimits.includes(parsedLimit) ? parsedLimit : 50
+
+    logger.info(
+      `📋 Fetching usage details: limit=${validLimit}, apiKeyId=${apiKeyId || 'all'}, filters=${JSON.stringify({ apiKey, account, model, clientIP })}`
+    )
 
     // 如果指定了 apiKeyId，只查询该 key 的记录
     if (apiKeyId) {
-      const records = await redis.getUsageRecords(apiKeyId, parseInt(limit))
+      // 使用更大的查询数量以便过滤后仍有足够记录
+      const fetchCount = Math.max(validLimit * 3, 200)
+      const records = await redis.getUsageRecords(apiKeyId, fetchCount)
 
       // 获取 API Key 名称
       let apiKeyName = apiKeyId
       try {
-        const apiKey = await apiKeyService.getApiKeyById(apiKeyId)
-        if (apiKey) {
-          apiKeyName = apiKey.name || apiKeyId
+        const apiKeyData = await apiKeyService.getApiKeyById(apiKeyId)
+        if (apiKeyData) {
+          apiKeyName = apiKeyData.name || apiKeyId
         }
       } catch (e) {
         // 忽略错误
       }
 
-      // 格式化返回数据
-      const formattedRecords = records.map((record) => ({
-        timestamp: record.timestamp, // ISO 8601 格式: 2025-10-05T18:23:45.123Z
+      // 格式化记录
+      let formattedRecords = records.map((record) => ({
+        timestamp: record.timestamp,
         apiKey: apiKeyName,
         apiKeyId,
         account: record.accountId || 'N/A',
@@ -236,15 +247,25 @@ router.get('/usage-details', authenticateAdmin, async (req, res) => {
         totalTokens: record.totalTokens,
         cost: record.cost ? `$${record.cost.toFixed(6)}` : '$0.000000',
         costValue: record.cost || 0,
-        requests: 1 // 单次请求
+        requests: 1
       }))
+
+      // 应用过滤条件
+      formattedRecords = applyFilters(formattedRecords, { apiKey, account, model, clientIP })
+
+      // 按时间倒序排序
+      formattedRecords.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+
+      // 取前 limit 条
+      const limitedRecords = formattedRecords.slice(0, validLimit)
 
       return res.json({
         success: true,
         data: {
-          records: formattedRecords,
-          total: formattedRecords.length,
-          apiKeyId
+          records: limitedRecords,
+          total: limitedRecords.length,
+          filters: { apiKey, account, model, clientIP },
+          limit: validLimit
         }
       })
     }
@@ -253,8 +274,11 @@ router.get('/usage-details', authenticateAdmin, async (req, res) => {
     const allKeys = await apiKeyService.getAllApiKeys()
     const allRecords = []
 
+    // 根据分页数量决定每个key取多少条
+    const perKeyLimit = validLimit >= 1000 ? 100 : validLimit >= 200 ? 50 : 30
+
     for (const key of allKeys) {
-      const records = await redis.getUsageRecords(key.id, 50) // 每个key取50条
+      const records = await redis.getUsageRecords(key.id, perKeyLimit)
 
       records.forEach((record) => {
         allRecords.push({
@@ -276,17 +300,22 @@ router.get('/usage-details', authenticateAdmin, async (req, res) => {
       })
     }
 
+    // 应用过滤条件
+    let filteredRecords = applyFilters(allRecords, { apiKey, account, model, clientIP })
+
     // 按时间倒序排序
-    allRecords.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+    filteredRecords.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
 
     // 取前 limit 条
-    const limitedRecords = allRecords.slice(0, parseInt(limit))
+    const limitedRecords = filteredRecords.slice(0, validLimit)
 
     return res.json({
       success: true,
       data: {
         records: limitedRecords,
-        total: limitedRecords.length
+        total: limitedRecords.length,
+        filters: { apiKey, account, model, clientIP },
+        limit: validLimit
       }
     })
   } catch (error) {
@@ -297,6 +326,52 @@ router.get('/usage-details', authenticateAdmin, async (req, res) => {
     })
   }
 })
+
+// 辅助函数：应用过滤条件
+function applyFilters(records, filters) {
+  const { apiKey, account, model, clientIP } = filters
+
+  return records.filter((record) => {
+    // API Key 过滤（支持模糊匹配）
+    if (apiKey && apiKey.trim()) {
+      const searchTerm = apiKey.trim().toLowerCase()
+      const recordApiKey = (record.apiKey || '').toLowerCase()
+      const recordApiKeyId = (record.apiKeyId || '').toLowerCase()
+      if (!recordApiKey.includes(searchTerm) && !recordApiKeyId.includes(searchTerm)) {
+        return false
+      }
+    }
+
+    // 账户过滤
+    if (account && account.trim()) {
+      const searchTerm = account.trim().toLowerCase()
+      const recordAccount = (record.account || '').toLowerCase()
+      if (!recordAccount.includes(searchTerm)) {
+        return false
+      }
+    }
+
+    // 模型过滤
+    if (model && model.trim()) {
+      const searchTerm = model.trim().toLowerCase()
+      const recordModel = (record.model || '').toLowerCase()
+      if (!recordModel.includes(searchTerm)) {
+        return false
+      }
+    }
+
+    // 客户端IP过滤
+    if (clientIP && clientIP.trim()) {
+      const searchTerm = clientIP.trim().toLowerCase()
+      const recordIP = (record.clientIP || '').toLowerCase()
+      if (!recordIP.includes(searchTerm)) {
+        return false
+      }
+    }
+
+    return true
+  })
+}
 
 // 获取单个账户的使用统计
 router.get('/accounts/:accountId/usage-stats', authenticateAdmin, async (req, res) => {

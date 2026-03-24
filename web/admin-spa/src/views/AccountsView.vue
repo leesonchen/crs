@@ -3470,12 +3470,24 @@ const importAccounts = async () => {
   } else if (importData.data && Array.isArray(importData.data.accounts)) {
     accountsToImport = importData.data.accounts
   } else if (importData.data && Array.isArray(importData.data.claudeAccounts)) {
-    // 处理导出格式
+    // 处理带 data 包装的导出格式
     const data = importData.data
     const claudeAccounts = data.claudeAccounts || []
     const claudeConsoleAccounts = data.claudeConsoleAccounts || []
     const openaiOAuthAccounts = data.openaiOAuthAccounts || []
     const openaiResponsesAccounts = data.openaiResponsesAccounts || []
+    accountsToImport = [
+      ...claudeAccounts,
+      ...claudeConsoleAccounts,
+      ...openaiOAuthAccounts,
+      ...openaiResponsesAccounts
+    ]
+  } else if (Array.isArray(importData.claudeAccounts)) {
+    // 处理直接导出格式（无 data 包装）
+    const claudeAccounts = importData.claudeAccounts || []
+    const claudeConsoleAccounts = importData.claudeConsoleAccounts || []
+    const openaiOAuthAccounts = importData.openaiOAuthAccounts || []
+    const openaiResponsesAccounts = importData.openaiResponsesAccounts || []
     accountsToImport = [
       ...claudeAccounts,
       ...claudeConsoleAccounts,

@@ -781,13 +781,81 @@
             <i class="fas fa-list-ul mr-2 text-blue-600" />
             调用明细
           </h3>
+          <div class="flex flex-wrap items-center gap-2">
+            <!-- 分页数量选择 -->
+            <select
+              v-model="detailsLimit"
+              class="rounded-md border border-gray-300 bg-white px-2 py-1 text-sm text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300"
+              @change="loadUsageDetails()"
+            >
+              <option :value="50">50条</option>
+              <option :value="200">200条</option>
+              <option :value="1000">1000条</option>
+            </select>
+            <button
+              class="flex items-center gap-1 rounded-md border border-gray-300 bg-white px-3 py-1 text-sm font-medium text-blue-600 shadow-sm transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700"
+              :disabled="loadingDetails"
+              @click="loadUsageDetails()"
+            >
+              <i :class="['fas fa-sync-alt text-xs', { 'animate-spin': loadingDetails }]" />
+              刷新
+            </button>
+          </div>
+        </div>
+
+        <!-- 过滤搜索栏 -->
+        <div class="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
+          <div class="relative">
+            <input
+              v-model="filterApiKey"
+              class="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
+              placeholder="API Key"
+              type="text"
+              @keyup.enter="loadUsageDetails()"
+            />
+          </div>
+          <div class="relative">
+            <input
+              v-model="filterAccount"
+              class="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
+              placeholder="账户"
+              type="text"
+              @keyup.enter="loadUsageDetails()"
+            />
+          </div>
+          <div class="relative">
+            <input
+              v-model="filterModel"
+              class="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
+              placeholder="模型"
+              type="text"
+              @keyup.enter="loadUsageDetails()"
+            />
+          </div>
+          <div class="relative">
+            <input
+              v-model="filterClientIP"
+              class="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
+              placeholder="客户端IP"
+              type="text"
+              @keyup.enter="loadUsageDetails()"
+            />
+          </div>
+        </div>
+        <div class="mb-4 flex items-center gap-2">
           <button
-            class="flex items-center gap-1 rounded-md border border-gray-300 bg-white px-3 py-1 text-sm font-medium text-blue-600 shadow-sm transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700"
+            class="rounded-md bg-blue-600 px-3 py-1 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             :disabled="loadingDetails"
             @click="loadUsageDetails()"
           >
-            <i :class="['fas fa-sync-alt text-xs', { 'animate-spin': loadingDetails }]" />
-            刷新
+            <i class="fas fa-search mr-1" />
+            搜索
+          </button>
+          <button
+            class="rounded-md border border-gray-300 bg-white px-3 py-1 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+            @click="clearFilters"
+          >
+            清空
           </button>
         </div>
 
@@ -910,6 +978,9 @@
           <!-- 记录数提示 -->
           <div class="mt-3 text-sm text-gray-600 dark:text-gray-400">
             显示最近 {{ usageDetails.length }} 条调用记录
+            <span v-if="hasActiveFilters" class="ml-2 text-blue-600 dark:text-blue-400">
+              (已过滤)
+            </span>
           </div>
         </div>
 
@@ -1902,12 +1973,52 @@ watch(isDarkMode, () => {
 // 使用明细相关
 const usageDetails = ref([])
 const loadingDetails = ref(false)
+const detailsLimit = ref(50) // 默认50条
+const filterApiKey = ref('')
+const filterAccount = ref('')
+const filterModel = ref('')
+const filterClientIP = ref('')
 
-// 加载使用明细（最近200条）
+// 是否有激活的过滤条件
+const hasActiveFilters = computed(() => {
+  return (
+    filterApiKey.value.trim() ||
+    filterAccount.value.trim() ||
+    filterModel.value.trim() ||
+    filterClientIP.value.trim()
+  )
+})
+
+// 清空过滤条件
+const clearFilters = () => {
+  filterApiKey.value = ''
+  filterAccount.value = ''
+  filterModel.value = ''
+  filterClientIP.value = ''
+  loadUsageDetails()
+}
+
+// 加载使用明细
 const loadUsageDetails = async () => {
   loadingDetails.value = true
   try {
-    const response = await getUsageDetailsApi({ limit: 200 })
+    const params = { limit: detailsLimit.value }
+
+    // 添加过滤参数
+    if (filterApiKey.value.trim()) {
+      params.apiKey = filterApiKey.value.trim()
+    }
+    if (filterAccount.value.trim()) {
+      params.account = filterAccount.value.trim()
+    }
+    if (filterModel.value.trim()) {
+      params.model = filterModel.value.trim()
+    }
+    if (filterClientIP.value.trim()) {
+      params.clientIP = filterClientIP.value.trim()
+    }
+
+    const response = await getUsageDetailsApi(params)
     if (response?.success) {
       usageDetails.value = response.data?.records || []
     } else {
